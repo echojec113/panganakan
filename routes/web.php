@@ -35,6 +35,10 @@ Route::middleware('auth')->group(function () {
     ->name('ultrasound.edit');
     Route::post('/patients/{id}/deliver', [PatientController::class, 'markDelivered'])
     ->name('patients.deliver');
+    Route::post('/patients/{id}/download', [PatientController::class, 'download'])
+    ->name('patients.download');
+    Route::post('/patients/babies/{id}', [PatientController::class, 'updateBaby'])
+    ->name('patients.update-baby');
     Route::get('/patients/delivered', [PatientController::class, 'delivered'])
     ->name('patients.delivered');
     Route::resource('staff', StaffController::class)->except(['show']);

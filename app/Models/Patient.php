@@ -51,6 +51,7 @@ class Patient extends Model
                 // permanent delete
                 $patient->prenatalVisits()->forceDelete();
                 $patient->ultrasounds()->forceDelete();
+                $patient->babies()->forceDelete();
 
                 if ($patient->birthPlan) {
                     $patient->birthPlan->forceDelete();
@@ -64,6 +65,7 @@ class Patient extends Model
                 // soft delete
                 $patient->prenatalVisits()->delete();
                 $patient->ultrasounds()->delete();
+                $patient->babies()->delete();
 
                 if ($patient->birthPlan) {
                     $patient->birthPlan->delete();
@@ -79,6 +81,7 @@ class Patient extends Model
         static::restoring(function ($patient) {
     $patient->prenatalVisits()->withTrashed()->restore();
     $patient->ultrasounds()->withTrashed()->restore();
+    $patient->babies()->withTrashed()->restore();
 
     $patient->birthPlan()->withTrashed()->restore();
     $patient->medicalHistory()->withTrashed()->restore();
@@ -106,4 +109,8 @@ class Patient extends Model
 {
     return $this->hasOne(BirthPlan::class);
 }
+    public function babies()
+    {
+        return $this->hasMany(Baby::class);
+    }
 }

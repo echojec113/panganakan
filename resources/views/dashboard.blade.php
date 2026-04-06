@@ -6,7 +6,9 @@
     <div class="p-6 border-b border-gray-200 flex-shrink-0">
         <div class="flex items-center justify-between">
             <a href="{{ route('dashboard') }}" class="flex items-center gap-3">
-                <span class="text-3xl">🤰</span>
+                <img src="{{ asset('images/logo.png') }}" 
+     alt="Depla Logo" 
+     class="w-12 h-12 object-contain">
                 <div>
                     <h1 class="text-xl font-bold text-blue-600">Depla</h1>
                     <p class="text-xs text-gray-500">Maternity Clinic</p>

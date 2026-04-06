@@ -51,6 +51,7 @@
                                 <tr>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Patient</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Delivery Date</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Babies</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
                                 </tr>
@@ -63,6 +64,27 @@
                                         </td>
                                         <td class="px-4 py-4 text-sm text-gray-700">
                                             {{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}
+                                        </td>
+                                        <td class="px-4 py-4 text-sm text-gray-700">
+                                            @if($patient->babies->count() > 0)
+                                                <div class="space-y-1">
+                                                    @foreach($patient->babies as $baby)
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full">
+                                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                                                </svg>
+                                                                {{ $baby->full_name }}
+                                                                @if($baby->sex)
+                                                                    <span class="text-gray-500">({{ $baby->sex }})</span>
+                                                                @endif
+                                                            </span>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @else
+                                                <span class="text-gray-400 text-xs">No baby records</span>
+                                            @endif
                                         </td>
                                         <td class="px-4 py-4 text-sm">
                                             <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">Delivered</span>
