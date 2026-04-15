@@ -1,13 +1,5 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="mb-6">
-            <a href="{{ route('dashboard') }}" class="inline-flex items-center text-gray-600 hover:text-blue-600 transition group">
-                <svg class="w-5 h-5 mr-2 group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-                Back to Dashboard
-            </a>
-        </div>
+    
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="border-b border-gray-100 px-6 py-5 bg-gray-50">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -53,7 +45,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Delivery Date</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Babies</th>
                                     <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -89,14 +81,12 @@
                                         <td class="px-4 py-4 text-sm">
                                             <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">Delivered</span>
                                         </td>
-                                        <td class="px-4 py-4 text-sm">
-                                            <a href="{{ route('patients.show', ['patient' => $patient->id, 'from' => 'delivered-patients']) }}" class="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m0 0l3-3m-3 3l3 3"></path>
-                                                </svg>
-                                                View
-                                            </a>
-                                        </td>
+                                        <td class="px-4 py-4 text-sm text-right">
+    <div class="flex justify-end">
+        <x-action-buttons 
+            :viewRoute="route('patients.show', ['patient' => $patient->id, 'from' => 'delivered-patients'])" />
+    </div>
+</td>
                                     </tr>
                                 @endforeach
                             </tbody>

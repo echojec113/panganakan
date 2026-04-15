@@ -131,9 +131,8 @@ class DashboardController extends Controller
 
         $today = Carbon::today();
         $patientsToday = PrenatalVisit::whereDate('visit_date', $today)->count();
-        $appointmentsToday = PrenatalVisit::whereDate('visit_date', $today)
-            ->where('status', 'SCHEDULED')->count();
-        $pendingCheckups = PrenatalVisit::where('status', 'PENDING')->count();
+        $appointmentsToday = PrenatalVisit::whereDate('visit_date', $today)->count();
+        $pendingCheckups = PrenatalVisit::whereNull('next_visit_date')->count();
 
         // ======================
         // HIGH RISK ALERTS
@@ -159,9 +158,9 @@ class DashboardController extends Controller
         // ======================
 
         $followUpTasks = PrenatalVisit::with('patient')
-            ->where('status', 'FOLLOW_UP')
-            ->orWhere('follow_up_required', 1)
-            ->latest()
+            ->whereNotNull('next_visit_date')
+            ->where('next_visit_date', '>', Carbon::today())
+            ->orderBy('next_visit_date')
             ->take(8)
             ->get();
 

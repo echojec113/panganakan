@@ -1,13 +1,6 @@
 <x-app-layout>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        <div class="mb-4">
-    <a href="{{ route('dashboard') }}" class="inline-flex items-center text-gray-600 hover:text-blue-600 transition group">
-        <svg class="w-4 h-4 mr-1 group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-        </svg>
-        Back to Dashboard
-    </a>
-</div>
+        
 
         <!-- Header with Actions -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -128,15 +121,12 @@
                         <div><span class="font-medium">Weight:</span> {{ $visit->weight }} kg</div>
                         <div><span class="font-medium">GA:</span> {{ $visit->gestational_age }} wks</div>
                     </div>
-                    <div class="flex gap-3 pt-2 border-t border-gray-100">
-                        <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-blue-600 text-sm hover:text-blue-800">Edit</a>
-                        <form action="{{ route('prenatal-visits.destroy', $visit->id) }}" method="POST" class="inline delete-form">
-                            @csrf
-                            @method('DELETE')
-                            <button type="button" class="delete-visit-btn text-red-600 text-sm hover:text-red-800">Delete</button>
-                        </form>
-                        <a href="{{ route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits']) }}" class="text-green-600 text-sm hover:text-green-800">View Patient</a>
-                    </div>
+                    <td class="px-6 py-4">
+                                <x-action-buttons 
+                                    :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits'])"
+                                    :editRoute="route('prenatal-visits.edit', $visit->id)"
+                                    :deleteRoute="route('prenatal-visits.destroy', $visit->id)" />
+                            </td>
                 </div>
                 @empty
                 <div class="p-8 text-center text-gray-500">
@@ -186,16 +176,11 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-sm">{{ $visit->next_visit_date ? \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') : '-' }}</td>
-                            <td class="px-6 py-4 text-sm">
-                                <div class="flex space-x-3">
-                                    <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-blue-600 hover:text-blue-800">Edit</a>
-                                    <form action="{{ route('prenatal-visits.destroy', $visit->id) }}" method="POST" class="inline delete-form">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="button" class="delete-visit-btn text-red-600 hover:text-red-800">Delete</button>
-                                    </form>
-                                    <a href="{{ route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits']) }}" class="text-green-600 hover:text-green-800">View</a>
-                                </div>
+                            <td class="px-6 py-4">
+                                <x-action-buttons 
+                                    :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits'])"
+                                    :editRoute="route('prenatal-visits.edit', $visit->id)"
+                                    :deleteRoute="route('prenatal-visits.destroy', $visit->id)" />
                             </td>
                         </tr>
                         @endforeach

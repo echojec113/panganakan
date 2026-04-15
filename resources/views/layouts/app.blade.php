@@ -17,11 +17,10 @@
         :root {
             --sidebar-width: 258px;
 
-            /* Exact palette from the login page */
-            --bg-login:     #dce8f8;   /* login left-panel background */
-            --bg-base:      #eef4fc;   /* main content area */
-            --blue-accent:  #2563eb;   /* sign-in button, links */
-            --blue-deep:    #1a3d6e;   /* heading text */
+            --bg-login:     #dce8f8;
+            --bg-base:      #eef4fc;
+            --blue-accent:  #2563eb;
+            --blue-deep:    #1a3d6e;
             --blue-mid:     #4a7fd4;
             --blue-light:   #c5d9f5;
             --border:       #d0e2f5;
@@ -45,15 +44,15 @@
         ══════════════════════════ */
         .sidebar {
             width: var(--sidebar-width);
-            /* Light blue gradient — matches the login page left panel */
             background: linear-gradient(175deg, #dce8f8 0%, #d0e4f7 35%, #c5dff5 100%);
             display: flex;
             flex-direction: column;
             position: fixed;
             top: 0; left: 0; bottom: 0;
-            z-index: 100;
+            z-index: 200;
             border-right: 1px solid rgba(37,99,235,0.18);
             box-shadow: 4px 0 20px rgba(30,70,140,0.11);
+            transition: transform 0.3s ease;
         }
 
         /* ── Brand ── */
@@ -64,6 +63,7 @@
             align-items: center;
             gap: 14px;
             background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 100%);
+            position: relative;
         }
 
         .sidebar-logo {
@@ -75,9 +75,7 @@
             transition: transform 0.3s ease;
         }
 
-        .sidebar-logo:hover {
-            transform: scale(1.05);
-        }
+        .sidebar-logo:hover { transform: scale(1.05); }
 
         .sidebar-brand-text h1 {
             font-family: 'Lora', serif;
@@ -95,6 +93,30 @@
             text-transform: uppercase;
             margin-top: 2px;
             font-weight: 600;
+        }
+
+        /* ── Mobile close button inside sidebar ── */
+        .sidebar-close-btn {
+            display: none;
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: rgba(37,99,235,0.12);
+            border: 1px solid rgba(37,99,235,0.2);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            color: var(--blue-deep);
+            font-size: 18px;
+            line-height: 1;
+            transition: background 0.17s;
+        }
+
+        .sidebar-close-btn:hover {
+            background: rgba(37,99,235,0.22);
         }
 
         /* ── Nav label ── */
@@ -202,6 +224,24 @@
         }
 
         /* ══════════════════════════
+           OVERLAY BACKDROP (mobile)
+        ══════════════════════════ */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 30, 60, 0.45);
+            z-index: 150;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* ══════════════════════════
            MAIN WRAPPER
         ══════════════════════════ */
         .main-wrapper {
@@ -229,7 +269,50 @@
             box-shadow: 0 1px 10px rgba(30,70,140,0.06);
         }
 
-        .topbar-left { display: flex; align-items: center; }
+        .topbar-left { display: flex; align-items: center; gap: 12px; }
+
+        /* ── Hamburger button ── */
+        .hamburger-btn {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: var(--bg-base);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.17s;
+            flex-shrink: 0;
+        }
+
+        .hamburger-btn:hover {
+            background: #dce8fb;
+            border-color: var(--blue-accent);
+        }
+
+        .hamburger-btn span {
+            display: block;
+            width: 18px;
+            height: 2px;
+            background: var(--blue-deep);
+            border-radius: 2px;
+            transition: all 0.25s ease;
+        }
+
+        /* Animate to X when open */
+        .hamburger-btn.open span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+        .hamburger-btn.open span:nth-child(2) {
+            opacity: 0;
+            transform: scaleX(0);
+        }
+        .hamburger-btn.open span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
 
         .page-title {
             font-size: 17px;
@@ -368,17 +451,175 @@
            RESPONSIVE
         ══════════════════════════ */
         @media (max-width: 768px) {
-            :root { --sidebar-width: 0px; }
-            .sidebar { transform: translateX(-258px); width: 258px; transition: transform 0.3s; }
-            .sidebar.open { transform: translateX(0); }
-            .main-wrapper { margin-left: 0; }
-            .page-content { padding: 20px 16px; }
-            .date-chip { display: none; }
+            /* Sidebar hidden by default on mobile */
+            .sidebar {
+                transform: translateX(-258px);
+                width: 258px;
+                z-index: 200;
+            }
+
+            /* Sidebar slides in when .open is added */
+            .sidebar.open {
+                transform: translateX(0);
+                box-shadow: 6px 0 30px rgba(30,70,140,0.22);
+            }
+
+            /* Show close button inside sidebar */
+            .sidebar-close-btn {
+                display: flex;
+            }
+
+            /* Main content takes full width */
+            .main-wrapper {
+                margin-left: 0;
+            }
+
+            /* Show hamburger */
+            .hamburger-btn {
+                display: flex;
+            }
+
+            .page-content {
+                padding: 20px 16px;
+            }
+
+            .date-chip {
+                display: none;
+            }
+
+            /* Hide user name text on very small screens, keep avatar */
+            .user-info {
+                display: none;
+            }
+
+            .user-menu {
+                padding: 5px 7px;
+            }
+
+            /* Shrink logout to icon only on tiny screens */
+            .logout-btn span.logout-text {
+                display: none;
+            }
         }
+
+        @media (max-width: 400px) {
+            .topbar {
+                padding: 0 14px;
+            }
+
+            .page-title {
+                font-size: 15px;
+            }
+        }
+
+        /* ================================
+   RESPONSIVE FIX (LOGIN PAGE)
+================================ */
+
+/* Tablets */
+@media (max-width: 1024px) {
+
+    /* Balance layout better */
+    .lg\:w-\[70\%\] {
+        width: 55% !important;
+    }
+
+    .lg\:w-\[30\%\] {
+        width: 45% !important;
+    }
+
+    /* Reduce padding */
+    .lg\:p-16 {
+        padding: 2rem !important;
+    }
+
+    .p-12 {
+        padding: 2rem !important;
+    }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+
+    /* Stack layout clean */
+    .lg\:flex-row {
+        flex-direction: column !important;
+    }
+
+    /* Full width */
+    .lg\:w-\[70\%\],
+    .lg\:w-\[30\%\] {
+        width: 100% !important;
+    }
+
+    /* Remove big spacing */
+    .p-12,
+    .lg\:p-16 {
+        padding: 1.5rem !important;
+    }
+
+    /* Center everything properly */
+    .login-card {
+        margin: 0 auto;
+    }
+
+    /* Fix logo size */
+    .logo-pulse img {
+        height: 140px !important;
+    }
+
+    /* Inputs spacing */
+    .px-8 {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+
+    .py-8 {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+
+    /* Smaller logo */
+    .logo-pulse img {
+        height: 110px !important;
+    }
+
+    /* Reduce card padding */
+    .px-8 {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    .py-8 {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+
+    /* Button full comfort */
+    button[type="submit"] {
+        font-size: 14px;
+        padding: 12px;
+    }
+
+    /* Fix text overflow */
+    h1 {
+        font-size: 1.8rem !important;
+    }
+}
+
+
+
     </style>
 </head>
 
 <body>
+
+{{-- ===================== OVERLAY ===================== --}}
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 {{-- ===================== SIDEBAR ===================== --}}
 <aside class="sidebar" id="sidebar">
@@ -394,6 +635,11 @@
             <h1>Depla Family Care</h1>
             <p>Maternity &amp; Lying-in</p>
         </div>
+
+        {{-- Close button (mobile only) --}}
+        <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Close sidebar">
+            &times;
+        </button>
     </div>
 
     {{-- Navigation --}}
@@ -450,14 +696,7 @@
 
     </nav>
 
-    {{-- Footer --}}
-    <div class="sidebar-footer">
-        <div class="system-status">
-            <div class="status-dot"></div>
-            System Operational
-        </div>
-    </div>
-
+   
 </aside>
 
 
@@ -468,6 +707,14 @@
     <header class="topbar">
 
         <div class="topbar-left">
+
+            {{-- Hamburger (visible on mobile only) --}}
+            <button class="hamburger-btn" id="hamburgerBtn" aria-label="Open navigation menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
             <div>
                 <div class="page-title">{{ $header ?? 'Dashboard' }}</div>
                 <div class="breadcrumb">
@@ -520,7 +767,7 @@
                         <polyline points="16 17 21 12 16 7"/>
                         <line x1="21" y1="12" x2="9" y2="12"/>
                     </svg>
-                    Logout
+                    <span class="logout-text">Logout</span>
                 </button>
             </form>
 
@@ -535,9 +782,51 @@
 </div>
 
 <script>
+    // Current date
     const d = new Date();
     document.getElementById('current-date').textContent =
         d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+    // Sidebar toggle
+    const sidebar     = document.getElementById('sidebar');
+    const overlay     = document.getElementById('sidebarOverlay');
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const closeBtn    = document.getElementById('sidebarCloseBtn');
+
+    function openSidebar() {
+        sidebar.classList.add('open');
+        overlay.classList.add('active');
+        hamburgerBtn.classList.add('open');
+        document.body.style.overflow = 'hidden'; // prevent background scroll
+    }
+
+    function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+        hamburgerBtn.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    hamburgerBtn.addEventListener('click', () => {
+        sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+    });
+
+    closeBtn.addEventListener('click', closeSidebar);
+    overlay.addEventListener('click', closeSidebar);
+
+    // Close sidebar when a nav link is tapped on mobile
+    document.querySelectorAll('.nav-item').forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 768) closeSidebar();
+        });
+    });
+
+    // Reset on resize back to desktop
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) {
+            closeSidebar();
+        }
+    });
 </script>
 
 </body>

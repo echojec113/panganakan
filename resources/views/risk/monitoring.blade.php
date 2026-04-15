@@ -1,14 +1,7 @@
 <x-app-layout>
     
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        <div class="mb-4">
-    <a href="{{ route('dashboard') }}" class="inline-flex items-center text-gray-600 hover:text-blue-600 transition group">
-        <svg class="w-4 h-4 mr-1 group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-        </svg>
-        Back to Dashboard
-    </a>
-</div>
+        
         <!-- Page Header - Responsive -->
         <div class="mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -268,10 +261,11 @@
                         </div>
                     </div>
                     
-                    <div class="flex gap-3 pt-2">
-                        <a href="{{ route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring']) }}" class="text-blue-600 text-sm">View Profile</a>
-                        <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-green-600 text-sm">Update Risk</a>
-                    </div>
+                    <div class="flex justify-end pt-2">
+    <x-action-buttons 
+        :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring'])"
+        :editRoute="route('prenatal-visits.edit', $visit->id)" />
+</div>
                 </div>
                 @empty
                 <div class="p-8 text-center text-gray-500">
@@ -380,10 +374,11 @@
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                <div class="flex space-x-3">
-                                    <a href="{{ route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring']) }}" class="text-blue-600 hover:text-blue-800">View</a>
-                                    <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-green-600 hover:text-green-800">Update</a>
-                                </div>
+                                <div class="flex justify-end pt-2">
+    <x-action-buttons 
+        :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring'])"
+        :editRoute="route('prenatal-visits.edit', $visit->id)" />
+</div>
                             </td>
                         </tr>
                         @empty

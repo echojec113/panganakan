@@ -1,29 +1,5 @@
 <x-app-layout>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <!-- Back Button -->
-        <div class="mb-6">
-            @php
-                if (request('from') === 'prenatal-visits') {
-                    $backRoute = route('prenatal-visits.index');
-                    $backLabel = 'Back to Prenatal Visits';
-                } elseif (request('from') === 'risk-monitoring') {
-                    $backRoute = route('risk.monitoring');
-                    $backLabel = 'Back to Risk Monitoring';
-                } elseif (request('from') === 'delivered-patients') {
-                    $backRoute = route('patients.delivered');
-                    $backLabel = 'Back to Delivered Patients';
-                } else {
-                    $backRoute = route('patients.index');
-                    $backLabel = 'Back to Patient List';
-                }
-            @endphp
-            <a href="{{ $backRoute }}" class="inline-flex items-center text-gray-600 hover:text-blue-600 transition group">
-                <svg class="w-5 h-5 mr-2 group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                </svg>
-                {{ $backLabel }}
-            </a>
-        </div>
 
         <!-- Patient Header -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">

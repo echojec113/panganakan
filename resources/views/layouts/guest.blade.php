@@ -186,6 +186,106 @@
             .password-toggle:hover {
                 color: #3b82f6;
             }
+
+
+            /* ================================
+   RESPONSIVE FIX (LOGIN PAGE)
+================================ */
+
+/* Tablets */
+@media (max-width: 1024px) {
+
+    /* Balance layout better */
+    .lg\:w-\[70\%\] {
+        width: 55% !important;
+    }
+
+    .lg\:w-\[30\%\] {
+        width: 45% !important;
+    }
+
+    /* Reduce padding */
+    .lg\:p-16 {
+        padding: 2rem !important;
+    }
+
+    .p-12 {
+        padding: 2rem !important;
+    }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+
+    /* Stack layout clean */
+    .lg\:flex-row {
+        flex-direction: column !important;
+    }
+
+    /* Full width */
+    .lg\:w-\[70\%\],
+    .lg\:w-\[30\%\] {
+        width: 100% !important;
+    }
+
+    /* Remove big spacing */
+    .p-12,
+    .lg\:p-16 {
+        padding: 1.5rem !important;
+    }
+
+    /* Center everything properly */
+    .login-card {
+        margin: 0 auto;
+    }
+
+    /* Fix logo size */
+    .logo-pulse img {
+        height: 140px !important;
+    }
+
+    /* Inputs spacing */
+    .px-8 {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+
+    .py-8 {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+    }
+}
+
+/* Small phones */
+@media (max-width: 480px) {
+
+    /* Smaller logo */
+    .logo-pulse img {
+        height: 110px !important;
+    }
+
+    /* Reduce card padding */
+    .px-8 {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+
+    .py-8 {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+
+    /* Button full comfort */
+    button[type="submit"] {
+        font-size: 14px;
+        padding: 12px;
+    }
+
+    /* Fix text overflow */
+    h1 {
+        font-size: 1.8rem !important;
+    }
+}
         </style>
     </head>
     <body class="font-sans text-gray-900 antialiased bg-white" style="font-family: 'DM Sans', sans-serif;">
