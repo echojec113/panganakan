@@ -81,12 +81,18 @@ class DashboardController extends Controller
         );
 
         // ======================
-        // HIGH RISK PATIENTS
+        // HIGH RISK PATIENTS (UNIQUE)
         // ======================
 
         $highRiskPatients = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
-            ->latest()
+            ->whereIn('id', function($query) {
+                $query->selectRaw('MAX(id)')
+                    ->from('prenatal_visits')
+                    ->where('risk_level', 'HIGH')
+                    ->groupBy('patient_id');
+            })
+            ->orderByDesc('visit_date')
             ->take(5)
             ->get();
 

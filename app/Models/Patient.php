@@ -11,6 +11,8 @@ use App\Models\PrenatalVisit;
 use App\Models\MedicalHistory;
 use App\Models\BirthPlan;
 use App\Models\Ultrasound;
+use App\Models\Baby;
+use App\Models\Referral;
 
 class Patient extends Model
 {
@@ -113,4 +115,8 @@ class Patient extends Model
     {
         return $this->hasMany(Baby::class);
     }
+    public function referrals()
+{
+    return $this->hasMany(Referral::class);
+}
 }

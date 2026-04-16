@@ -512,104 +512,7 @@
             }
         }
 
-        /* ================================
-   RESPONSIVE FIX (LOGIN PAGE)
-================================ */
-
-/* Tablets */
-@media (max-width: 1024px) {
-
-    /* Balance layout better */
-    .lg\:w-\[70\%\] {
-        width: 55% !important;
-    }
-
-    .lg\:w-\[30\%\] {
-        width: 45% !important;
-    }
-
-    /* Reduce padding */
-    .lg\:p-16 {
-        padding: 2rem !important;
-    }
-
-    .p-12 {
-        padding: 2rem !important;
-    }
-}
-
-/* Mobile */
-@media (max-width: 768px) {
-
-    /* Stack layout clean */
-    .lg\:flex-row {
-        flex-direction: column !important;
-    }
-
-    /* Full width */
-    .lg\:w-\[70\%\],
-    .lg\:w-\[30\%\] {
-        width: 100% !important;
-    }
-
-    /* Remove big spacing */
-    .p-12,
-    .lg\:p-16 {
-        padding: 1.5rem !important;
-    }
-
-    /* Center everything properly */
-    .login-card {
-        margin: 0 auto;
-    }
-
-    /* Fix logo size */
-    .logo-pulse img {
-        height: 140px !important;
-    }
-
-    /* Inputs spacing */
-    .px-8 {
-        padding-left: 1.5rem !important;
-        padding-right: 1.5rem !important;
-    }
-
-    .py-8 {
-        padding-top: 1.5rem !important;
-        padding-bottom: 1.5rem !important;
-    }
-}
-
-/* Small phones */
-@media (max-width: 480px) {
-
-    /* Smaller logo */
-    .logo-pulse img {
-        height: 110px !important;
-    }
-
-    /* Reduce card padding */
-    .px-8 {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-
-    .py-8 {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-    }
-
-    /* Button full comfort */
-    button[type="submit"] {
-        font-size: 14px;
-        padding: 12px;
-    }
-
-    /* Fix text overflow */
-    h1 {
-        font-size: 1.8rem !important;
-    }
-}
+        
 
 
 
@@ -676,6 +579,14 @@
             <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></span>
             Delivered Patients
         </a>
+
+        <a href="{{ route('referrals.index') }}"
+           class="nav-item {{ request()->routeIs('referrals.*') ? 'active' : '' }}">
+            <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg></span>
+            Referrals
+        </a>
+
+        
 
         @if(auth()->user()->role === 'admin')
             <div class="nav-divider"></div>
