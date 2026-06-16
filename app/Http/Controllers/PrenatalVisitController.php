@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\PrenatalVisit;
 use App\Models\Patient;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use App\Mail\PrenatalVisitReminderMail;
 
 class PrenatalVisitController extends Controller
 {
@@ -305,6 +308,23 @@ class PrenatalVisitController extends Controller
             'cervical_dilation' => $request->cervical_dilation,
             'bag_of_water' => $request->bag_of_water,
         ]);
+
+        if (!empty($patient->email)) {
+    try {
+        Log::info('EMAIL ATTEMPT STARTED FOR: ' . $patient->email);
+
+        Mail::to($patient->email)
+            ->send(new PrenatalVisitReminderMail($patient, $visit));
+
+        Log::info('EMAIL SENT OR LOGGED SUCCESSFULLY FOR: ' . $patient->email);
+
+    } catch (\Exception $e) {
+        Log::error('PRENATAL EMAIL ERROR: ' . $e->getMessage());
+    }
+} else {
+    Log::warning('EMAIL SKIPPED: Patient has no email. Patient ID: ' . $patient->id);
+
+}
 
         // ✅ AUDIT LOG
         $this->logAction(

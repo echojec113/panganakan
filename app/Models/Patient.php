@@ -24,6 +24,7 @@ class Patient extends Model
         'age',
         'address',
         'contact_number',
+        'email',
         'gravida',
         'para',
         'previous_cs',
@@ -36,7 +37,8 @@ class Patient extends Model
         'philhealth_member',
         'philhealth_number',
         'status',
-        'delivery_date'
+        'delivery_date',
+        
     ];
 
 

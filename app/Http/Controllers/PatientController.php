@@ -62,6 +62,8 @@ class PatientController extends Controller
         'address' => 'required|string|max:255',
 
         'contact_number' => ['required','regex:/^09\d{9}$/'],
+        'email' => 'nullable|email|max:255',
+        
 
         'civil_status' => 'required|in:Single,Married,Widowed',
 
@@ -339,6 +341,7 @@ class PatientController extends Controller
     'address' => 'required|string|max:255',
 
     'contact_number' => ['required','regex:/^09\d{9}$/'],
+    'email' => 'nullable|email|max:255',
 
     'civil_status' => 'required|in:Single,Married,Widowed',
 
@@ -375,6 +378,7 @@ if ($request->miscarriage > $request->gravida) {
     'age'               => $request->age,
     'address'           => $request->address,
     'contact_number'    => $request->contact_number,
+    'email'             => $request->email,
     'civil_status'      => $request->civil_status,
     'philhealth_member' => $request->philhealth_member,
     'philhealth_number' => $request->philhealth_number,
