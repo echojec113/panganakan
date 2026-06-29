@@ -108,7 +108,13 @@ class PatientController extends Controller
     {
         $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies'])->findOrFail($id);
 
-        return view('patients.show', compact('patient'));
+        // Check for required records before allowing prenatal visit creation
+        $hasMedicalHistory = $patient->medicalHistory !== null;
+        $hasUltrasound = $patient->ultrasounds()->exists();
+        $hasBirthPlan = $patient->birthPlan !== null;
+        $canAddPrenatalVisit = $hasMedicalHistory && $hasUltrasound && $hasBirthPlan;
+
+        return view('patients.show', compact('patient', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit'));
     }
 
     public function download(Request $request, string $id)

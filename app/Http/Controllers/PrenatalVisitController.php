@@ -12,6 +12,187 @@ use App\Mail\PrenatalVisitReminderMail;
 
 class PrenatalVisitController extends Controller
 {
+    /**
+     * Assess pregnancy risk using strict evaluation order.
+     *
+     * Evaluation order:
+     * 1. Check medical history requirement (MUST exist)
+     * 2. Rule-based risk factors
+     * 3. ML output HIGH
+     * 4. ML output LOW (only if valid)
+     * 5. ASSESSMENT INCOMPLETE (if ML invalid or medical history missing)
+     *
+     * @param Patient $patient
+     * @param Request $request
+     * @return array Risk assessment result with risk_level, assessment, recommendation, reasons, nextVisit
+     */
+    private function assessRisk(Patient $patient, Request $request)
+    {
+        // ======================
+        // STEP 1: CHECK MEDICAL HISTORY REQUIREMENT
+        // ======================
+        $hasMedicalHistory = \App\Models\MedicalHistory::where('patient_id', $patient->id)->exists();
+
+        if (!$hasMedicalHistory) {
+            return [
+                'risk_level' => 'ASSESSMENT INCOMPLETE',
+                'assessment' => 'Assessment incomplete. Medical history record is required before final risk classification.',
+                'recommendation' => 'Complete the medical history record before final risk classification. This is system-generated and is not a medical diagnosis.',
+                'reasons' => [],
+                'nextVisit' => now()->addDays(30)
+            ];
+        }
+
+        // ======================
+        // STEP 2: EVALUATE RULE-BASED RISK FACTORS
+        // ======================
+        $reasons = [];
+
+        // Age checks
+        if ($patient->age < 19) {
+            $reasons[] = "Teenage pregnancy (under 19)";
+        } elseif ($patient->age >= 35 && $patient->gravida == 1 && $patient->para == 0) {
+            $reasons[] = "Advanced maternal age (35+) and first pregnancy";
+        }
+
+        // Blood pressure checks
+        if ($request->bp_sys >= 140 || $request->bp_dia >= 90) {
+            $reasons[] = "Hypertension (BP: {$request->bp_sys}/{$request->bp_dia})";
+
+            if ($request->bp_sys >= 160 || $request->bp_dia >= 110) {
+                $reasons[] = "Severe hypertension (BP: {$request->bp_sys}/{$request->bp_dia})";
+            }
+        }
+
+        // Medical conditions
+        if ($request->diabetes == 1) {
+            $reasons[] = "Diabetes";
+        }
+
+        if ($request->anemia == 1) {
+            $reasons[] = "Anemia";
+        }
+
+        if ($patient->previous_cs == 1) {
+            $reasons[] = "Previous cesarean section";
+        }
+
+        if ($patient->miscarriage >= 3) {
+            $reasons[] = "History of " . $patient->miscarriage . " miscarriage(s)";
+        }
+
+        // Ultrasound findings
+        $ultrasound = \App\Models\Ultrasound::where('patient_id', $patient->id)
+            ->latest()
+            ->first();
+
+        if ($ultrasound) {
+            $presentation = strtoupper(trim((string) $ultrasound->presentation));
+            $amnioticFluid = strtoupper(trim((string) $ultrasound->amniotic_fluid));
+            $fetalHeartbeat = strtoupper(trim((string) $ultrasound->fetal_heartbeat));
+
+            if (in_array($presentation, ['BREECH', 'TRANSVERSE', 'OBLIQUE'], true)) {
+                $reasons[] = "Abnormal fetal presentation ({$presentation})";
+            }
+
+            if (in_array($amnioticFluid, ['LOW', 'HIGH'], true)) {
+                $reasons[] = "Amniotic fluid abnormality ({$amnioticFluid})";
+            }
+
+            if (in_array($fetalHeartbeat, ['WEAK', 'ABNORMAL', 'ABSENT'], true)) {
+                $reasons[] = "Fetal heartbeat abnormality ({$fetalHeartbeat})";
+            }
+        }
+
+        // If any rule-based risk factor matched, return HIGH
+        if (!empty($reasons)) {
+            $uniqueReasons = array_unique($reasons);
+            $assessment = "High-risk pregnancy. Risk factors identified: " . implode(", ", array_slice($uniqueReasons, 0, 3));
+            if (count($uniqueReasons) > 3) {
+                $assessment .= " and " . (count($uniqueReasons) - 3) . " more factor(s).";
+            }
+
+            return [
+                'risk_level' => 'HIGH',
+                'assessment' => $assessment,
+                'recommendation' => 'Referral or clinic staff review is recommended. This is system-generated and is not a medical diagnosis.',
+                'reasons' => $uniqueReasons,
+                'nextVisit' => now()->addDays(3)
+            ];
+        }
+
+        // ======================
+        // STEP 3: EVALUATE ML OUTPUT
+        // ======================
+        $inputs = [
+            $patient->age,
+            $patient->gravida,
+            $patient->para,
+            $request->bp_sys,
+            $request->bp_dia,
+            $request->weight,
+            $request->gestational_age,
+            $request->hypertension,
+            $request->diabetes,
+            $patient->previous_cs,
+            $patient->miscarriage,
+            $request->anemia
+        ];
+
+        $python = escapeshellarg('C:\\Users\\BJ\\maternity-system\\venv\\Scripts\\python.exe');
+        $script = escapeshellarg(base_path('maternal-risk-ml/predict.py'));
+        $inputsStr = implode(" ", array_map('escapeshellarg', $inputs));
+        $command = "{$python} {$script} {$inputsStr} 2>&1";
+
+        $output = shell_exec($command);
+        $rawMlOutput = trim((string) $output);
+
+        // Log raw ML output for debugging
+        Log::info('ML RISK OUTPUT: ' . $rawMlOutput . ' | Patient ID: ' . $patient->id);
+
+        $mlRisk = null;
+        $mlRiskValid = false;
+
+        if ($rawMlOutput !== '' && !preg_match('/error|exception|traceback|failed|unable/i', $rawMlOutput)) {
+            $normalizedMlRisk = strtoupper($rawMlOutput);
+            if (in_array($normalizedMlRisk, ['LOW', 'HIGH'], true)) {
+                $mlRisk = $normalizedMlRisk;
+                $mlRiskValid = true;
+            }
+        }
+
+        // Step 3A: ML output is HIGH
+        if ($mlRisk === 'HIGH') {
+            return [
+                'risk_level' => 'HIGH',
+                'assessment' => 'High-risk pregnancy. The ML assessment indicated high risk.',
+                'recommendation' => 'Referral or clinic staff review is recommended. This is system-generated and is not a medical diagnosis.',
+                'reasons' => [],
+                'nextVisit' => now()->addDays(3)
+            ];
+        }
+
+        // Step 3B: ML output is valid and LOW
+        if ($mlRiskValid && $mlRisk === 'LOW') {
+            return [
+                'risk_level' => 'LOW',
+                'assessment' => 'Low-risk pregnancy. No rule-based risk factors identified.',
+                'recommendation' => 'Continue routine prenatal checkups as advised by clinic personnel. This is system-generated and is not a medical diagnosis.',
+                'reasons' => [],
+                'nextVisit' => now()->addDays(30)
+            ];
+        }
+
+        // Step 3C: ML output is invalid or unavailable
+        return [
+            'risk_level' => 'ASSESSMENT INCOMPLETE',
+            'assessment' => 'Assessment incomplete. Missing or invalid information prevented final risk classification.',
+            'recommendation' => 'Complete the missing record(s) before final risk classification. This is system-generated and is not a medical diagnosis.',
+            'reasons' => [],
+            'nextVisit' => now()->addDays(30)
+        ];
+    }
+
     public function index()
     {
         $visits = PrenatalVisit::with('patient')->latest()->get();
@@ -108,176 +289,17 @@ class PrenatalVisitController extends Controller
             }
         }
 
-        // ======================
-        // ML RISK ASSESSMENT
-        // ======================
-        $inputs = [
-            $patient->age,
-            $patient->gravida,
-            $patient->para,
-            $request->bp_sys,
-            $request->bp_dia,
-            $request->weight,
-            $request->gestational_age,
-            $request->hypertension,
-            $request->diabetes,
-            $patient->previous_cs,
-            $patient->miscarriage,
-            $request->anemia
-        ];
-
-        $python = '"C:\\Users\\BJ\\maternity-system\\venv\\Scripts\\python.exe"';
-        $script = '"' . base_path('maternal-risk-ml/predict.py') . '"';
-        $command = $python . " " . $script . " " . implode(" ", $inputs) . " 2>&1";
-        $output = shell_exec($command);
-        $risk = strtoupper(trim($output));
         
-        if ($risk == "" || $risk == null) {
-            $risk = "LOW";
-        }
+        $riskAssessment = $this->assessRisk($patient, $request);
 
-        // ================================
-        // CONDITION DETECTOR (Enhanced)
-        // ================================
-        $reasons = [];
-        $alerts = [];
-        $recommendations = [];
-
-        // 🔴 AGE
-        if ($patient->age < 19) {
-            $reasons[] = "Teenage pregnancy (under 19)";
-            $alerts[] = "Adolescent pregnancy risk";
-            $recommendations[] = "Requires specialized adolescent prenatal care";
-        } elseif ($patient->age >= 35) {
-            $reasons[] = "Advanced maternal age (35+)";
-            $alerts[] = "Age-related pregnancy risk";
-            $recommendations[] = "Requires closer prenatal monitoring due to maternal age";
-        }
-
-        // 🔴 BLOOD PRESSURE (Enhanced thresholds)
-        if ($request->bp_sys >= 140 || $request->bp_dia >= 90) {
-            $reasons[] = "Hypertension (BP: {$request->bp_sys}/{$request->bp_dia})";
-            $alerts[] = "Elevated blood pressure";
-            $recommendations[] = "Monitor blood pressure regularly, check for pre-eclampsia symptoms";
-            
-            if ($request->bp_sys >= 160 || $request->bp_dia >= 110) {
-                $reasons[] = "Severe hypertension";
-                $alerts[] = "Critical BP elevation";
-                $recommendations[] = "URGENT: Immediate medical evaluation required";
-            }
-        }
-
-        // 🔴 WEIGHT (BMI check - requires height from patient)
-        if ($request->weight && $patient->height) {
-            $bmi = $request->weight / (($patient->height / 100) ** 2);
-            if ($bmi < 18.5) {
-                $reasons[] = "Underweight (BMI: " . round($bmi, 1) . ")";
-                $recommendations[] = "Nutritional counseling recommended";
-            } elseif ($bmi > 30) {
-                $reasons[] = "Obese (BMI: " . round($bmi, 1) . ")";
-                $recommendations[] = "Weight management and specialized care needed";
-            }
-        }
-
-        // 🔴 DIABETES
-        if ($request->diabetes == 1) {
-            $reasons[] = "Diabetes";
-            $alerts[] = "Blood sugar risk detected";
-            $recommendations[] = "Monitor blood glucose, consult endocrinologist";
-        }
-
-        // 🔴 ANEMIA
-        if ($request->anemia == 1) {
-            $reasons[] = "Anemia";
-            $alerts[] = "Low hemoglobin condition";
-            $recommendations[] = "Provide iron supplementation and proper nutrition";
-        }
-
-        // 🔴 PREVIOUS CS
-        if ($patient->previous_cs == 1) {
-            $reasons[] = "Previous cesarean section";
-            $alerts[] = "History of surgical delivery";
-            $recommendations[] = "Careful delivery planning, VBAC assessment needed";
-        }
-
-        // 🔴 MULTIPLE MISCARRIAGE
-        if ($patient->miscarriage >= 2) {
-            $reasons[] = "History of " . $patient->miscarriage . " miscarriage(s)";
-            $alerts[] = "Recurrent pregnancy loss";
-            $recommendations[] = "Specialist consultation for recurrent loss";
-        }
-
-        // 🔴 GESTATIONAL AGE - Preterm risk
-        if ($request->gestational_age < 37 && $request->gestational_age >= 20) {
-            $reasons[] = "Preterm gestation ({$request->gestational_age} weeks)";
-            $alerts[] = "Preterm labor risk";
-            $recommendations[] = "Monitor for preterm labor signs, consider corticosteroids";
-        }
-
-        // 🔴 ULTRASOUND
-        $ultrasound = \App\Models\Ultrasound::where('patient_id', $request->patient_id)
-            ->latest()
-            ->first();
-
-        if ($ultrasound) {
-            if ($ultrasound->presentation === 'Breech') {
-                $reasons[] = "Breech presentation";
-                $alerts[] = "Abnormal fetal position";
-                $recommendations[] = "Refer for delivery planning, consider ECV";
-            }
-
-            if ($ultrasound->amniotic_fluid === 'Low') {
-                $reasons[] = "Low amniotic fluid";
-                $alerts[] = "Oligohydramnios risk";
-                $recommendations[] = "Immediate clinical evaluation required";
-            }
-
-            if ($ultrasound->amniotic_fluid === 'High') {
-                $reasons[] = "High amniotic fluid";
-                $alerts[] = "Polyhydramnios risk";
-                $recommendations[] = "Evaluate for gestational diabetes, fetal anomalies";
-            }
-
-            if ($ultrasound->fetal_heartbeat === 'Weak') {
-                $reasons[] = "Weak fetal heartbeat";
-                $alerts[] = "Possible fetal distress";
-                $recommendations[] = "Urgent monitoring required, consider NST";
-            }
-        }
-
-        // ================================
-        // DOH RULE OVERRIDE
-        // ================================
-        if (!empty($reasons)) {
-            $risk = "HIGH";
-        }
-
-        // ================================
-        // FINAL DECISION ENGINE
-        // ================================
-        $today = now();
-
-        if ($risk === "HIGH") {
-            $assessment = "High-risk pregnancy. Risk factors identified: " . implode(", ", array_slice($reasons, 0, 3));
-            if (count($reasons) > 3) {
-                $assessment .= " and " . (count($reasons) - 3) . " more factor(s).";
-            }
-            
-            if (!empty($recommendations)) {
-                $recommendation = implode('. ', array_unique($recommendations));
-            } else {
-                $recommendation = "Close monitoring required with follow-up in 3 days.";
-            }
-            
-            $recommendation .= " This recommendation is generated by the system and is not a medical diagnosis.";
-            $nextVisit = $today->copy()->addDays(3);
-        } else {
-            $assessment = "Low-risk pregnancy. No significant risk factors identified.";
-            $recommendation = "Continue routine prenatal care. Maintain healthy lifestyle and regular check-ups. This recommendation is generated by the system and is not a medical diagnosis.";
-            $nextVisit = $today->copy()->addDays(30);
-        }
+        $risk = $riskAssessment['risk_level'];
+        $assessment = $riskAssessment['assessment'];
+        $recommendation = $riskAssessment['recommendation'];
+        $reasons = $riskAssessment['reasons'];
+        $nextVisit = $riskAssessment['nextVisit'];
 
         $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
+
 
         // ======================
         // CREATE VISIT
@@ -414,96 +436,20 @@ class PrenatalVisitController extends Controller
         // ======================
         // ML INPUT (Same as store)
         // ======================
-        $inputs = [
-            $patient->age,
-            $patient->gravida,
-            $patient->para,
-            $request->bp_sys,
-            $request->bp_dia,
-            $request->weight,
-            $request->gestational_age,
-            $request->hypertension,
-            $request->diabetes,
-            $patient->previous_cs,
-            $patient->miscarriage,
-            $request->anemia
-        ];
+        // Note: Risk assessment is now delegated to the helper method assessRisk()
+        // which is called below to maintain consistency between store() and update().
 
-        $python = '"C:\\Users\\BJ\\maternity-system\\venv\\Scripts\\python.exe"';
-        $script = '"' . base_path('maternal-risk-ml/predict.py') . '"';
-        $command = $python . " " . $script . " " . implode(" ", $inputs) . " 2>&1";
-        $output = shell_exec($command);
-        $risk = strtoupper(trim($output));
 
-        if ($risk == "" || $risk == null) {
-            $risk = "LOW";
-        }
+        $riskAssessment = $this->assessRisk($patient, $request);
 
-        // ======================
-        // RULE ENGINE (Enhanced)
-        // ======================
-        $reasons = [];
-        $recommendations = [];
-
-        if ($patient->age < 19) {
-            $reasons[] = "Teenage pregnancy (under 19)";
-            $recommendations[] = "Requires specialized adolescent prenatal care";
-        } elseif ($patient->age >= 35) {
-            $reasons[] = "Advanced maternal age (35+)";
-            $recommendations[] = "Requires closer prenatal monitoring due to maternal age";
-        }
-
-        if ($request->bp_sys >= 140 || $request->bp_dia >= 90) {
-            $reasons[] = "Hypertension (BP: {$request->bp_sys}/{$request->bp_dia})";
-            $recommendations[] = "Monitor blood pressure regularly, check for pre-eclampsia symptoms";
-        }
-
-        if ($request->diabetes == 1) {
-            $reasons[] = "Diabetes";
-            $recommendations[] = "Monitor blood glucose, consult endocrinologist";
-        }
-
-        if ($request->anemia == 1) {
-            $reasons[] = "Anemia";
-            $recommendations[] = "Iron supplementation recommended";
-        }
-
-        if ($patient->previous_cs == 1) {
-            $reasons[] = "Previous cesarean section";
-            $recommendations[] = "Careful delivery planning, VBAC assessment needed";
-        }
-
-        if ($patient->miscarriage >= 2) {
-            $reasons[] = "History of " . $patient->miscarriage . " miscarriage(s)";
-            $recommendations[] = "Specialist consultation for recurrent loss";
-        }
-
-        if ($request->gestational_age < 37 && $request->gestational_age >= 20) {
-            $reasons[] = "Preterm gestation ({$request->gestational_age} weeks)";
-            $recommendations[] = "Monitor for preterm labor signs";
-        }
-
-        // ======================
-        // DOH OVERRIDE
-        // ======================
-        if (!empty($reasons)) {
-            $risk = "HIGH";
-        }
-
-        // ======================
-        // FINAL OUTPUT
-        // ======================
-        if ($risk === "HIGH") {
-            $assessment = "High-risk pregnancy. Risk factors: " . implode(", ", array_slice($reasons, 0, 3));
-            $recommendation = implode('. ', array_unique($recommendations)) . ". This is system-generated.";
-            $nextVisit = now()->addDays(3);
-        } else {
-            $assessment = "Low-risk pregnancy.";
-            $recommendation = "Continue routine prenatal care. This is system-generated.";
-            $nextVisit = now()->addDays(30);
-        }
+        $risk = $riskAssessment['risk_level'];
+        $assessment = $riskAssessment['assessment'];
+        $recommendation = $riskAssessment['recommendation'];
+        $reasons = $riskAssessment['reasons'];
+        $nextVisit = $riskAssessment['nextVisit'];
 
         $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
+
 
         // ======================
         // UPDATE DATA
