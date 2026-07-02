@@ -153,22 +153,36 @@ $missingRecords[] = 'Medical History';
             $request->anemia
         ];
 
-        $python = escapeshellarg(env('PYTHON_PATH', 'C:\\Users\\BJ\\maternity-system\\venv\\Scripts\\python.exe'));
+        $configuredPythonPath = trim(env('PYTHON_PATH', ''));
+        if ($configuredPythonPath !== '' && file_exists($configuredPythonPath)) {
+            $python = escapeshellarg($configuredPythonPath);
+        } else {
+            if ($configuredPythonPath !== '') {
+                Log::warning('Configured PYTHON_PATH does not exist, falling back to python on PATH: ' . $configuredPythonPath);
+            }
+            $python = 'python';
+        }
+
         $script = escapeshellarg(base_path('maternal-risk-ml/predict.py'));
-        $inputsStr = implode(" ", array_map('escapeshellarg', $inputs));
+        $inputsStr = implode(' ', array_map('escapeshellarg', $inputs));
         $command = "{$python} {$script} {$inputsStr} 2>&1";
+
+        // Log the command and raw ML output for debugging
+        Log::info('ML COMMAND: ' . $command . ' | Patient ID: ' . $patient->id);
 
         $output = shell_exec($command);
         $rawMlOutput = trim((string) $output);
 
-        // Log raw ML output for debugging
-        Log::info('ML RISK OUTPUT: ' . $rawMlOutput . ' | Patient ID: ' . $patient->id);
+        $outputLines = array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $rawMlOutput)));
+        $parsedMlOutput = $outputLines ? end($outputLines) : '';
+
+        Log::info('ML RAW OUTPUT: ' . $rawMlOutput . ' | PARSED OUTPUT: ' . $parsedMlOutput . ' | Patient ID: ' . $patient->id);
 
         $mlRisk = null;
         $mlRiskValid = false;
 
-        if ($rawMlOutput !== '' && !preg_match('/error|exception|traceback|failed|unable/i', $rawMlOutput)) {
-            $normalizedMlRisk = strtoupper($rawMlOutput);
+        if ($parsedMlOutput !== '' && !preg_match('/error|exception|traceback|failed|unable/i', $rawMlOutput)) {
+            $normalizedMlRisk = strtoupper($parsedMlOutput);
             if (in_array($normalizedMlRisk, ['LOW', 'HIGH'], true)) {
                 $mlRisk = $normalizedMlRisk;
                 $mlRiskValid = true;
