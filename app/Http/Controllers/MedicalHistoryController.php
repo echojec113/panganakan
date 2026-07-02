@@ -42,6 +42,10 @@ $this->logAction(
     'Added medical history for patient ID: ' . $request->patient_id
 );
 
+        // Auto-recalculate incomplete prenatal visits
+        $prenatalController = new PrenatalVisitController();
+        $prenatalController->recalculateIncompleteVisits($request->patient_id);
+
         return redirect()->route('patients.show', $request->patient_id);
     }
 
@@ -80,6 +84,10 @@ $this->logAction(
     'MEDICAL_HISTORY',
     'Updated medical history for patient ID: ' . $history->patient_id
 );
+
+    // Auto-recalculate incomplete prenatal visits
+    $prenatalController = new PrenatalVisitController();
+    $prenatalController->recalculateIncompleteVisits($history->patient_id);
 
     return redirect()->route('patients.show', $history->patient_id)
         ->with('success', 'Medical history updated successfully');

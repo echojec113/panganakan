@@ -16,11 +16,11 @@ class PrenatalVisitController extends Controller
      * Assess pregnancy risk using strict evaluation order.
      *
      * Evaluation order:
-     * 1. Check medical history requirement (MUST exist)
+     * 1. Check required records (Medical History, Ultrasound, Birth Plan)
      * 2. Rule-based risk factors
      * 3. ML output HIGH
      * 4. ML output LOW (only if valid)
-     * 5. ASSESSMENT INCOMPLETE (if ML invalid or medical history missing)
+     * 5. ASSESSMENT INCOMPLETE (if ML invalid or required records missing)
      *
      * @param Patient $patient
      * @param Request $request
@@ -29,15 +29,29 @@ class PrenatalVisitController extends Controller
     private function assessRisk(Patient $patient, Request $request)
     {
         // ======================
-        // STEP 1: CHECK MEDICAL HISTORY REQUIREMENT
+        // STEP 1: CHECK REQUIRED RECORDS
         // ======================
         $hasMedicalHistory = \App\Models\MedicalHistory::where('patient_id', $patient->id)->exists();
+$hasUltrasound = \App\Models\Ultrasound::where('patient_id', $patient->id)->exists();
+        $hasBirthPlan = \App\Models\BirthPlan::where('patient_id', $patient->id)->exists();
 
+$missingRecords = [];
         if (!$hasMedicalHistory) {
+$missingRecords[] = 'Medical History';
+        }
+        if (!$hasUltrasound) {
+            $missingRecords[] = 'Ultrasound Record';
+        }
+        if (!$hasBirthPlan) {
+            $missingRecords[] = 'Birth Plan';
+        }
+
+        if (!empty($missingRecords)) {
+            $missingList = implode(', ', $missingRecords);
             return [
                 'risk_level' => 'ASSESSMENT INCOMPLETE',
-                'assessment' => 'Assessment incomplete. Medical history record is required before final risk classification.',
-                'recommendation' => 'Complete the medical history record before final risk classification. This is system-generated and is not a medical diagnosis.',
+                'assessment' => "Assessment incomplete. The following required records are missing: {$missingList}.",
+                'recommendation' => 'Complete all required records (' . $missingList . ') before final risk classification. This is system-generated and is not a medical diagnosis.',
                 'reasons' => [],
                 'nextVisit' => now()->addDays(30)
             ];
@@ -139,7 +153,7 @@ class PrenatalVisitController extends Controller
             $request->anemia
         ];
 
-        $python = escapeshellarg('C:\\Users\\BJ\\maternity-system\\venv\\Scripts\\python.exe');
+        $python = escapeshellarg(env('PYTHON_PATH', 'C:\\Users\\BJ\\maternity-system\\venv\\Scripts\\python.exe'));
         $script = escapeshellarg(base_path('maternal-risk-ml/predict.py'));
         $inputsStr = implode(" ", array_map('escapeshellarg', $inputs));
         $command = "{$python} {$script} {$inputsStr} 2>&1";
@@ -289,20 +303,8 @@ class PrenatalVisitController extends Controller
             }
         }
 
-        
-        $riskAssessment = $this->assessRisk($patient, $request);
-
-        $risk = $riskAssessment['risk_level'];
-        $assessment = $riskAssessment['assessment'];
-        $recommendation = $riskAssessment['recommendation'];
-        $reasons = $riskAssessment['reasons'];
-        $nextVisit = $riskAssessment['nextVisit'];
-
-        $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
-
-
         // ======================
-        // CREATE VISIT
+        // CREATE VISIT (without risk fields first)
         // ======================
         $visit = PrenatalVisit::create([
             'patient_id' => $request->patient_id,
@@ -314,11 +316,11 @@ class PrenatalVisitController extends Controller
             'hypertension' => $request->hypertension,
             'diabetes' => $request->diabetes,
             'anemia' => $request->anemia,
-            'risk_level' => $risk,
-            'risk_reasons' => json_encode($reasons),
-            'assessment' => $assessment,
-            'recommendation' => $recommendation,
-            'next_visit_date' => $finalNextVisit,
+            'risk_level' => 'ASSESSMENT INCOMPLETE',
+            'risk_reasons' => json_encode([]),
+            'assessment' => 'Pending',
+            'recommendation' => 'Pending',
+            'next_visit_date' => $request->next_visit_date,
             'notes' => $request->notes,
             'treatment_plan' => $request->treatment_plan,
             'temperature' => $request->temperature,
@@ -329,6 +331,30 @@ class PrenatalVisitController extends Controller
             'uterine_activity' => $request->uterine_activity,
             'cervical_dilation' => $request->cervical_dilation,
             'bag_of_water' => $request->bag_of_water,
+        ]);
+
+        // ======================
+        // ASSESS RISK
+        // ======================
+        $riskAssessment = $this->assessRisk($patient, $request);
+
+        $risk = $riskAssessment['risk_level'];
+        $assessment = $riskAssessment['assessment'];
+        $recommendation = $riskAssessment['recommendation'];
+        $reasons = $riskAssessment['reasons'];
+        $nextVisit = $riskAssessment['nextVisit'];
+
+        $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
+
+        // ======================
+        // UPDATE VISIT WITH RISK FIELDS
+        // ======================
+        $visit->update([
+            'risk_level' => $risk,
+            'risk_reasons' => json_encode($reasons),
+            'assessment' => $assessment,
+            'recommendation' => $recommendation,
+            'next_visit_date' => $finalNextVisit,
         ]);
 
         if (!empty($patient->email)) {
@@ -434,25 +460,7 @@ class PrenatalVisitController extends Controller
         }
 
         // ======================
-        // ML INPUT (Same as store)
-        // ======================
-        // Note: Risk assessment is now delegated to the helper method assessRisk()
-        // which is called below to maintain consistency between store() and update().
-
-
-        $riskAssessment = $this->assessRisk($patient, $request);
-
-        $risk = $riskAssessment['risk_level'];
-        $assessment = $riskAssessment['assessment'];
-        $recommendation = $riskAssessment['recommendation'];
-        $reasons = $riskAssessment['reasons'];
-        $nextVisit = $riskAssessment['nextVisit'];
-
-        $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
-
-
-        // ======================
-        // UPDATE DATA
+        // UPDATE CLINICAL FIELDS FIRST
         // ======================
         $visit->update([
             'patient_id' => $request->patient_id,
@@ -464,12 +472,7 @@ class PrenatalVisitController extends Controller
             'hypertension' => $request->hypertension,
             'diabetes' => $request->diabetes,
             'anemia' => $request->anemia,
-            'risk_level' => $risk,
-            'risk_reasons' => json_encode($reasons),
-            'assessment' => $assessment,
-            'recommendation' => $recommendation,
-            'next_visit_date' => $finalNextVisit,
-            'notes' => $request->notes,
+                        'notes' => $request->notes,
             'treatment_plan' => $request->treatment_plan,
             'temperature' => $request->temperature,
             'fundic_height' => $request->fundic_height,
@@ -479,6 +482,30 @@ class PrenatalVisitController extends Controller
             'uterine_activity' => $request->uterine_activity,
             'cervical_dilation' => $request->cervical_dilation,
             'bag_of_water' => $request->bag_of_water,
+        ]);
+
+        // ======================
+        // ASSESS RISK
+        // ======================
+        $riskAssessment = $this->assessRisk($patient, $request);
+
+        $risk = $riskAssessment['risk_level'];
+        $assessment = $riskAssessment['assessment'];
+        $recommendation = $riskAssessment['recommendation'];
+        $reasons = $riskAssessment['reasons'];
+        $nextVisit = $riskAssessment['nextVisit'];
+
+        $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
+
+        // ======================
+        // UPDATE RISK FIELDS ONLY
+        // ======================
+        $visit->update([
+            'risk_level' => $risk,
+            'risk_reasons' => json_encode($reasons),
+            'assessment' => $assessment,
+            'recommendation' => $recommendation,
+            'next_visit_date' => $finalNextVisit,
         ]);
         
         // ✅ AUDIT LOG
@@ -490,6 +517,60 @@ class PrenatalVisitController extends Controller
 
         return redirect()->route('prenatal-visits.index')
             ->with('success', 'Prenatal visit updated with new risk assessment');
+    }
+
+    /**
+     * Auto-recalculate risk assessment for all incomplete prenatal visits of a patient.
+     * Called when Medical History, Ultrasound, or Birth Plan is created/updated.
+     * Only recalculates if all required records now exist.
+     *
+     * @param int $patientId
+     * @return void
+     */
+    public function recalculateIncompleteVisits($patientId)
+    {
+        // Check if all required records exist
+        $hasMedicalHistory = \App\Models\MedicalHistory::where('patient_id', $patientId)->exists();
+        $hasUltrasound = \App\Models\Ultrasound::where('patient_id', $patientId)->exists();
+        $hasBirthPlan = \App\Models\BirthPlan::where('patient_id', $patientId)->exists();
+
+        // Only recalculate if all required records are now complete
+        if (!$hasMedicalHistory || !$hasUltrasound || !$hasBirthPlan) {
+            return;
+        }
+
+        $patient = Patient::find($patientId);
+        if (!$patient) {
+            return;
+        }
+
+        // Find all visits for this patient (not just incomplete ones)
+        $visits = PrenatalVisit::where('patient_id', $patientId)->get();
+
+        foreach ($visits as $visit) {
+            // Create Request from visit data for assessment
+            $request = new \Illuminate\Http\Request([
+                'bp_sys' => $visit->bp_sys,
+                'bp_dia' => $visit->bp_dia,
+                'weight' => $visit->weight,
+                'gestational_age' => $visit->gestational_age,
+                'hypertension' => $visit->hypertension,
+                'diabetes' => $visit->diabetes,
+                'anemia' => $visit->anemia,
+            ]);
+
+            $riskAssessment = $this->assessRisk($patient, $request);
+
+            $visit->update([
+                'risk_level' => $riskAssessment['risk_level'],
+                'assessment' => $riskAssessment['assessment'],
+                'recommendation' => $riskAssessment['recommendation'],
+                'risk_reasons' => json_encode($riskAssessment['reasons']),
+                'next_visit_date' => $visit->next_visit_date ?: $riskAssessment['nextVisit']->toDateString(),
+            ]);
+
+            Log::info('Auto-recalculated risk assessment for patient ID: ' . $patientId . ', visit ID: ' . $visit->id);
+        }
     }
 
     public function destroy($id)

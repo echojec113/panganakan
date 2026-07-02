@@ -110,7 +110,9 @@ $this->logAction(
     'Created birth plan for patient ID: ' . $request->patient_id
 );
 
-
+        // Auto-recalculate incomplete prenatal visits
+        $prenatalController = new PrenatalVisitController();
+        $prenatalController->recalculateIncompleteVisits($request->patient_id);
 
         return redirect()->route('patients.show',$request->patient_id)
             ->with('success','Birth plan saved successfully');
@@ -181,7 +183,9 @@ $this->logAction(
     'Updated birth plan for patient ID: ' . $birthPlan->patient_id
 );
 
-
+    // Auto-recalculate incomplete prenatal visits
+    $prenatalController = new PrenatalVisitController();
+    $prenatalController->recalculateIncompleteVisits($birthPlan->patient_id);
 
     return redirect()->route('patients.show', $birthPlan->patient_id)
         ->with('success','Birth plan updated successfully');

@@ -136,6 +136,10 @@ class UltrasoundController extends Controller
             'Added ultrasound for patient: ' . $patient->first_name . ' ' . $patient->last_name
         );
 
+        // Auto-recalculate incomplete prenatal visits
+        $prenatalController = new PrenatalVisitController();
+        $prenatalController->recalculateIncompleteVisits($request->patient_id);
+
         return redirect()->route('patients.show', $request->patient_id)
             ->with('success', 'Ultrasound added successfully.');
     }
@@ -260,6 +264,10 @@ class UltrasoundController extends Controller
             'ULTRASOUND',
             'Updated ultrasound for patient: ' . $patient->first_name . ' ' . $patient->last_name
         );
+
+        // Auto-recalculate incomplete prenatal visits
+        $prenatalController = new PrenatalVisitController();
+        $prenatalController->recalculateIncompleteVisits($ultrasound->patient_id);
 
         return redirect()->route('patients.show', $ultrasound->patient_id)
             ->with('success', 'Ultrasound updated successfully');

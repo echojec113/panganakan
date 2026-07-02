@@ -47,81 +47,67 @@
                             </svg>
                             Edit Profile
                         </a>
-                        
-                        {{-- Add Prenatal Visit Button (Conditional) --}}
-                        @if($canAddPrenatalVisit)
-                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" 
+
+                        {{-- Add Prenatal Visit Button (Always Enabled) --}}
+                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}"
                            class="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                             </svg>
                             Add Record
                         </a>
-                        @else
-                        <div class="group relative">
-                            <button disabled 
-                                    class="px-4 py-2.5 bg-gray-400 text-white rounded-lg cursor-not-allowed font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap opacity-75">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                </svg>
-                                Complete Records First
-                            </button>
-                            <div class="hidden group-hover:block absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
-                                <p class="text-sm font-semibold text-gray-700 mb-3">Complete Required Records:</p>
-                                <ul class="space-y-2">
-                                    <li class="flex items-start">
-                                        @if($hasMedicalHistory)
-                                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        @else
-                                        <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                        </svg>
-                                        @endif
-                                        <span class="text-sm @if($hasMedicalHistory) text-green-700 @else text-red-700 @endif">
-                                            Medical History
-                                            @if(!$hasMedicalHistory)
-                                            <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
-                                            @endif
-                                        </span>
-                                    </li>
-                                    <li class="flex items-start">
-                                        @if($hasUltrasound)
-                                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        @else
-                                        <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                        </svg>
-                                        @endif
-                                        <span class="text-sm @if($hasUltrasound) text-green-700 @else text-red-700 @endif">
-                                            Ultrasound Record
-                                            @if(!$hasUltrasound)
-                                            <a href="{{ route('ultrasound.create', $patient->id) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
-                                            @endif
-                                        </span>
-                                    </li>
-                                    <li class="flex items-start">
-                                        @if($hasBirthPlan)
-                                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        @else
-                                        <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                        </svg>
-                                        @endif
-                                        <span class="text-sm @if($hasBirthPlan) text-green-700 @else text-red-700 @endif">
-                                            Birth Plan
-                                            @if(!$hasBirthPlan)
-                                            <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
-                                            @endif
-                                        </span>
-                                    </li>
-                                </ul>
-                            </div>
+
+                        {{-- Required Records Checklist (Guidance Only) --}}
+                        @if(!$canAddPrenatalVisit)
+                        <div class="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                            <p class="text-xs text-yellow-800 mb-2">Prenatal visits can be added now, but final risk classification will remain ASSESSMENT INCOMPLETE until all required records are completed:</p>
+                            <ul class="space-y-1 text-xs text-yellow-700">
+                                <li class="flex items-center">
+                                    @if($hasMedicalHistory)
+                                    <svg class="w-3 h-3 text-green-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                    @else
+                                    <svg class="w-3 h-3 text-red-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                    @endif
+                                    Medical History
+                                    @if(!$hasMedicalHistory)
+                                    <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                    @endif
+                                </li>
+                                <li class="flex items-center">
+                                    @if($hasUltrasound)
+                                    <svg class="w-3 h-3 text-green-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                    @else
+                                    <svg class="w-3 h-3 text-red-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                    @endif
+                                    Ultrasound Record
+                                    @if(!$hasUltrasound)
+                                    <a href="{{ route('ultrasound.create', $patient->id) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                    @endif
+                                </li>
+                                <li class="flex items-center">
+                                    @if($hasBirthPlan)
+                                    <svg class="w-3 h-3 text-green-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                    </svg>
+                                    @else
+                                    <svg class="w-3 h-3 text-red-600 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                    </svg>
+                                    @endif
+                                    Birth Plan
+                                    @if(!$hasBirthPlan)
+                                    <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                    @endif
+                                </li>
+                            </ul>
                         </div>
                         @endif
 
@@ -368,10 +354,12 @@
                                     <td class="px-4 py-3">
                                         @if($visit->risk_level == 'HIGH')
                                             <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">High</span>
-                                        @elseif($visit->risk_level == 'MODERATE')
-                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">Moderate</span>
-                                        @else
+                                        @elseif($visit->risk_level == 'LOW')
                                             <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Low</span>
+                                        @elseif($visit->risk_level == 'ASSESSMENT INCOMPLETE')
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Incomplete</span>
+                                        @else
+                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">{{ $visit->risk_level }}</span>
                                         @endif
                                     </td>
                                     <td class="px-4 py-3">
@@ -622,67 +610,79 @@
                 @php
                     $latest = $patient->prenatalVisits->sortByDesc('visit_date')->first();
                 @endphp
-                @if($latest)
-                <div class="rounded-2xl shadow-sm border overflow-hidden 
-                    @if($latest->risk_level == 'HIGH') bg-red-50 border-red-200
-                    @elseif($latest->risk_level == 'MODERATE') bg-yellow-50 border-yellow-200
-                    @else bg-green-50 border-green-200 @endif">
-                    <div class="p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-6 h-6 @if($latest->risk_level == 'HIGH') text-red-600
-                                    @elseif($latest->risk_level == 'MODERATE') text-yellow-600
-                                    @else text-green-600 @endif" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                </svg>
-                                <h3 class="font-semibold text-gray-800">Risk Assessment</h3>
-                            </div>
-                            <span class="px-3 py-1 rounded-full text-sm font-bold
-                                @if($latest->risk_level == 'HIGH') bg-red-600 text-white
-                                @elseif($latest->risk_level == 'MODERATE') bg-yellow-600 text-white
-                                @else bg-green-600 text-white @endif">
-                                {{ $latest->risk_level }}
-                            </span>
-                        </div>
-                        <div class="space-y-3">
-                            <div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">Assessment</p>
-                                <p class="text-sm text-gray-600">{{ $latest->assessment }}</p>
-                            </div>
-                            @if(!empty($latest->risk_reasons))
-                            <div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">Risk Factors</p>
-                                <div class="space-y-1">
-                                    @foreach(is_array($latest->risk_reasons) ? $latest->risk_reasons : json_decode($latest->risk_reasons, true) ?? [] as $reason)
-                                        <div class="flex items-center space-x-2 text-sm text-gray-600">
-                                            <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                                            <span>{{ $reason }}</span>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                            @endif
-                            <div>
-                                <p class="text-sm font-medium text-gray-700 mb-1">Recommendation</p>
-                                <p class="text-sm text-gray-600">{{ $latest->recommendation }}</p>
-                            </div>
-                            <div class="pt-2 border-t border-gray-200">
+
+                @if(!$latest)
+                    <!-- No prenatal visit yet -->
+                    <div class="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
+                        <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-gray-700 font-medium mb-2">No prenatal assessment yet</p>
+                        <p class="text-gray-500 text-sm mb-4">Add a prenatal visit to generate an assessment.</p>
+                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium">
+                            Add Prenatal Visit
+                        </a>
+                    </div>
+                @else
+                    <!-- Normal risk assessment display -->
+                    <div class="rounded-2xl shadow-sm border overflow-hidden
+                        @if($latest->risk_level == 'HIGH') bg-red-50 border-red-200
+                        @elseif($latest->risk_level == 'ASSESSMENT INCOMPLETE') bg-gray-50 border-gray-200
+                        @else bg-green-50 border-green-200 @endif">
+                        <div class="p-6">
+                            <div class="flex items-center justify-between mb-4">
                                 <div class="flex items-center space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                    <svg class="w-6 h-6 @if($latest->risk_level == 'HIGH') text-red-600
+                                        @elseif($latest->risk_level == 'ASSESSMENT INCOMPLETE') text-gray-600
+                                        @else text-green-600 @endif" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                                     </svg>
-                                    <span class="text-sm font-medium text-gray-700">Next Visit:</span>
-                                    <span class="text-sm text-gray-600">{{ $latest->next_visit_date }}</span>
+                                    <h3 class="font-semibold text-gray-800">Risk Assessment</h3>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-sm font-bold
+                                    @if($latest->risk_level == 'HIGH') bg-red-600 text-white
+                                    @elseif($latest->risk_level == 'ASSESSMENT INCOMPLETE') bg-gray-500 text-white
+                                    @else bg-green-600 text-white @endif">
+                                    @if($latest->risk_level == 'HIGH') High
+                                    @elseif($latest->risk_level == 'LOW') Low
+                                    @elseif($latest->risk_level == 'ASSESSMENT INCOMPLETE') Incomplete
+                                    @else {{ $latest->risk_level }} @endif
+                                </span>
+                            </div>
+                            <div class="space-y-3">
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700 mb-1">Assessment</p>
+                                    <p class="text-sm text-gray-600">{{ $latest->assessment }}</p>
+                                </div>
+                                @if(!empty($latest->risk_reasons))
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700 mb-1">Risk Factors</p>
+                                    <div class="space-y-1">
+                                        @foreach(is_array($latest->risk_reasons) ? $latest->risk_reasons : json_decode($latest->risk_reasons, true) ?? [] as $reason)
+                                            <div class="flex items-center space-x-2 text-sm text-gray-600">
+                                                <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                                                <span>{{ $reason }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                @endif
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700 mb-1">Recommendation</p>
+                                    <p class="text-sm text-gray-600">{{ $latest->recommendation }}</p>
+                                </div>
+                                <div class="pt-2 border-t border-gray-200">
+                                    <div class="flex items-center space-x-2">
+                                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <span class="text-sm font-medium text-gray-700">Next Visit:</span>
+                                        <span class="text-sm text-gray-600">{{ $latest->next_visit_date }}</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                @else
-                <div class="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
-                    <p class="text-gray-500">No risk assessment available</p>
-                    <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="mt-2 inline-block text-blue-600 text-sm">Add first visit</a>
-                </div>
                 @endif
 
                 <!-- Pregnancy Summary Card -->
