@@ -1,3 +1,5 @@
+
+
 <?php
 
 namespace App\Http\Controllers;
@@ -196,6 +198,63 @@ class PatientController extends Controller
         return $missing;
     }
 
+
+    public function startNewPregnancy($id)
+{
+    $oldPatient = Patient::findOrFail($id);
+
+    if (!$oldPatient->canStartNewPregnancy()) {
+        return back()->withErrors([
+            'status' => 'New pregnancy can only be started from a delivered patient record.'
+        ]);
+    }
+
+    $hasActivePregnancy = Patient::where('first_name', $oldPatient->first_name)
+        ->where('last_name', $oldPatient->last_name)
+        ->where('birthdate', $oldPatient->birthdate)
+        ->where('status', 'ONGOING')
+        ->exists();
+
+    if ($hasActivePregnancy) {
+        return back()->withErrors([
+            'status' => 'This patient already has an active ongoing pregnancy record.'
+        ]);
+    }
+
+    $newPatient = Patient::create([
+        'first_name' => $oldPatient->first_name,
+        'middle_name' => $oldPatient->middle_name,
+        'last_name' => $oldPatient->last_name,
+        'birthdate' => $oldPatient->birthdate,
+        'age' => Carbon::parse($oldPatient->birthdate)->age,
+        'address' => $oldPatient->address,
+        'contact_number' => $oldPatient->contact_number,
+        'email' => $oldPatient->email,
+        'civil_status' => $oldPatient->civil_status,
+        'philhealth_member' => $oldPatient->philhealth_member,
+        'philhealth_number' => $oldPatient->philhealth_number,
+
+        'gravida' => $oldPatient->gravida + 1,
+        'para' => $oldPatient->para,
+        'previous_cs' => $oldPatient->previous_cs,
+        'miscarriage' => $oldPatient->miscarriage,
+
+        'lmp' => null,
+        'edd' => null,
+        'status' => 'ONGOING',
+        'delivery_date' => null,
+    ]);
+
+    $this->logAction(
+        'CREATE',
+        'PATIENT',
+        'Started new pregnancy record for: ' . $oldPatient->first_name . ' ' . $oldPatient->last_name
+    );
+
+    return redirect()->route('patients.edit', $newPatient->id)
+        ->with('success', 'New pregnancy record created. Please enter the actual LMP so the EDD can be calculated correctly.');
+}
+
     private function downloadPatientCsv(Patient $patient)
     {
         $latestVisit = $patient->prenatalVisits->sortByDesc('visit_date')->first();
@@ -362,8 +421,8 @@ class PatientController extends Controller
     'previous_cs' => 'required|in:0,1',
     'miscarriage' => 'required|integer|min:0',
 
-    'lmp' => 'required|date|before_or_equal:today',
-    'edd' => 'required|date|after:lmp',
+    'lmp' => 'nullable|date|before_or_equal:today',
+    'edd' => 'nullable|date|after:lmp',
 ]);
 if ($request->para > $request->gravida) {
     return back()->withErrors([
@@ -437,6 +496,12 @@ $this->logAction(
 public function markDelivered(Request $request, $id)
 {
     $patient = Patient::findOrFail($id);
+
+    if ($patient->isDelivered()) {
+    return back()->withErrors([
+        'status' => 'This patient is already marked as delivered.'
+    ])->withInput();
+}
 
     // Validate delivery data
     $request->validate([
@@ -544,21 +609,7 @@ public function updateBaby(Request $request, $id)
 }
 
 
-public function isOngoing(): bool
-{
-    return $this->status === 'ONGOING';
-}
-
-public function isDelivered(): bool
-{
-    return $this->status === 'DELIVERED';
-}
-
-public function canStartNewPregnancy(): bool
-{
-    return $this->isDelivered();
-}
+}   
 
 
-}
 
