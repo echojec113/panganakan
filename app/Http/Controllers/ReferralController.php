@@ -88,7 +88,6 @@ class ReferralController extends Controller
             'REFERRAL',
             'Created referral for patient: ' . $patient->first_name . ' ' . $patient->last_name
         );
-
         return redirect()
             ->route('referrals.index')
             ->with('success', 'Referral created successfully.');

@@ -49,6 +49,8 @@ class PatientController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+
+    
    public function store(Request $request)
 {
     $request->validate([
@@ -539,6 +541,22 @@ public function updateBaby(Request $request, $id)
         'baby' => $baby,
         'message' => 'Baby information updated successfully.'
     ]);
+}
+
+
+public function isOngoing(): bool
+{
+    return $this->status === 'ONGOING';
+}
+
+public function isDelivered(): bool
+{
+    return $this->status === 'DELIVERED';
+}
+
+public function canStartNewPregnancy(): bool
+{
+    return $this->isDelivered();
 }
 
 
