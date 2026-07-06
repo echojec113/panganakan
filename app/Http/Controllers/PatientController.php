@@ -1,7 +1,4 @@
-
-
 <?php
-
 namespace App\Http\Controllers;
 
 use App\Models\Baby;
@@ -203,7 +200,7 @@ class PatientController extends Controller
 {
     $oldPatient = Patient::findOrFail($id);
 
-    if (!$oldPatient->canStartNewPregnancy()) {
+    if ($oldPatient->status !== 'DELIVERED') {
         return back()->withErrors([
             'status' => 'New pregnancy can only be started from a delivered patient record.'
         ]);
@@ -497,7 +494,7 @@ public function markDelivered(Request $request, $id)
 {
     $patient = Patient::findOrFail($id);
 
-    if ($patient->isDelivered()) {
+    if ($patient->status === 'DELIVERED') {
     return back()->withErrors([
         'status' => 'This patient is already marked as delivered.'
     ])->withInput();

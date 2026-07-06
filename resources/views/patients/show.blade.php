@@ -1,5 +1,35 @@
 <x-app-layout>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        @if(session('success'))
+            <div class="mb-6 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
+                {{ session('success') }}
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div class="font-semibold">Please review the highlighted issues.</div>
+                <ul class="mt-2 list-disc space-y-1 pl-5">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        @if($patient->status === 'DELIVERED')
+            <div class="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <h2 class="text-lg font-semibold text-amber-900">Pregnancy Completed</h2>
+                        <p class="mt-1 text-sm text-amber-800">This pregnancy has been completed and is kept as a historical record. Clinical records are read-only to preserve accuracy. To register another pregnancy for this mother, use Start New Pregnancy.</p>
+                    </div>
+                </div>
+            </div>
+        @endif
 
         <!-- Patient Header -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">
@@ -15,6 +45,14 @@
                             <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">
                                 {{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}
                             </h1>
+                            @if($patient->status === 'DELIVERED')
+                                <div class="mt-3 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
+                                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Completed Pregnancy
+                                </div>
+                            @endif
                             <div class="flex flex-wrap gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-600">
                                 <span class="flex items-center">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,109 +77,133 @@
                         </div>
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3 flex-wrap items-center">
-                        {{-- Primary Actions (Left Side) --}}
-                        <a href="{{ route('patients.edit', $patient->id) }}" 
-                           class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                            </svg>
-                            Edit Profile
-                        </a>
-                        
-                        {{-- Add Prenatal Visit Button (Conditional) --}}
-                        @if($canAddPrenatalVisit)
-                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" 
-                           class="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                            </svg>
-                            Add Record
-                        </a>
-                        @else
-                        <div class="group relative">
-                            <button disabled 
-                                    class="px-4 py-2.5 bg-gray-400 text-white rounded-lg cursor-not-allowed font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap opacity-75">
+                        @if($patient->status === 'ONGOING')
+                            {{-- Primary Actions (Left Side) --}}
+                            <a href="{{ route('patients.edit', $patient->id) }}" 
+                               class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                                Edit Profile
+                            </a>
+                            
+                            {{-- Add Prenatal Visit Button (Conditional) --}}
+                            @if($canAddPrenatalVisit)
+                            <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" 
+                               class="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                 </svg>
-                                Complete Records First
-                            </button>
-                            <div class="hidden group-hover:block absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
-                                <p class="text-sm font-semibold text-gray-700 mb-3">Complete Required Records:</p>
-                                <ul class="space-y-2">
-                                    <li class="flex items-start">
-                                        @if($hasMedicalHistory)
-                                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        @else
-                                        <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                        </svg>
-                                        @endif
-                                        <span class="text-sm @if($hasMedicalHistory) text-green-700 @else text-red-700 @endif">
-                                            Medical History
-                                            @if(!$hasMedicalHistory)
-                                            <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                Add Record
+                            </a>
+                            @else
+                            <div class="group relative">
+                                <button disabled 
+                                        class="px-4 py-2.5 bg-gray-400 text-white rounded-lg cursor-not-allowed font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap opacity-75">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    Complete Records First
+                                </button>
+                                <div class="hidden group-hover:block absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-4">
+                                    <p class="text-sm font-semibold text-gray-700 mb-3">Complete Required Records:</p>
+                                    <ul class="space-y-2">
+                                        <li class="flex items-start">
+                                            @if($hasMedicalHistory)
+                                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                            </svg>
+                                            @else
+                                            <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                            </svg>
                                             @endif
-                                        </span>
-                                    </li>
-                                    <li class="flex items-start">
-                                        @if($hasUltrasound)
-                                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        @else
-                                        <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                        </svg>
-                                        @endif
-                                        <span class="text-sm @if($hasUltrasound) text-green-700 @else text-red-700 @endif">
-                                            Ultrasound Record
-                                            @if(!$hasUltrasound)
-                                            <a href="{{ route('ultrasound.create', $patient->id) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                            <span class="text-sm @if($hasMedicalHistory) text-green-700 @else text-red-700 @endif">
+                                                Medical History
+                                                @if(!$hasMedicalHistory)
+                                                <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                                @endif
+                                            </span>
+                                        </li>
+                                        <li class="flex items-start">
+                                            @if($hasUltrasound)
+                                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                            </svg>
+                                            @else
+                                            <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                            </svg>
                                             @endif
-                                        </span>
-                                    </li>
-                                    <li class="flex items-start">
-                                        @if($hasBirthPlan)
-                                        <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-                                        </svg>
-                                        @else
-                                        <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-                                        </svg>
-                                        @endif
-                                        <span class="text-sm @if($hasBirthPlan) text-green-700 @else text-red-700 @endif">
-                                            Birth Plan
-                                            @if(!$hasBirthPlan)
-                                            <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                            <span class="text-sm @if($hasUltrasound) text-green-700 @else text-red-700 @endif">
+                                                Ultrasound Record
+                                                @if(!$hasUltrasound)
+                                                <a href="{{ route('ultrasound.create', $patient->id) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                                @endif
+                                            </span>
+                                        </li>
+                                        <li class="flex items-start">
+                                            @if($hasBirthPlan)
+                                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                            </svg>
+                                            @else
+                                            <svg class="w-5 h-5 text-red-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                            </svg>
                                             @endif
-                                        </span>
-                                    </li>
-                                </ul>
+                                            <span class="text-sm @if($hasBirthPlan) text-green-700 @else text-red-700 @endif">
+                                                Birth Plan
+                                                @if(!$hasBirthPlan)
+                                                <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="ml-1 underline text-blue-600 hover:text-blue-800">Add</a>
+                                                @endif
+                                            </span>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
-                        </div>
-                        @endif
+                            @endif
 
-                        {{-- Conditional Action Buttons (Center) --}}
-                        @if($patient->status === 'ONGOING')
-                        <a href="{{ route('referrals.create', $patient->id) }}"
-                           class="px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            Refer Patient
-                        </a>
+                            <a href="{{ route('referrals.create', $patient->id) }}"
+                               class="px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Refer Patient
+                            </a>
 
-                        <button onclick="openDeliveryModal()" 
-                                class="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                            </svg>
-                            Mark as Delivered
-                        </button>
+                            <button onclick="openDeliveryModal()" 
+                                    class="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                                Mark as Delivered
+                            </button>
+                        @else
+                            <div class="flex flex-col items-end gap-2">
+                                <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Read-only record
+                                </div>
+                                <div class="flex flex-col sm:flex-row sm:items-center gap-2">
+                                    <a href="{{ route('patients.delivered') }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm whitespace-nowrap">
+                                        <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m6 0a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        View Pregnancy History
+                                    </a>
+                                    <form method="POST" action="{{ route('patients.start-new-pregnancy', $patient->id) }}">
+                                        @csrf
+                                        <button type="submit"
+                                                onclick="return confirm('Start a new pregnancy record for this patient? The completed record will remain unchanged.')"
+                                                class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
+                                            Start New Pregnancy
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
                         @endif
 
                         {{-- Secondary Action (Right Side) --}}
@@ -208,12 +270,14 @@
                                             {{ $baby->sex }}
                                         </span>
                                         @endif
+                                        @if($patient->status === 'ONGOING')
                                         <button type="button" onclick="toggleBabyEdit({{ $baby->id }})" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition edit-baby-btn">
                                             <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                             </svg>
                                             Edit
                                         </button>
+                                        @endif
                                     </div>
                                 </div>
 
@@ -343,7 +407,11 @@
                                 </svg>
                                 <h2 class="text-lg font-semibold text-gray-800">Prenatal Visits</h2>
                             </div>
-                            <span class="text-sm text-gray-500">{{ $patient->prenatalVisits->count() }} visits</span>
+                            @if($patient->status === 'DELIVERED')
+                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only</span>
+                            @else
+                                <span class="text-sm text-gray-500">{{ $patient->prenatalVisits->count() }} visits</span>
+                            @endif
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -375,14 +443,18 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3">
-                                        <div class="flex space-x-2">
-                                            <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-blue-600 hover:text-blue-800 text-sm">Edit</a>
-                                            <form action="{{ route('prenatal-visits.destroy', $visit->id) }}" method="POST" class="inline">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" onclick="return confirm('Delete this visit?')" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
-                                            </form>
-                                        </div>
+                                        @if($patient->status === 'ONGOING')
+                                            <div class="flex space-x-2">
+                                                <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-blue-600 hover:text-blue-800 text-sm">Edit</a>
+                                                <form action="{{ route('prenatal-visits.destroy', $visit->id) }}" method="POST" class="inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" onclick="return confirm('Delete this visit?')" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+                                                </form>
+                                            </div>
+                                        @else
+                                            <span class="text-xs text-gray-500">Read-only</span>
+                                        @endif
                                     </td>
                                 </tr>
                                 <tr id="visit-details-{{ $visit->id }}" class="hidden bg-gray-50">
@@ -418,12 +490,16 @@
                                 </svg>
                                 <h2 class="text-lg font-semibold text-gray-800">Ultrasound Records</h2>
                             </div>
+                            @if($patient->status === 'ONGOING')
                             <a href="{{ route('ultrasound.create', $patient->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                                 </svg>
                                 Add Ultrasound Record
                             </a>
+                            @else
+                            <span class="text-sm text-gray-500">Historical record</span>
+                            @endif
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -461,7 +537,11 @@
                                         @endif
                                     </td>
                                     <td class="px-4 py-3">
-                                        <a href="{{ route('ultrasound.edit', $u->id) }}" class="text-blue-600 hover:text-blue-800 text-sm">Edit</a>
+                                        @if($patient->status === 'ONGOING')
+                                            <a href="{{ route('ultrasound.edit', $u->id) }}" class="text-blue-600 hover:text-blue-800 text-sm">Edit</a>
+                                        @else
+                                            <span class="text-xs text-gray-500">Read-only</span>
+                                        @endif
                                     </td>
                                 </tr>
                                 @empty
@@ -484,15 +564,19 @@
                                 </svg>
                                 <h2 class="text-lg font-semibold text-gray-800">Medical History</h2>
                             </div>
-                            @if($patient->medicalHistory)
-                                <a href="{{ route('medical-histories.edit', $patient->medicalHistory->id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</a>
+                            @if($patient->status === 'ONGOING')
+                                @if($patient->medicalHistory)
+                                    <a href="{{ route('medical-histories.edit', $patient->medicalHistory->id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</a>
+                                @else
+                                    <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Add Medical History
+                                    </a>
+                                @endif
                             @else
-                                <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Add Medical History
-                                </a>
+                                <span class="text-sm text-gray-500">Historical record</span>
                             @endif
                         </div>
                     </div>
@@ -548,20 +632,24 @@
                                 </svg>
                                 <h2 class="text-lg font-semibold text-gray-800">Birth Plan</h2>
                             </div>
-                            @if($patient->birthPlan)
-                                <a href="{{ route('birth-plans.edit', $patient->birthPlan->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
-                                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Edit Birth Plan
-                                </a>
+                            @if($patient->status === 'ONGOING')
+                                @if($patient->birthPlan)
+                                    <a href="{{ route('birth-plans.edit', $patient->birthPlan->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
+                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Edit Birth Plan
+                                    </a>
+                                @else
+                                    <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Add Birth Plan
+                                    </a>
+                                @endif
                             @else
-                                <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Add Birth Plan
-                                </a>
+                                <span class="text-sm text-gray-500">Historical record</span>
                             @endif
                         </div>
                     </div>
@@ -681,7 +769,11 @@
                 @else
                 <div class="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
                     <p class="text-gray-500">No risk assessment available</p>
+                    @if($patient->status === 'ONGOING')
                     <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="mt-2 inline-block text-blue-600 text-sm">Add first visit</a>
+                    @else
+                    <p class="mt-2 text-sm text-gray-500">Historical pregnancy record</p>
+                    @endif
                 </div>
                 @endif
 
