@@ -285,7 +285,7 @@ class PatientController extends Controller
             'Breast Mass' => $patient->medicalHistory->breast_mass ? 'Yes' : 'No',
             'Liver Disease' => $patient->medicalHistory->liver_disease ? 'Yes' : 'No',
             'Smoking' => $patient->medicalHistory->smoking ? 'Yes' : 'No',
-            'Allergies' => $patient->medicalHistory->allergies ? 'Yes' : 'No',
+            'Allergies' => $patient->medicalistory->allergies ? 'Yes' : 'No',
             'Drug Intake' => $patient->medicalHistory->drug_intake ? 'Yes' : 'No',
             'STD History' => $patient->medicalHistory->std_history ? 'Yes' : 'No',
         ])->map(fn($value, $key) => "$key: $value")->implode("\n");
@@ -532,7 +532,8 @@ public function markDelivered(Request $request, $id)
     // Update patient status
     $patient->update([
         'status' => 'DELIVERED',
-        'delivery_date' => $request->delivery_date
+        'delivery_date' => $request->delivery_date,
+        'para' => $patient->para + 1,
     ]);
 
     // Create baby records
