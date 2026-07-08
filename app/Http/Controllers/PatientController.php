@@ -196,15 +196,22 @@ class PatientController extends Controller
     }
 
 
-    public function startNewPregnancy($id)
+    public function startNewPregnancy(Request $request, $id)
 {
     $oldPatient = Patient::findOrFail($id);
 
     if ($oldPatient->status !== 'DELIVERED') {
         return back()->withErrors([
             'status' => 'New pregnancy can only be started from a delivered patient record.'
-        ]);
+        ])->withInput();
     }
+
+    $request->validate([
+        'lmp' => 'required|date|before_or_equal:today',
+        'edd' => 'required|date|after:lmp',
+        'address' => 'required|string|max:255',
+        'contact_number' => ['required', 'regex:/^09\d{9}$/'],
+    ]);
 
     $hasActivePregnancy = Patient::where('first_name', $oldPatient->first_name)
         ->where('last_name', $oldPatient->last_name)
@@ -215,7 +222,7 @@ class PatientController extends Controller
     if ($hasActivePregnancy) {
         return back()->withErrors([
             'status' => 'This patient already has an active ongoing pregnancy record.'
-        ]);
+        ])->withInput();
     }
 
     $newPatient = Patient::create([
@@ -224,8 +231,10 @@ class PatientController extends Controller
         'last_name' => $oldPatient->last_name,
         'birthdate' => $oldPatient->birthdate,
         'age' => Carbon::parse($oldPatient->birthdate)->age,
-        'address' => $oldPatient->address,
-        'contact_number' => $oldPatient->contact_number,
+
+        'address' => $request->address,
+        'contact_number' => $request->contact_number,
+
         'email' => $oldPatient->email,
         'civil_status' => $oldPatient->civil_status,
         'philhealth_member' => $oldPatient->philhealth_member,
@@ -236,8 +245,8 @@ class PatientController extends Controller
         'previous_cs' => $oldPatient->previous_cs,
         'miscarriage' => $oldPatient->miscarriage,
 
-        'lmp' => null,
-        'edd' => null,
+        'lmp' => $request->lmp,
+        'edd' => $request->edd,
         'status' => 'ONGOING',
         'delivery_date' => null,
     ]);
@@ -248,8 +257,8 @@ class PatientController extends Controller
         'Started new pregnancy record for: ' . $oldPatient->first_name . ' ' . $oldPatient->last_name
     );
 
-    return redirect()->route('patients.edit', $newPatient->id)
-        ->with('success', 'New pregnancy record created. Please enter the actual LMP so the EDD can be calculated correctly.');
+    return redirect()->route('patients.show', $newPatient->id)
+        ->with('success', 'New pregnancy record created successfully.');
 }
 
     private function downloadPatientCsv(Patient $patient)

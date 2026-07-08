@@ -121,4 +121,19 @@ class Patient extends Model
 {
     return $this->hasMany(Referral::class);
 }
+
+public function isOngoing(): bool
+{
+    return $this->status === 'ONGOING';
+}
+
+public function isDelivered(): bool
+{
+    return $this->status === 'DELIVERED';
+}
+
+public function canStartNewPregnancy(): bool
+{
+    return $this->isDelivered();
+}
 }
