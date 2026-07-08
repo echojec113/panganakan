@@ -243,19 +243,21 @@
                         <div>
                             <span class="text-gray-500">Next Visit:</span>
                             <span class="text-gray-700 ml-1">
-                                @if($visit->next_visit_date)
-                                    {{ \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') }}
+                                @php
+                                    $monitoringLabel = $visit->getMonitoringNextVisitLabel();
+                                    $isMonitoringOverdue = $visit->isMonitoringOverdue();
+                                @endphp
+                                {{ $monitoringLabel }}
+                                @if($visit->patient->status === 'ONGOING' && $visit->next_visit_date)
                                     @php
                                         $nextVisit = \Carbon\Carbon::parse($visit->next_visit_date);
                                         $daysUntil = \Carbon\Carbon::now()->diffInDays($nextVisit, false);
                                     @endphp
                                     @if($daysUntil <= 3 && $daysUntil >= 0)
                                         <span class="text-orange-600 ml-1">⚠️ Due</span>
-                                    @elseif($daysUntil < 0)
+                                    @elseif($isMonitoringOverdue)
                                         <span class="text-red-600 ml-1">🔴 Overdue</span>
                                     @endif
-                                @else
-                                    N/A
                                 @endif
                             </span>
                         </div>
@@ -353,7 +355,14 @@
                                 {{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                @if($visit->next_visit_date)
+                                @php
+                                    $monitoringLabel = $visit->getMonitoringNextVisitLabel();
+                                    $isMonitoringOverdue = $visit->isMonitoringOverdue();
+                                @endphp
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ $monitoringLabel }}
+                                </div>
+                                @if($visit->patient->status === 'ONGOING' && $visit->next_visit_date)
                                     @php
                                         $nextVisit = \Carbon\Carbon::parse($visit->next_visit_date);
                                         $daysUntil = \Carbon\Carbon::now()->floatDiffInDays($nextVisit, false);
@@ -361,16 +370,11 @@
                                             ? number_format(abs($daysUntil), 0)
                                             : number_format(abs($daysUntil), 1);
                                     @endphp
-                                    <div class="text-sm font-medium text-gray-900">
-                                        {{ \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') }}
-                                    </div>
                                     @if($daysUntil <= 3 && $daysUntil >= 0)
                                         <div class="text-xs text-orange-600 mt-1">⚠️ Due in {{ $formattedDaysUntil }} day(s)</div>
-                                    @elseif($daysUntil < 0)
+                                    @elseif($isMonitoringOverdue)
                                         <div class="text-xs text-red-600 mt-1">🔴 Overdue by {{ $formattedDaysUntil }} day(s)</div>
                                     @endif
-                                @else
-                                    <span class="text-xs text-gray-400">Not scheduled</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
@@ -446,7 +450,7 @@
                             </div>
                             <div class="flex justify-between text-xs text-gray-500">
                                 <span>Last: {{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</span>
-                                <span>Next: {{ $visit->next_visit_date ? \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') : 'N/A' }}</span>
+                                <span>Next: {{ $visit->getMonitoringNextVisitLabel() }}</span>
                             </div>
                         </div>
                         @endforeach
@@ -478,7 +482,7 @@
                                         {{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}
                                     </td>
                                     <td class="px-6 py-4 text-sm text-gray-900">
-                                        {{ $visit->next_visit_date ? \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') : 'N/A' }}
+                                        {{ $visit->getMonitoringNextVisitLabel() }}
                                     </td>
                                     <td class="px-6 py-4">
                                         <a href="{{ route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring']) }}" class="text-blue-600 hover:text-blue-800 text-sm">

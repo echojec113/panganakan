@@ -256,8 +256,8 @@
            TOP BAR
         ══════════════════════════ */
         .topbar {
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
+            background: linear-gradient(90deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.96) 100%);
+            border-bottom: 1px solid rgba(37,99,235,0.12);
             padding: 0 26px;
             height: 62px;
             display: flex;
@@ -266,7 +266,8 @@
             position: sticky;
             top: 0;
             z-index: 50;
-            box-shadow: 0 1px 10px rgba(30,70,140,0.06);
+            box-shadow: 0 10px 30px rgba(30,70,140,0.06);
+            backdrop-filter: blur(10px);
         }
 
         .topbar-left { display: flex; align-items: center; gap: 12px; }
@@ -445,6 +446,15 @@
         .page-content {
             flex: 1;
             padding: 28px 30px;
+        }
+
+        .page-shell {
+            background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(247,250,255,0.96) 100%);
+            border: 1px solid rgba(37,99,235,0.12);
+            border-radius: 24px;
+            box-shadow: 0 18px 45px rgba(30,70,140,0.08);
+            min-height: calc(100vh - 128px);
+            padding: 24px;
         }
 
         /* ══════════════════════════
@@ -687,7 +697,9 @@
 
     {{-- PAGE CONTENT --}}
     <main class="page-content">
-        {{ $slot }}
+        <div class="page-shell">
+            {{ $slot }}
+        </div>
     </main>
 
 </div>

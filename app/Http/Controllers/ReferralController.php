@@ -82,6 +82,10 @@ class ReferralController extends Controller
             'status'        => 'Pending',
         ]);
 
+        $patient->update([
+            'status' => 'REFERRED',
+        ]);
+
         // Audit log
         $this->logAction(
             'CREATE',

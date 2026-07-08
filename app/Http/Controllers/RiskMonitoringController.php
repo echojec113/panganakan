@@ -11,13 +11,17 @@ class RiskMonitoringController extends Controller
     public function index(Request $request)
     {
         $query = PrenatalVisit::with('patient')->latest();
+
+        $query->whereHas('patient', function ($q) {
+            $q->whereIn('status', ['ONGOING', 'DELIVERED', 'REFERRED']);
+        });
         
         // Apply risk filter if specified
         if ($request->risk_filter && in_array($request->risk_filter, ['HIGH', 'LOW'])) {
             $query->where('risk_level', $request->risk_filter);
         } else {
             // Default: show all, but we'll highlight high risk first
-            $query->orderByRaw("FIELD(risk_level, 'HIGH', 'LOW')");
+            $query->orderByRaw("CASE WHEN risk_level = 'HIGH' THEN 0 WHEN risk_level = 'LOW' THEN 1 ELSE 2 END");
         }
         
         // 🔍 SEARCH

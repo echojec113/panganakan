@@ -396,8 +396,9 @@
                     </div>
 
                     <!-- Login Card -->
-                    <div class="login-card w-full bg-white rounded-2xl overflow-hidden reveal"
+                    <div class="login-card w-full bg-white rounded-2xl overflow-hidden reveal relative"
                          style="animation-delay:0.25s; box-shadow: 0 8px 32px rgba(59,130,246,0.08), 0 2px 8px rgba(0,0,0,0.05); border: 1px solid rgba(219,234,254,0.8);">
+                        <div class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-400"></div>
 
                         <!-- Card Header -->
                         <div class="px-8 pt-8 pb-6" style="border-bottom: 1px solid rgba(219,234,254,0.7);">
@@ -496,8 +497,7 @@
                                 </div>
                             </form>
                         </div>
-
-                        
+                    </div>
 
                     <!-- Help Text -->
                     <div class="mt-6 text-center reveal" style="animation-delay:0.4s">

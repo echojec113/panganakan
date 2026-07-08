@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -60,6 +61,36 @@ class PrenatalVisit extends Model
     public function patient()
     {
         return $this->belongsTo(\App\Models\Patient::class);
+    }
+
+    public function getMonitoringNextVisitLabel(): string
+    {
+        $patientStatus = $this->patient?->status;
+
+        if ($patientStatus === 'DELIVERED') {
+            return 'Delivered';
+        }
+
+        if ($patientStatus === 'REFERRED') {
+            return 'Referred';
+        }
+
+        if ($this->next_visit_date) {
+            return Carbon::parse($this->next_visit_date)->format('M d, Y');
+        }
+
+        return 'Not scheduled';
+    }
+
+    public function isMonitoringOverdue(): bool
+    {
+        $patientStatus = $this->patient?->status;
+
+        if (in_array($patientStatus, ['DELIVERED', 'REFERRED'], true)) {
+            return false;
+        }
+
+        return (bool) ($this->next_visit_date && Carbon::parse($this->next_visit_date)->isPast());
     }
     
 }
