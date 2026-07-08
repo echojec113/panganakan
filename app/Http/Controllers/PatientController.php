@@ -196,15 +196,22 @@ class PatientController extends Controller
     }
 
 
-    public function startNewPregnancy($id)
+    public function startNewPregnancy(Request $request, $id)
 {
     $oldPatient = Patient::findOrFail($id);
 
     if ($oldPatient->status !== 'DELIVERED') {
         return back()->withErrors([
             'status' => 'New pregnancy can only be started from a delivered patient record.'
-        ]);
+        ])->withInput();
     }
+
+    $request->validate([
+        'lmp' => 'required|date|before_or_equal:today',
+        'edd' => 'required|date|after:lmp',
+        'address' => 'required|string|max:255',
+        'contact_number' => ['required', 'regex:/^09\d{9}$/'],
+    ]);
 
     $hasActivePregnancy = Patient::where('first_name', $oldPatient->first_name)
         ->where('last_name', $oldPatient->last_name)
@@ -215,7 +222,7 @@ class PatientController extends Controller
     if ($hasActivePregnancy) {
         return back()->withErrors([
             'status' => 'This patient already has an active ongoing pregnancy record.'
-        ]);
+        ])->withInput();
     }
 
     $newPatient = Patient::create([
@@ -224,8 +231,10 @@ class PatientController extends Controller
         'last_name' => $oldPatient->last_name,
         'birthdate' => $oldPatient->birthdate,
         'age' => Carbon::parse($oldPatient->birthdate)->age,
-        'address' => $oldPatient->address,
-        'contact_number' => $oldPatient->contact_number,
+
+        'address' => $request->address,
+        'contact_number' => $request->contact_number,
+
         'email' => $oldPatient->email,
         'civil_status' => $oldPatient->civil_status,
         'philhealth_member' => $oldPatient->philhealth_member,
@@ -236,8 +245,8 @@ class PatientController extends Controller
         'previous_cs' => $oldPatient->previous_cs,
         'miscarriage' => $oldPatient->miscarriage,
 
-        'lmp' => null,
-        'edd' => null,
+        'lmp' => $request->lmp,
+        'edd' => $request->edd,
         'status' => 'ONGOING',
         'delivery_date' => null,
     ]);
@@ -248,8 +257,8 @@ class PatientController extends Controller
         'Started new pregnancy record for: ' . $oldPatient->first_name . ' ' . $oldPatient->last_name
     );
 
-    return redirect()->route('patients.edit', $newPatient->id)
-        ->with('success', 'New pregnancy record created. Please enter the actual LMP so the EDD can be calculated correctly.');
+    return redirect()->route('patients.show', $newPatient->id)
+        ->with('success', 'New pregnancy record created successfully.');
 }
 
     private function downloadPatientCsv(Patient $patient)
@@ -272,11 +281,7 @@ class PatientController extends Controller
             'Para' => $patient->para,
             'LMP' => $patient->lmp,
             'EDD' => $patient->edd,
-            'Pregnancy Status' => match ($patient->status) {
-                'DELIVERED' => 'Delivered',
-                'REFERRED' => 'Referred',
-                default => 'Ongoing',
-            },
+            'Pregnancy Status' => $patient->status === 'DELIVERED' ? 'Delivered' : 'Ongoing',
             'Delivery Date' => $patient->delivery_date ?: 'N/A',
         ])->map(fn($value, $key) => "$key: $value")->implode("\n");
 
@@ -289,7 +294,7 @@ class PatientController extends Controller
             'Breast Mass' => $patient->medicalHistory->breast_mass ? 'Yes' : 'No',
             'Liver Disease' => $patient->medicalHistory->liver_disease ? 'Yes' : 'No',
             'Smoking' => $patient->medicalHistory->smoking ? 'Yes' : 'No',
-            'Allergies' => $patient->medicalistory->allergies ? 'Yes' : 'No',
+            'Allergies' => $patient->medicalHistory->allergies ? 'Yes' : 'No',
             'Drug Intake' => $patient->medicalHistory->drug_intake ? 'Yes' : 'No',
             'STD History' => $patient->medicalHistory->std_history ? 'Yes' : 'No',
         ])->map(fn($value, $key) => "$key: $value")->implode("\n");
@@ -313,7 +318,7 @@ class PatientController extends Controller
             $riskData = collect([
                 'Current Risk Level' => $latestVisit->risk_level,
                 'Identified Risk Factors' => $latestVisit->risk_reasons ?: 'N/A',
-                'Overdue Status' => $latestVisit->isMonitoringOverdue() ? 'Overdue' : 'On time',
+                'Overdue Status' => $latestVisit->next_visit_date && Carbon::parse($latestVisit->next_visit_date)->isPast() ? 'Overdue' : 'On time',
             ])->map(fn($value, $key) => "$key: $value")->implode("\n");
         }
 
@@ -364,7 +369,7 @@ class PatientController extends Controller
         $riskSummary = [
             'currentRiskLevel' => $latestVisit?->risk_level ?: 'N/A',
             'identifiedRiskFactors' => $latestVisit?->risk_reasons ?: 'N/A',
-            'overdueStatus' => $latestVisit && $latestVisit->isMonitoringOverdue() ? 'Overdue' : 'On time',
+            'overdueStatus' => $latestVisit && $latestVisit->next_visit_date && Carbon::parse($latestVisit->next_visit_date)->isPast() ? 'Overdue' : 'On time',
         ];
 
         $data = [
