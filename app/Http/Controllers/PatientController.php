@@ -6,6 +6,7 @@ use App\Models\Patient;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class PatientController extends Controller
 {
@@ -571,9 +572,112 @@ public function markDelivered(Request $request, $id)
 }
 public function delivered()
 {
-    $patients = Patient::where('status', 'DELIVERED')->latest()->get();
+    $search = trim((string) request('search'));
+
+    $deliveredPatients = Patient::with('babies')
+        ->where('status', 'DELIVERED')
+        ->orderByDesc('delivery_date')
+        ->orderByDesc('created_at')
+        ->get();
+
+    if ($search !== '') {
+        $deliveredPatients = $deliveredPatients->filter(function ($patient) use ($search) {
+            $name = trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name);
+
+            return str_contains(strtolower($name), strtolower($search))
+                || str_contains((string) $patient->contact_number, $search);
+        })->values();
+    }
+
+    $groupedPatients = $deliveredPatients
+        ->groupBy(fn ($patient) => $this->patientHistoryKey($patient))
+        ->map(function ($pregnancies) {
+            $latest = $pregnancies->sortByDesc(fn ($patient) => $patient->delivery_date ?: $patient->created_at)->first();
+
+            return (object) [
+                'patient' => $latest,
+                'completed_pregnancies' => $pregnancies->count(),
+                'total_babies' => $pregnancies->sum(fn ($patient) => $patient->babies->count()),
+                'last_delivery_date' => $pregnancies->max('delivery_date'),
+            ];
+        })
+        ->sortByDesc('last_delivery_date')
+        ->values();
+
+    $page = LengthAwarePaginator::resolveCurrentPage();
+    $perPage = 10;
+    $patients = new LengthAwarePaginator(
+        $groupedPatients->forPage($page, $perPage)->values(),
+        $groupedPatients->count(),
+        $perPage,
+        $page,
+        ['path' => request()->url(), 'query' => request()->query()]
+    );
 
     return view('patients.delivered', compact('patients'));
+}
+
+public function pregnancyHistory($id)
+{
+    $patient = Patient::with('babies')->where('status', 'DELIVERED')->findOrFail($id);
+    $pregnancies = $this->completedPregnanciesFor($patient);
+    $latestPatient = $pregnancies->first();
+
+    return view('patients.pregnancy-history', [
+        'patient' => $latestPatient,
+        'pregnancies' => $pregnancies,
+        'totalBabies' => $pregnancies->sum(fn ($pregnancy) => $pregnancy->babies->count()),
+    ]);
+}
+
+public function babyInformation($id)
+{
+    $pregnancy = Patient::with(['babies', 'prenatalVisits'])
+        ->where('status', 'DELIVERED')
+        ->findOrFail($id);
+
+    return view('patients.baby-information', [
+        'pregnancy' => $pregnancy,
+        'latestVisit' => $pregnancy->prenatalVisits->sortByDesc('visit_date')->first(),
+    ]);
+}
+
+public function printBabies(Request $request, $id)
+{
+    $patient = Patient::with('babies')->where('status', 'DELIVERED')->findOrFail($id);
+    $pregnancies = $request->boolean('all')
+        ? $this->completedPregnanciesFor($patient)
+        : collect([$patient->load(['babies', 'prenatalVisits'])]);
+
+    $babyId = $request->integer('baby_id');
+
+    if ($babyId) {
+        $pregnancies = $pregnancies->map(function ($pregnancy) use ($babyId) {
+            $pregnancy->setRelation('babies', $pregnancy->babies->where('id', $babyId)->values());
+
+            return $pregnancy;
+        })->filter(fn ($pregnancy) => $pregnancy->babies->isNotEmpty())->values();
+    }
+
+    return view('patients.print-babies', compact('patient', 'pregnancies'));
+}
+
+private function completedPregnanciesFor(Patient $patient)
+{
+    return Patient::with(['babies', 'prenatalVisits'])
+        ->where('status', 'DELIVERED')
+        ->where('first_name', $patient->first_name)
+        ->where('last_name', $patient->last_name)
+        ->when($patient->middle_name, fn ($query) => $query->where('middle_name', $patient->middle_name), fn ($query) => $query->whereNull('middle_name'))
+        ->when($patient->birthdate, fn ($query) => $query->where('birthdate', $patient->birthdate), fn ($query) => $query->whereNull('birthdate'))
+        ->orderByDesc('delivery_date')
+        ->orderByDesc('created_at')
+        ->get();
+}
+
+private function patientHistoryKey(Patient $patient): string
+{
+    return strtolower(trim($patient->first_name . '|' . $patient->middle_name . '|' . $patient->last_name . '|' . $patient->birthdate));
 }
 
 public function updateBaby(Request $request, $id)
@@ -617,6 +721,5 @@ public function updateBaby(Request $request, $id)
 
 
 }   
-
 
 

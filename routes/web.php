@@ -75,6 +75,16 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/patients/delivered', [PatientController::class, 'delivered'])
         ->name('patients.delivered');
+
+    Route::get('/patients/delivered/{id}/history', [PatientController::class, 'pregnancyHistory'])
+        ->name('patients.delivered.history');
+
+    Route::get('/patients/delivered/{id}/babies', [PatientController::class, 'babyInformation'])
+        ->name('patients.delivered.babies');
+
+    Route::get('/patients/delivered/{id}/print-babies', [PatientController::class, 'printBabies'])
+        ->name('patients.delivered.print-babies');
+
     Route::post('/patients/{id}/start-new-pregnancy', [PatientController::class, 'startNewPregnancy'])
     ->name('patients.start-new-pregnancy');   
 
