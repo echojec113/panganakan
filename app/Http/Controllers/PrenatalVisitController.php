@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use App\Mail\PrenatalVisitReminderMail;
+use App\Mail\PrenatalVisitScheduleUpdatedMail;
 
 class PrenatalVisitController extends Controller
 {
@@ -371,21 +372,20 @@ $missingRecords[] = 'Medical History';
             'next_visit_date' => $finalNextVisit,
         ]);
 
-        if (!empty($patient->email)) {
+        if (!empty($patient->email) && $request->next_visit_date) {
     try {
-        Log::info('EMAIL ATTEMPT STARTED FOR: ' . $patient->email);
+        Log::info('PRENATAL CREATE EMAIL ATTEMPT: ' . $patient->email);
 
         Mail::to($patient->email)
             ->send(new PrenatalVisitReminderMail($patient, $visit));
 
-        Log::info('EMAIL SENT OR LOGGED SUCCESSFULLY FOR: ' . $patient->email);
+        Log::info('PRENATAL CREATE EMAIL SENT SUCCESSFULLY: ' . $patient->email);
 
     } catch (\Exception $e) {
-        Log::error('PRENATAL EMAIL ERROR: ' . $e->getMessage());
+        Log::error('PRENATAL CREATE EMAIL FAILED: ' . $e->getMessage() . ' | Patient ID: ' . $patient->id . ' | Visit ID: ' . $visit->id);
     }
 } else {
-    Log::warning('EMAIL SKIPPED: Patient has no email. Patient ID: ' . $patient->id);
-
+    Log::info('PRENATAL CREATE EMAIL SKIPPED: Patient ID ' . $patient->id . ' — ' . (empty($patient->email) ? 'no email' : 'no next_visit_date'));
 }
 
         // ✅ AUDIT LOG
@@ -409,6 +409,7 @@ $missingRecords[] = 'Medical History';
     public function update(Request $request, $id)
     {
         $visit = PrenatalVisit::findOrFail($id);
+        $originalNextVisitDate = $visit->getOriginal('next_visit_date');
 
         // ======================
         // ENHANCED VALIDATION (Same as store)
@@ -522,6 +523,36 @@ $missingRecords[] = 'Medical History';
             'next_visit_date' => $finalNextVisit,
         ]);
         
+        // ======================
+        // NEXT VISIT DATE CHANGE DETECTION
+        // ======================
+        $nextVisitDateChanged = $visit->next_visit_date != $originalNextVisitDate;
+
+        if ($nextVisitDateChanged) {
+            $visit->update([
+                'reminder_tomorrow_sent_at' => null,
+                'reminder_today_sent_at' => null,
+            ]);
+
+            $patient = Patient::find($visit->patient_id);
+
+            if ($patient && !empty($patient->email)) {
+                try {
+                    Log::info('PRENATAL UPDATE EMAIL ATTEMPT: ' . $patient->email);
+
+                    Mail::to($patient->email)
+                        ->send(new PrenatalVisitScheduleUpdatedMail($patient, $visit));
+
+                    Log::info('PRENATAL UPDATE EMAIL SENT SUCCESSFULLY: ' . $patient->email);
+
+                } catch (\Exception $e) {
+                    Log::error('PRENATAL UPDATE EMAIL FAILED: ' . $e->getMessage() . ' | Patient ID: ' . $patient->id . ' | Visit ID: ' . $visit->id);
+                }
+            } else {
+                Log::info('PRENATAL UPDATE EMAIL SKIPPED (schedule changed, no patient email): Visit ID ' . $visit->id);
+            }
+        }
+
         // ✅ AUDIT LOG
         $this->logAction(
             'UPDATE',

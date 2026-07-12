@@ -43,12 +43,16 @@ class PrenatalVisit extends Model
         'recommendation',
         'treatment_plan',
         'next_visit_date',
+        'reminder_tomorrow_sent_at',
+        'reminder_today_sent_at',
 
         'notes'
     ];
     protected $casts = [
     'visit_date' => 'date',
     'next_visit_date' => 'date',
+    'reminder_tomorrow_sent_at' => 'datetime',
+    'reminder_today_sent_at' => 'datetime',
     'hypertension' => 'boolean',
     'diabetes' => 'boolean',
     'anemia' => 'boolean',
