@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -45,7 +46,7 @@ class Patient extends Model
         'philhealth_number',
         'status',
         'delivery_date',
-        
+        'assigned_staff_id',
     ];
 
 
@@ -128,6 +129,11 @@ class Patient extends Model
 {
     return $this->hasMany(Referral::class);
 }
+
+    public function assignedStaff(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_staff_id');
+    }
 
 public function isOngoing(): bool
 {

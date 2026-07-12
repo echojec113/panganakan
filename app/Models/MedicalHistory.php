@@ -24,7 +24,15 @@ class MedicalHistory extends Model
         'smoking',
         'allergies',
         'drug_intake',
-        'std_history'
+        'std_history',
+        'diabetes',
+        'hypertension',
+        'asthma',
+        'thyroid_disease',
+        'heart_disease',
+        'anemia',
+        'mental_health_condition',
+        'other_specify',
 
     ];
 

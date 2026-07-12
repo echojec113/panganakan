@@ -37,6 +37,13 @@
                             'allergies' => 'Allergies',
                             'drug_intake' => 'Drug Intake',
                             'std_history' => 'STD History',
+                            'diabetes' => 'Diabetes',
+                            'hypertension' => 'Hypertension',
+                            'asthma' => 'Asthma',
+                            'thyroid_disease' => 'Thyroid Disease',
+                            'heart_disease' => 'Heart Disease',
+                            'anemia' => 'Anemia',
+                            'mental_health_condition' => 'Mental Health Condition',
                         ];
                     @endphp
 
@@ -46,6 +53,18 @@
                             <span class="text-sm text-gray-700">{{ $label }}</span>
                         </label>
                     @endforeach
+                </div>
+
+                {{-- Other Section --}}
+                <div class="border-t border-gray-100 pt-6">
+                    <label class="flex items-center gap-3 p-4 border border-gray-200 rounded-2xl cursor-pointer hover:border-blue-300 transition max-w-md">
+                        <input type="checkbox" name="other" value="1" class="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" onchange="document.getElementById('otherSpecifyGroup').classList.toggle('hidden', !this.checked)" />
+                        <span class="text-sm text-gray-700">Other</span>
+                    </label>
+                    <div id="otherSpecifyGroup" class="hidden mt-3 max-w-md">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Please specify:</label>
+                        <input type="text" name="other_specify" value="{{ old('other_specify') }}" placeholder="Enter condition name" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                    </div>
                 </div>
 
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

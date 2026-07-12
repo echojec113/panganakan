@@ -108,7 +108,7 @@
                             <p class="font-semibold text-gray-900">
                                 {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}
                             </p>
-                            <p class="text-xs text-gray-500 mt-0.5">ID: #{{ $visit->id }}</p>
+
                         </div>
                         <span class="px-2 py-1 rounded-full text-xs font-semibold
                             {{ $visit->risk_level == 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
@@ -144,7 +144,6 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BP</th>
@@ -158,7 +157,6 @@
                     <tbody class="bg-white divide-y divide-gray-200" id="visitsTableBody">
                         @foreach($visits as $visit)
                         <tr class="hover:bg-gray-50 transition visit-row" data-name="{{ strtolower($visit->patient->first_name . ' ' . $visit->patient->last_name) }}" data-risk="{{ $visit->risk_level }}">
-                            <td class="px-6 py-4 text-sm text-gray-900">{{ $visit->id }}</td>
                             <td class="px-6 py-4">
                                 <div>
                                     <p class="font-medium text-gray-900">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>

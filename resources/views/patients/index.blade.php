@@ -77,6 +77,18 @@
             </div>
         </div>
 
+        {{-- Filter Tabs --}}
+        <div class="mb-4 flex gap-2">
+            <a href="{{ route('patients.index', ['filter' => 'all']) }}"
+               class="px-4 py-2 text-sm font-medium rounded-lg transition {{ request('filter') !== 'my' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">
+                All Patients
+            </a>
+            <a href="{{ route('patients.index', ['filter' => 'my']) }}"
+               class="px-4 py-2 text-sm font-medium rounded-lg transition {{ request('filter') === 'my' ? 'bg-blue-600 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">
+                My Patients
+            </a>
+        </div>
+
         {{-- Search + Table Card --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             {{-- Search bar --}}
@@ -96,24 +108,19 @@
                 <table class="w-full text-sm" id="patientTable">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-100">
-                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Patient Name</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Age</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">G / P</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">EDD</th>
                             <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">PhilHealth</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Staff</th>
                             <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-50" id="patientTableBody">
                         @forelse($patients as $patient)
                         <tr class="hover:bg-blue-50/40 transition patient-row">
-                            <td class="px-6 py-4">
-                                <a href="{{ route('patients.show', $patient->id) }}" class="text-blue-600 font-semibold hover:underline">
-                                    #{{ str_pad($patient->id, 4, '0', STR_PAD_LEFT) }}
-                                </a>
-                            </td>
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-3">
                                     <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -149,6 +156,13 @@
                                     </span>
                                 @else
                                     <span class="inline-flex px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">None</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-gray-700">
+                                @if($patient->assignedStaff)
+                                    <span class="text-sm">{{ $patient->assignedStaff->name }}</span>
+                                @else
+                                    <span class="text-sm text-gray-400">—</span>
                                 @endif
                             </td>
                             <td class="px-6 py-4">

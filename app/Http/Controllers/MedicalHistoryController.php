@@ -32,6 +32,14 @@ class MedicalHistoryController extends Controller
             'allergies' => $request->has('allergies'),
             'drug_intake' => $request->has('drug_intake'),
             'std_history' => $request->has('std_history'),
+            'diabetes' => $request->has('diabetes'),
+            'hypertension' => $request->has('hypertension'),
+            'asthma' => $request->has('asthma'),
+            'thyroid_disease' => $request->has('thyroid_disease'),
+            'heart_disease' => $request->has('heart_disease'),
+            'anemia' => $request->has('anemia'),
+            'mental_health_condition' => $request->has('mental_health_condition'),
+            'other_specify' => $request->has('other') ? $request->input('other_specify') : null,
 
         ]);
 
@@ -76,6 +84,14 @@ $this->logAction(
         'allergies' => $request->has('allergies'),
         'drug_intake' => $request->has('drug_intake'),
         'std_history' => $request->has('std_history'),
+        'diabetes' => $request->has('diabetes'),
+        'hypertension' => $request->has('hypertension'),
+        'asthma' => $request->has('asthma'),
+        'thyroid_disease' => $request->has('thyroid_disease'),
+        'heart_disease' => $request->has('heart_disease'),
+        'anemia' => $request->has('anemia'),
+        'mental_health_condition' => $request->has('mental_health_condition'),
+        'other_specify' => $request->has('other') ? $request->input('other_specify') : null,
     ]);
 
     // ✅ AUDIT LOG

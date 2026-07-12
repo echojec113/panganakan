@@ -210,7 +210,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Gravida <span class="text-red-500">*</span></label>
                             <input type="number" id="gravida" name="gravida"
-                                value="{{ old('gravida') }}"
+                                value="{{ old('gravida', 1) }}"
                                 min="0"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('gravida') border-red-500 @enderror"
                                 placeholder="Number of pregnancies">
@@ -220,7 +220,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Para <span class="text-red-500">*</span></label>
                             <input type="number" id="para" name="para"
-                                value="{{ old('para') }}"
+                                value="{{ old('para', 0) }}"
                                 min="0"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('para') border-red-500 @enderror"
                                 placeholder="Number of deliveries">

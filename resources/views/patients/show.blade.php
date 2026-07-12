@@ -73,6 +73,17 @@
                                     </svg>
                                     {{ Str::limit($patient->address, 50) }}
                                 </span>
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle>
+                                    </svg>
+                                    Assigned Staff:
+                                    @if($patient->assignedStaff)
+                                        {{ $patient->assignedStaff->name }}
+                                    @else
+                                        Not Assigned
+                                    @endif
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -599,7 +610,14 @@
                                     'smoking' => 'Smoking',
                                     'allergies' => 'Allergies',
                                     'drug_intake' => 'Drug Intake',
-                                    'std_history' => 'STD History'
+                                    'std_history' => 'STD History',
+                                    'diabetes' => 'Diabetes',
+                                    'hypertension' => 'Hypertension',
+                                    'asthma' => 'Asthma',
+                                    'thyroid_disease' => 'Thyroid Disease',
+                                    'heart_disease' => 'Heart Disease',
+                                    'anemia' => 'Anemia',
+                                    'mental_health_condition' => 'Mental Health Condition',
                                 ];
                             @endphp
                             @foreach($conditions as $field => $label)
@@ -619,6 +637,14 @@
                                     </div>
                                 @endif
                             @endforeach
+                            @if($patient->medicalHistory->other_specify)
+                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100 col-span-full">
+                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                    </svg>
+                                    <span class="text-sm text-gray-700">Other: {{ $patient->medicalHistory->other_specify }}</span>
+                                </div>
+                            @endif
                         </div>
                         @else
                         <p class="text-gray-500 text-center py-4">No medical history recorded</p>

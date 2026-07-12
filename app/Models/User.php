@@ -51,5 +51,10 @@ class User extends Authenticatable
 {
     return $this->hasMany(Referral::class, 'created_by');
 }
+
+    public function assignedPatients()
+    {
+        return $this->hasMany(Patient::class, 'assigned_staff_id');
+    }
 }
 

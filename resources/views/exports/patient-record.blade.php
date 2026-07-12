@@ -73,6 +73,13 @@
                             'Allergies' => $history->allergies,
                             'Drug Intake' => $history->drug_intake,
                             'STD History' => $history->std_history,
+                            'Diabetes' => $history->diabetes,
+                            'Hypertension' => $history->hypertension,
+                            'Asthma' => $history->asthma,
+                            'Thyroid Disease' => $history->thyroid_disease,
+                            'Heart Disease' => $history->heart_disease,
+                            'Anemia' => $history->anemia,
+                            'Mental Health Condition' => $history->mental_health_condition,
                         ];
                     @endphp
                     @foreach($conditions as $label => $value)
@@ -81,6 +88,12 @@
                             <td class="check">{{ $value ? '✔ Yes' : '❌ No' }}</td>
                         </tr>
                     @endforeach
+                    @if($history->other_specify)
+                        <tr>
+                            <td>Other</td>
+                            <td class="check">✔ {{ $history->other_specify }}</td>
+                        </tr>
+                    @endif
                 </tbody>
             </table>
         </div>

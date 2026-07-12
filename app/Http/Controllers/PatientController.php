@@ -15,9 +15,15 @@ class PatientController extends Controller
      */
     public function index()
     {
-        $patients = Patient::where('status', 'ONGOING')->get();
+        $query = Patient::where('status', 'ONGOING');
 
-    return view('patients.index', compact('patients'));
+        if (request('filter') === 'my') {
+            $query->where('assigned_staff_id', auth()->id());
+        }
+
+        $patients = $query->latest()->get();
+
+        return view('patients.index', compact('patients'));
     }
 
     public function trashed()
@@ -91,7 +97,10 @@ class PatientController extends Controller
         return back()->withErrors(['miscarriage' => 'Miscarriage cannot exceed Gravida'])->withInput();
     }
 
-    $patient = Patient::create($request->all());
+    $data = $request->all();
+    $data['assigned_staff_id'] = auth()->id();
+
+    $patient = Patient::create($data);
 
     $this->logAction(
         'CREATE',
@@ -298,7 +307,18 @@ class PatientController extends Controller
             'Allergies' => $patient->medicalHistory->allergies ? 'Yes' : 'No',
             'Drug Intake' => $patient->medicalHistory->drug_intake ? 'Yes' : 'No',
             'STD History' => $patient->medicalHistory->std_history ? 'Yes' : 'No',
+            'Diabetes' => $patient->medicalHistory->diabetes ? 'Yes' : 'No',
+            'Hypertension' => $patient->medicalHistory->hypertension ? 'Yes' : 'No',
+            'Asthma' => $patient->medicalHistory->asthma ? 'Yes' : 'No',
+            'Thyroid Disease' => $patient->medicalHistory->thyroid_disease ? 'Yes' : 'No',
+            'Heart Disease' => $patient->medicalHistory->heart_disease ? 'Yes' : 'No',
+            'Anemia' => $patient->medicalHistory->anemia ? 'Yes' : 'No',
+            'Mental Health Condition' => $patient->medicalHistory->mental_health_condition ? 'Yes' : 'No',
         ])->map(fn($value, $key) => "$key: $value")->implode("\n");
+
+        if ($patient->medicalHistory->other_specify) {
+            $medicalHistory .= "\nOther: " . $patient->medicalHistory->other_specify;
+        }
 
         $latestVisitInfo = 'No visit recorded';
         $riskData = 'No risk data available';
