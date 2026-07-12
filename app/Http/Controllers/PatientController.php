@@ -642,25 +642,34 @@ public function babyInformation($id)
     ]);
 }
 
-public function printBabies(Request $request, $id)
-{
-    $patient = Patient::with('babies')->where('status', 'DELIVERED')->findOrFail($id);
-    $pregnancies = $request->boolean('all')
-        ? $this->completedPregnanciesFor($patient)
-        : collect([$patient->load(['babies', 'prenatalVisits'])]);
+    public function printBabies(Request $request, $id)
+    {
+        $patient = Patient::with('babies')->where('status', 'DELIVERED')->findOrFail($id);
 
-    $babyId = $request->integer('baby_id');
+        $pregnancyId = $request->integer('pregnancy_id');
 
-    if ($babyId) {
-        $pregnancies = $pregnancies->map(function ($pregnancy) use ($babyId) {
-            $pregnancy->setRelation('babies', $pregnancy->babies->where('id', $babyId)->values());
+        if ($pregnancyId) {
+            $pregnancies = $this->completedPregnanciesFor($patient)
+                ->where('id', $pregnancyId)
+                ->values();
+        } elseif ($request->boolean('all')) {
+            $pregnancies = $this->completedPregnanciesFor($patient);
+        } else {
+            $pregnancies = collect([$patient->load(['babies', 'prenatalVisits'])]);
+        }
 
-            return $pregnancy;
-        })->filter(fn ($pregnancy) => $pregnancy->babies->isNotEmpty())->values();
+        $babyId = $request->integer('baby_id');
+
+        if ($babyId) {
+            $pregnancies = $pregnancies->map(function ($pregnancy) use ($babyId) {
+                $pregnancy->setRelation('babies', $pregnancy->babies->where('id', $babyId)->values());
+
+                return $pregnancy;
+            })->filter(fn ($pregnancy) => $pregnancy->babies->isNotEmpty())->values();
+        }
+
+        return view('patients.print-babies', compact('patient', 'pregnancies'));
     }
-
-    return view('patients.print-babies', compact('patient', 'pregnancies'));
-}
 
 private function completedPregnanciesFor(Patient $patient)
 {

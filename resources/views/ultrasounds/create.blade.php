@@ -259,6 +259,8 @@
     </div>
 
     <script>
+        var patientLmp = '{{ $patient->lmp ? \Carbon\Carbon::parse($patient->lmp)->format("Y-m-d") : "" }}';
+
         document.addEventListener('DOMContentLoaded', function() {
             // File upload preview
             const fileInput = document.getElementById('report_file');
@@ -283,6 +285,7 @@
             const scanDate = document.getElementById('scan_date');
             const gestationalAge = document.getElementById('gestational_age');
             const fetalWeight = document.getElementById('fetal_weight');
+            const gaHint = document.getElementById('ga_hint');
             
             function showError(element, message) {
                 element.classList.add('border-red-500');
@@ -316,6 +319,35 @@
                 });
             }
             
+            // Gestational Age vs LMP validation (matching Prenatal Visit logic)
+            function validateGA() {
+                const lmp = patientLmp;
+                const ga = parseFloat(gestationalAge?.value);
+                const scanDateValue = scanDate?.value;
+
+                if (lmp && ga && scanDateValue) {
+                    const lmpDate = new Date(lmp);
+                    const scanDateObj = new Date(scanDateValue);
+                    const diffDays = (scanDateObj - lmpDate) / (1000 * 60 * 60 * 24);
+                    const expectedWeeks = diffDays / 7;
+                    
+                    if (Math.abs(expectedWeeks - ga) > 3) {
+                        showError(gestationalAge, `Based on LMP (${lmp}), expected GA is ${expectedWeeks.toFixed(1)} weeks. Current GA should be within ±3 weeks.`);
+                        gaHint.innerHTML = `⚠️ Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
+                        gaHint.classList.add('text-orange-600');
+                        gaHint.classList.remove('text-green-600');
+                        return false;
+                    } else {
+                        hideError(gestationalAge);
+                        gaHint.innerHTML = `✅ Based on LMP, expected GA: ${expectedWeeks.toFixed(1)} weeks`;
+                        gaHint.classList.remove('text-orange-600');
+                        gaHint.classList.add('text-green-600');
+                        return true;
+                    }
+                }
+                return true;
+            }
+            
             // Validate gestational age range
             if (gestationalAge) {
                 gestationalAge.addEventListener('input', function() {
@@ -325,6 +357,13 @@
                     } else {
                         hideError(this);
                     }
+                    validateGA();
+                });
+            }
+            
+            if (scanDate) {
+                scanDate.addEventListener('change', function() {
+                    validateGA();
                 });
             }
             
@@ -365,6 +404,9 @@
                         const ga = parseFloat(gestationalAge.value);
                         if (ga < 4 || ga > 42) {
                             showError(gestationalAge, 'Gestational age must be between 4 and 42 weeks');
+                            isValid = false;
+                        }
+                        if (!validateGA()) {
                             isValid = false;
                         }
                     }

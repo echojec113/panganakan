@@ -18,6 +18,13 @@ class Patient extends Model
 {
     use HasFactory,SoftDeletes;
 
+    protected $casts = [
+        'lmp' => 'date',
+        'edd' => 'date',
+        'birthdate' => 'date',
+        'delivery_date' => 'date',
+    ];
+
     protected $fillable = [
         'first_name',
         'last_name',
