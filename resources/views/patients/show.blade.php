@@ -78,6 +78,7 @@
                     </div>
                     <div class="flex flex-col sm:flex-row gap-3 flex-wrap items-center">
                         @if($patient->status === 'ONGOING')
+                            @if(auth()->user()->role !== 'admin')
                             {{-- Primary Actions (Left Side) --}}
                             <a href="{{ route('patients.edit', $patient->id) }}" 
                                class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
@@ -179,6 +180,7 @@
                                 </svg>
                                 Mark as Delivered
                             </button>
+                            @endif
                         @else
                                 <div class="flex flex-col items-end gap-2">
                                     <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
@@ -194,6 +196,7 @@
                                             </svg>
                                             View Pregnancy History
                                         </a>
+                                    @if(auth()->user()->role !== 'admin')
                                     <form method="POST" action="{{ route('patients.start-new-pregnancy', $patient->id) }}">
                                         @csrf
                                         <button type="submit"
@@ -202,6 +205,7 @@
                                             Start New Pregnancy
                                         </button>
                                     </form>
+                                    @endif
                                 </div>
                             </div>
                         @endif
@@ -270,7 +274,7 @@
                                             {{ $baby->sex }}
                                         </span>
                                         @endif
-                                        @if($patient->status === 'ONGOING')
+                                        @if($patient->status === 'ONGOING' && auth()->user()->role !== 'admin')
                                         <button type="button" onclick="toggleBabyEdit({{ $baby->id }})" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition edit-baby-btn">
                                             <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>

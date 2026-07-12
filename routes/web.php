@@ -44,7 +44,7 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Profile
+    | Profile (view-only for Admin)
     |--------------------------------------------------------------------------
     */
 
@@ -54,24 +54,10 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Patients Extra Routes
+    | View-Only Patient Access (Admin & Staff)
+    | Specific routes MUST come before wildcard {patient}
     |--------------------------------------------------------------------------
     */
-
-    Route::get('/patients/trashed', [PatientController::class, 'trashed'])
-        ->name('patients.trashed');
-
-    Route::post('/patients/{id}/restore', [PatientController::class, 'restore'])
-        ->name('patients.restore');
-
-    Route::post('/patients/{id}/deliver', [PatientController::class, 'markDelivered'])
-        ->name('patients.deliver');
-
-    Route::post('/patients/{id}/download', [PatientController::class, 'download'])
-        ->name('patients.download');
-
-    Route::post('/patients/babies/{id}', [PatientController::class, 'updateBaby'])
-        ->name('patients.update-baby');
 
     Route::get('/patients/delivered', [PatientController::class, 'delivered'])
         ->name('patients.delivered');
@@ -85,51 +71,24 @@ Route::middleware('auth')->group(function () {
     Route::get('/patients/delivered/{id}/print-babies', [PatientController::class, 'printBabies'])
         ->name('patients.delivered.print-babies');
 
-    Route::post('/patients/{id}/start-new-pregnancy', [PatientController::class, 'startNewPregnancy'])
-    ->name('patients.start-new-pregnancy');   
+    Route::post('/patients/{id}/download', [PatientController::class, 'download'])
+        ->name('patients.download');
 
     /*
     |--------------------------------------------------------------------------
-    | Referral Module
+    | Referral Viewing (Admin & Staff)
     |--------------------------------------------------------------------------
     */
 
-    Route::get('/patients/{id}/referral/create', [ReferralController::class, 'create'])
-        ->name('referrals.create');
-
-    Route::post('/referrals/store', [ReferralController::class, 'store'])
-        ->name('referrals.store');
-
     Route::get('/referrals', [ReferralController::class, 'index'])
         ->name('referrals.index');
-
-    Route::post('/referrals/{id}/complete', [ReferralController::class, 'complete'])
-        ->name('referrals.complete');
 
     Route::get('/referrals/{id}/print', [ReferralController::class, 'print'])
         ->name('referrals.print');
 
     /*
     |--------------------------------------------------------------------------
-    | Ultrasound
-    |--------------------------------------------------------------------------
-    */
-
-    Route::get('/ultrasound/create/{patient}', [UltrasoundController::class, 'create'])
-        ->name('ultrasound.create');
-
-    Route::post('/ultrasound/store', [UltrasoundController::class, 'store'])
-        ->name('ultrasound.store');
-
-    Route::get('/ultrasound/{id}/edit', [UltrasoundController::class, 'edit'])
-        ->name('ultrasound.edit');
-
-    Route::put('/ultrasound/{id}', [UltrasoundController::class, 'update'])
-        ->name('ultrasound.update');
-
-    /*
-    |--------------------------------------------------------------------------
-    | Monitoring / Logs
+    | Monitoring / Logs (Admin & Staff)
     |--------------------------------------------------------------------------
     */
 
@@ -141,15 +100,95 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Resources
+    | Staff Management (Admin-only via controller check)
     |--------------------------------------------------------------------------
     */
 
-    Route::resource('patients', PatientController::class);
-    Route::resource('prenatal-visits', PrenatalVisitController::class);
-    Route::resource('medical-histories', MedicalHistoryController::class);
-    Route::resource('birth-plans', BirthPlanController::class);
     Route::resource('staff', StaffController::class)->except(['show']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clinical Write Routes (Staff-only)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('staff')->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Patient Write Routes
+        |--------------------------------------------------------------------------
+        */
+
+        Route::resource('patients', PatientController::class)->except(['show']);
+
+        Route::get('/patients/trashed', [PatientController::class, 'trashed'])
+            ->name('patients.trashed');
+
+        Route::post('/patients/{id}/restore', [PatientController::class, 'restore'])
+            ->name('patients.restore');
+
+        Route::post('/patients/{id}/deliver', [PatientController::class, 'markDelivered'])
+            ->name('patients.deliver');
+
+        Route::post('/patients/babies/{id}', [PatientController::class, 'updateBaby'])
+            ->name('patients.update-baby');
+
+        Route::post('/patients/{id}/start-new-pregnancy', [PatientController::class, 'startNewPregnancy'])
+            ->name('patients.start-new-pregnancy');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Referral Write Routes
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/patients/{id}/referral/create', [ReferralController::class, 'create'])
+            ->name('referrals.create');
+
+        Route::post('/referrals/store', [ReferralController::class, 'store'])
+            ->name('referrals.store');
+
+        Route::post('/referrals/{id}/complete', [ReferralController::class, 'complete'])
+            ->name('referrals.complete');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Ultrasound
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/ultrasound/create/{patient}', [UltrasoundController::class, 'create'])
+            ->name('ultrasound.create');
+
+        Route::post('/ultrasound/store', [UltrasoundController::class, 'store'])
+            ->name('ultrasound.store');
+
+        Route::get('/ultrasound/{id}/edit', [UltrasoundController::class, 'edit'])
+            ->name('ultrasound.edit');
+
+        Route::put('/ultrasound/{id}', [UltrasoundController::class, 'update'])
+            ->name('ultrasound.update');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Write Resources
+        |--------------------------------------------------------------------------
+        */
+
+        Route::resource('prenatal-visits', PrenatalVisitController::class);
+        Route::resource('medical-histories', MedicalHistoryController::class);
+        Route::resource('birth-plans', BirthPlanController::class);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Wildcard patient route MUST be last to avoid catching /patients/create etc.
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/patients/{patient}', [PatientController::class, 'show'])
+        ->name('patients.show');
 });
 
 require __DIR__.'/auth.php';

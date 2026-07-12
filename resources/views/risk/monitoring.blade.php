@@ -266,7 +266,7 @@
                     <div class="flex justify-end pt-2">
     <x-action-buttons 
         :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring'])"
-        :editRoute="route('prenatal-visits.edit', $visit->id)" />
+        :editRoute="auth()->user()->role !== 'admin' ? route('prenatal-visits.edit', $visit->id) : null" />
 </div>
                 </div>
                 @empty
@@ -381,7 +381,7 @@
                                 <div class="flex justify-end pt-2">
     <x-action-buttons 
         :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'risk-monitoring'])"
-        :editRoute="route('prenatal-visits.edit', $visit->id)" />
+        :editRoute="auth()->user()->role !== 'admin' ? route('prenatal-visits.edit', $visit->id) : null" />
 </div>
                             </td>
                         </tr>

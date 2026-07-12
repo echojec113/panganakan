@@ -97,11 +97,13 @@
                                                     </svg>
                                                     View History
                                                 </a>
+                                                @if(auth()->user()->role !== 'admin')
                                                 <button type="button"
                                                     onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ $patient->address }}', '{{ $patient->contact_number }}')"
                                                     class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
                                                     Start New Pregnancy
                                                 </button>
+                                                @endif
                                             </div>
                                         </div>
                                     </td>
