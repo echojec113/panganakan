@@ -137,7 +137,7 @@ class UltrasoundController extends Controller
         );
 
         // Auto-recalculate incomplete prenatal visits
-        $prenatalController = new PrenatalVisitController();
+        $prenatalController = app(PrenatalVisitController::class);
         $prenatalController->recalculateIncompleteVisits($request->patient_id);
 
         return redirect()->route('patients.show', $request->patient_id)
@@ -266,7 +266,7 @@ class UltrasoundController extends Controller
         );
 
         // Auto-recalculate incomplete prenatal visits
-        $prenatalController = new PrenatalVisitController();
+        $prenatalController = app(PrenatalVisitController::class);
         $prenatalController->recalculateIncompleteVisits($ultrasound->patient_id);
 
         return redirect()->route('patients.show', $ultrasound->patient_id)

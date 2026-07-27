@@ -51,7 +51,7 @@ $this->logAction(
 );
 
         // Auto-recalculate incomplete prenatal visits
-        $prenatalController = new PrenatalVisitController();
+        $prenatalController = app(PrenatalVisitController::class);
         $prenatalController->recalculateIncompleteVisits($request->patient_id);
 
         return redirect()->route('patients.show', $request->patient_id);
@@ -102,7 +102,7 @@ $this->logAction(
 );
 
     // Auto-recalculate incomplete prenatal visits
-    $prenatalController = new PrenatalVisitController();
+    $prenatalController = app(PrenatalVisitController::class);
     $prenatalController->recalculateIncompleteVisits($history->patient_id);
 
     return redirect()->route('patients.show', $history->patient_id)
