@@ -38,6 +38,11 @@ class PrenatalVisit extends Model
 
         'risk_level',
         'risk_reasons',
+        'decision_source',
+        'missing_records',
+        'rule_reasons',
+        'ml_prediction',
+        'ml_valid',
 
         'assessment',
         'recommendation',
@@ -57,6 +62,9 @@ class PrenatalVisit extends Model
     'diabetes' => 'boolean',
     'anemia' => 'boolean',
     'risk_reasons' => 'array',
+    'missing_records' => 'array',
+    'rule_reasons' => 'array',
+    'ml_valid' => 'boolean',
     'created_at' => 'datetime',
     'updated_at' => 'datetime',
     'deleted_at' => 'datetime'

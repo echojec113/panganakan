@@ -132,7 +132,7 @@ class PrenatalVisitController extends Controller
             'diabetes' => $request->diabetes,
             'anemia' => $request->anemia,
             'risk_level' => 'ASSESSMENT INCOMPLETE',
-            'risk_reasons' => json_encode([]),
+            'risk_reasons' => [],
             'assessment' => 'Pending',
             'recommendation' => 'Pending',
             'next_visit_date' => $request->next_visit_date,
@@ -168,7 +168,12 @@ class PrenatalVisitController extends Controller
         // ======================
         $visit->update([
             'risk_level' => $risk,
-            'risk_reasons' => json_encode($reasons),
+            'risk_reasons' => $reasons,
+            'decision_source' => $riskAssessment['decision_source'] ?? null,
+            'missing_records' => $riskAssessment['missing_records'] ?? [],
+            'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
+            'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
+            'ml_valid' => $riskAssessment['ml_valid'] ?? false,
             'assessment' => $assessment,
             'recommendation' => $recommendation,
             'next_visit_date' => $finalNextVisit,
@@ -321,7 +326,12 @@ class PrenatalVisitController extends Controller
         // ======================
         $visit->update([
             'risk_level' => $risk,
-            'risk_reasons' => json_encode($reasons),
+            'risk_reasons' => $reasons,
+            'decision_source' => $riskAssessment['decision_source'] ?? null,
+            'missing_records' => $riskAssessment['missing_records'] ?? [],
+            'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
+            'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
+            'ml_valid' => $riskAssessment['ml_valid'] ?? false,
             'assessment' => $assessment,
             'recommendation' => $recommendation,
             'next_visit_date' => $finalNextVisit,
@@ -411,7 +421,12 @@ class PrenatalVisitController extends Controller
                 'risk_level' => $riskAssessment['risk_level'],
                 'assessment' => $riskAssessment['assessment'],
                 'recommendation' => $riskAssessment['recommendation'],
-                'risk_reasons' => json_encode($riskAssessment['reasons']),
+                'risk_reasons' => $riskAssessment['reasons'],
+                'decision_source' => $riskAssessment['decision_source'] ?? null,
+                'missing_records' => $riskAssessment['missing_records'] ?? [],
+                'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
+                'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
+                'ml_valid' => $riskAssessment['ml_valid'] ?? false,
                 'next_visit_date' => $visit->next_visit_date ?: $riskAssessment['nextVisit']->toDateString(),
             ]);
 
