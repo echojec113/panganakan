@@ -4,31 +4,24 @@ namespace App\Services;
 
 use App\Models\Patient;
 use App\Models\Ultrasound;
-use App\Models\MedicalHistory;
-use App\Models\BirthPlan;
 use Illuminate\Support\Facades\Log;
 
 class RiskAssessmentService
 {
+    private CompletenessValidator $completenessValidator;
+
+    public function __construct(CompletenessValidator $completenessValidator)
+    {
+        $this->completenessValidator = $completenessValidator;
+    }
+
     public function assess(Patient $patient, array $inputs): array
     {
         // ======================
         // STEP 1: CHECK REQUIRED RECORDS
         // ======================
-        $hasMedicalHistory = MedicalHistory::where('patient_id', $patient->id)->exists();
-        $hasUltrasound = Ultrasound::where('patient_id', $patient->id)->exists();
-        $hasBirthPlan = BirthPlan::where('patient_id', $patient->id)->exists();
-
-        $missingRecords = [];
-        if (!$hasMedicalHistory) {
-            $missingRecords[] = 'Medical History';
-        }
-        if (!$hasUltrasound) {
-            $missingRecords[] = 'Ultrasound Record';
-        }
-        if (!$hasBirthPlan) {
-            $missingRecords[] = 'Birth Plan';
-        }
+        $missingRecords = $this->completenessValidator
+            ->missingRequiredRecords($patient);
 
         if (!empty($missingRecords)) {
             $missingList = implode(', ', $missingRecords);
@@ -123,19 +116,21 @@ class RiskAssessmentService
         // STEP 3: EVALUATE ML OUTPUT
         // ======================
         $mlInputs = [
-            $patient->age,
-            $patient->gravida,
-            $patient->para,
-            $inputs['bp_sys'],
-            $inputs['bp_dia'],
-            $inputs['weight'],
-            $inputs['gestational_age'],
-            $inputs['hypertension'],
-            $inputs['diabetes'],
-            $patient->previous_cs,
-            $patient->miscarriage,
-            $inputs['anemia']
+            (float) ($patient->age ?? 0),
+            (float) ($patient->gravida ?? 0),
+            (float) ($patient->para ?? 0),
+            (float) ($inputs['bp_sys'] ?? 0),
+            (float) ($inputs['bp_dia'] ?? 0),
+            (float) ($inputs['weight'] ?? 0),
+            (float) ($inputs['gestational_age'] ?? 0),
+            (int) ($inputs['hypertension'] ?? 0),
+            (int) ($inputs['diabetes'] ?? 0),
+            (int) ($patient->previous_cs ?? 0),
+            (int) ($patient->miscarriage ?? 0),
+            (int) ($inputs['anemia'] ?? 0)
         ];
+
+        Log::info('ML FEATURE ARRAY: ' . json_encode($mlInputs) . ' | Patient ID: ' . $patient->id);
 
         $configuredPythonPath = trim(env('PYTHON_PATH', ''));
         if ($configuredPythonPath !== '' && file_exists($configuredPythonPath)) {
