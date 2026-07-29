@@ -195,9 +195,6 @@ class PatientController extends Controller
         if (!$patient->edd) {
             $missing[] = 'EDD';
         }
-        if (!$patient->medicalHistory) {
-            $missing[] = 'Medical history';
-        }
         if ($patient->status !== 'ONGOING' && !$patient->delivery_date) {
             $missing[] = 'Delivery date';
         }
