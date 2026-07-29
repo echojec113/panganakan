@@ -18,6 +18,21 @@ class DashboardController extends Controller
         }
     }
 
+    private function latestVisitSubquery(): \Illuminate\Database\Query\Builder
+    {
+        return \Illuminate\Support\Facades\DB::table('prenatal_visits')
+            ->whereNull('deleted_at')
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('patient_id');
+    }
+
+    private function countLatestByRisk(string $riskLevel): int
+    {
+        return PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('risk_level', $riskLevel)
+            ->count();
+    }
+
     /**
      * Admin Dashboard - Business & Analytics View
      */
@@ -28,10 +43,13 @@ class DashboardController extends Controller
         // ======================
 
         $totalPatients = Patient::count();
-        $highRisk = PrenatalVisit::where('risk_level', 'HIGH')->count();
-        $lowRisk = PrenatalVisit::where('risk_level', 'LOW')->count();
         $activePregnancies = Patient::where('status', 'ONGOING')->count();
         $upcomingAppointments = PrenatalVisit::whereDate('next_visit_date', '>=', Carbon::today())->count();
+
+        // Latest visit per patient counts
+        $highRisk = $this->countLatestByRisk('HIGH');
+        $lowRisk = $this->countLatestByRisk('LOW');
+        $incompleteCount = $this->countLatestByRisk('ASSESSMENT INCOMPLETE');
 
         // ======================
         // CONDITION COUNTS
@@ -45,13 +63,13 @@ class DashboardController extends Controller
         // MONTHLY TREND DATA
         // ======================
 
-        $trend = PrenatalVisit::selectRaw('MONTH(visit_date) as month, COUNT(*) as total')
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get();
+        $trend = PrenatalVisit::select('visit_date')
+            ->get()
+            ->groupBy(fn ($v) => Carbon::parse($v->visit_date)->format('n'))
+            ->map(fn ($group) => $group->count());
 
-        $trendLabels = $trend->pluck('month');
-        $trendData = $trend->pluck('total');
+        $trendLabels = $trend->keys();
+        $trendData = $trend->values();
 
         // ======================
         // GROWTH METRICS
@@ -73,28 +91,56 @@ class DashboardController extends Controller
         // ======================
 
         $insights = $this->generateAdminInsights(
-            $highRisk, 
-            $hypertensionCount, 
-            $diabetesCount, 
-            $anemiaCount, 
+            $highRisk,
+            $hypertensionCount,
+            $diabetesCount,
+            $anemiaCount,
             $visitGrowthPercent
         );
 
         // ======================
-        // HIGH RISK PATIENTS (UNIQUE)
+        // HIGH RISK PATIENTS (UNIQUE, WITH EXPLAINABILITY)
         // ======================
 
         $highRiskPatients = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
-            ->whereIn('id', function($query) {
-                $query->selectRaw('MAX(id)')
-                    ->from('prenatal_visits')
-                    ->where('risk_level', 'HIGH')
-                    ->groupBy('patient_id');
-            })
+            ->whereIn('id', $this->latestVisitSubquery())
             ->orderByDesc('visit_date')
             ->take(5)
             ->get();
+
+        // ======================
+        // INCOMPLETE ASSESSMENTS (UNIQUE)
+        // ======================
+
+        $incompletePatients = PrenatalVisit::with('patient')
+            ->where('risk_level', 'ASSESSMENT INCOMPLETE')
+            ->whereIn('id', $this->latestVisitSubquery())
+            ->orderByDesc('visit_date')
+            ->take(5)
+            ->get();
+
+        // ======================
+        // OVERDUE FOLLOW-UPS
+        // ======================
+
+        $overdueFollowUps = PrenatalVisit::with('patient')
+            ->whereHas('patient', function ($q) {
+                $q->where('status', 'ONGOING');
+            })
+            ->whereNotNull('next_visit_date')
+            ->where('next_visit_date', '<', Carbon::today())
+            ->whereIn('id', function ($q) {
+                $q->selectRaw('MAX(id)')
+                    ->from('prenatal_visits')
+                    ->whereNull('deleted_at')
+                    ->groupBy('patient_id');
+            })
+            ->orderBy('next_visit_date')
+            ->take(5)
+            ->get();
+
+        $overdueCount = $overdueFollowUps->count();
 
         // ======================
         // MOST COMMON CONDITIONS
@@ -122,7 +168,11 @@ class DashboardController extends Controller
             'visitGrowthPercent',
             'patientGrowthPercent',
             'conditions',
-            'visitsThisMonth'
+            'visitsThisMonth',
+            'incompleteCount',
+            'incompletePatients',
+            'overdueCount',
+            'overdueFollowUps'
         ));
     }
 
@@ -131,30 +181,60 @@ class DashboardController extends Controller
      */
     private function staffDashboard()
     {
+        $staffId = auth()->id();
+
+        $assignedPatient = function ($q) use ($staffId) {
+            $q->where('assigned_staff_id', $staffId);
+        };
+
         // ======================
         // TODAY'S SUMMARY
         // ======================
 
         $today = Carbon::today();
-        $patientsToday = PrenatalVisit::whereDate('visit_date', $today)->count();
-        $appointmentsToday = PrenatalVisit::whereDate('visit_date', $today)->count();
-        $pendingCheckups = PrenatalVisit::whereNull('next_visit_date')->count();
+        $patientsToday = PrenatalVisit::whereDate('visit_date', $today)
+            ->whereHas('patient', $assignedPatient)
+            ->count();
+        $appointmentsToday = $patientsToday;
+        $pendingCheckups = PrenatalVisit::whereNull('next_visit_date')
+            ->whereHas('patient', $assignedPatient)
+            ->count();
 
         // ======================
-        // HIGH RISK ALERTS
+        // HIGH RISK ALERTS (LATEST PER PATIENT)
         // ======================
 
         $highRiskAlerts = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
+            ->whereHas('patient', $assignedPatient)
+            ->whereIn('id', $this->latestVisitSubquery())
             ->latest()
             ->take(5)
             ->get();
+
+        // ======================
+        // EXPLAINABLE RISK COUNTS (LATEST PER PATIENT)
+        // ======================
+
+        $staffHighRiskCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('risk_level', 'HIGH')
+            ->whereHas('patient', $assignedPatient)
+            ->count();
+        $staffLowRiskCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('risk_level', 'LOW')
+            ->whereHas('patient', $assignedPatient)
+            ->count();
+        $staffIncompleteCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('risk_level', 'ASSESSMENT INCOMPLETE')
+            ->whereHas('patient', $assignedPatient)
+            ->count();
 
         // ======================
         // UPCOMING APPOINTMENTS (NEXT 7 DAYS)
         // ======================
 
         $upcomingAppointments = PrenatalVisit::with('patient')
+            ->whereHas('patient', $assignedPatient)
             ->whereBetween('visit_date', [Carbon::today(), Carbon::today()->addDays(7)])
             ->orderBy('visit_date')
             ->get();
@@ -164,6 +244,7 @@ class DashboardController extends Controller
         // ======================
 
         $followUpTasks = PrenatalVisit::with('patient')
+            ->whereHas('patient', $assignedPatient)
             ->whereNotNull('next_visit_date')
             ->where('next_visit_date', '>', Carbon::today())
             ->orderBy('next_visit_date')
@@ -174,14 +255,15 @@ class DashboardController extends Controller
         // TODAY'S QUICK STATS
         // ======================
 
-        $totalPatients = Patient::count();
-        $activePatients = Patient::where('status', 'ONGOING')->count();
+        $totalPatients = Patient::where('assigned_staff_id', $staffId)->count();
+        $activePatients = Patient::where('status', 'ONGOING')->where('assigned_staff_id', $staffId)->count();
 
         // ======================
         // RECENT VISITS (TODAY & YESTERDAY)
         // ======================
 
         $recentVisits = PrenatalVisit::with('patient')
+            ->whereHas('patient', $assignedPatient)
             ->whereBetween('visit_date', [Carbon::today()->subDay(), Carbon::today()])
             ->latest()
             ->take(10)
@@ -196,7 +278,10 @@ class DashboardController extends Controller
             'followUpTasks',
             'totalPatients',
             'activePatients',
-            'recentVisits'
+            'recentVisits',
+            'staffHighRiskCount',
+            'staffLowRiskCount',
+            'staffIncompleteCount'
         ));
     }
 

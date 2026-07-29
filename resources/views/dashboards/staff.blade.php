@@ -149,6 +149,28 @@
     {{-- ==================== MAIN ==================== --}}
     <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
 
+        {{-- ======= EXPLAINABLE RISK SUMMARY ======= --}}
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">HIGH Risk</p>
+                <p data-testid="staff-high-count" class="text-2xl font-bold text-red-600 mono">{{ $staffHighRiskCount }}</p>
+                <p class="text-xs text-slate-400 mt-1">Patients with elevated-risk findings requiring review.</p>
+                <a href="{{ route('risk.monitoring', ['risk_filter' => 'HIGH']) }}" class="inline-block mt-2 text-xs font-semibold text-red-600 hover:text-red-800 underline">View &rarr;</a>
+            </div>
+            <div class="kpi-card" style="border-left: 4px solid #d97706;">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment Incomplete</p>
+                <p data-testid="staff-incomplete-count" class="text-2xl font-bold text-amber-600 mono">{{ $staffIncompleteCount }}</p>
+                <p class="text-xs text-slate-400 mt-1">Assessments that could not be finalized.</p>
+                <a href="{{ route('risk.monitoring', ['risk_filter' => 'ASSESSMENT INCOMPLETE']) }}" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">View &rarr;</a>
+            </div>
+            <div class="kpi-card" style="border-left: 4px solid #16a34a;">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">LOW Risk</p>
+                <p data-testid="staff-low-count" class="text-2xl font-bold text-green-600 mono">{{ $staffLowRiskCount }}</p>
+                <p class="text-xs text-slate-400 mt-1">No HIGH rule triggered; valid LOW model result.</p>
+                <a href="{{ route('risk.monitoring', ['risk_filter' => 'LOW']) }}" class="inline-block mt-2 text-xs font-semibold text-green-600 hover:text-green-800 underline">View &rarr;</a>
+            </div>
+        </div>
+
         {{-- ======= KPI ROW ======= --}}
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
 
@@ -234,18 +256,45 @@
 
                 <div class="max-h-80 overflow-y-auto">
                     @forelse($highRiskAlerts as $visit)
+                    @php
+                        $ds = $visit->decision_source;
+                        $dsLabel = match($ds) {
+                            'COMPLETENESS' => 'Completeness Check',
+                            'RULE_BASED' => 'Clinical Rules',
+                            'MACHINE_LEARNING' => 'Machine Learning',
+                            'MACHINE_LEARNING_INVALID' => 'ML Assessment Unavailable',
+                            null => 'Legacy Assessment',
+                            default => $ds,
+                        };
+                        $showReason = '';
+                        if ($ds === 'RULE_BASED' && !empty($visit->rule_reasons)) {
+                            $showReason = $visit->rule_reasons[0];
+                        } elseif ($ds === 'COMPLETENESS' && !empty($visit->missing_records)) {
+                            $showReason = $visit->missing_records[0];
+                        } elseif ($ds === 'MACHINE_LEARNING' && $visit->ml_prediction) {
+                            $showReason = 'ML: ' . $visit->ml_prediction;
+                        } elseif ($ds === 'MACHINE_LEARNING_INVALID') {
+                            $showReason = 'ML assessment unavailable';
+                        }
+                    @endphp
                     <a href="{{ route('patients.show', $visit->patient) }}" class="list-row group">
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
                             <div class="avatar avatar-amber">
                                 {{ strtoupper(substr($visit->patient->first_name,0,1)) }}{{ strtoupper(substr($visit->patient->last_name,0,1)) }}
                             </div>
-                            <div>
-                                <p class="text-sm font-semibold text-slate-800">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-slate-800 truncate">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>
                                 <p class="text-xs text-slate-400 mt-0.5">Last visit: {{ $visit->visit_date->format('M d, Y') }}</p>
+                                <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    <span class="text-xs font-medium @if($ds === 'COMPLETENESS') text-amber-600 @elseif($ds === 'RULE_BASED') text-orange-600 @elseif($ds === 'MACHINE_LEARNING') text-blue-600 @else text-slate-500 @endif">{{ $dsLabel }}</span>
+                                </div>
+                                @if($showReason)
+                                    <p class="text-xs text-slate-500 mt-0.5 truncate">{{ $showReason }}</p>
+                                @endif
                             </div>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="badge badge-red">{{ $visit->risk_level }}</span>
+                            <span class="badge badge-red">HIGH</span>
                             <svg class="chevron" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                         </div>
                     </a>

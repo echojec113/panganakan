@@ -54,13 +54,14 @@
 
         <div class="section">
             <div class="section-title">3. Medical History</div>
+            @php $history = $patient->medicalHistory; @endphp
+            @if($history)
             <table class="table">
                 <thead>
                     <tr><th>Condition</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                     @php
-                        $history = $patient->medicalHistory;
                         $conditions = [
                             'Epilepsy' => $history->epilepsy,
                             'Severe Headache' => $history->severe_headache,
@@ -96,30 +97,99 @@
                     @endif
                 </tbody>
             </table>
+            @else
+                <p class="small">No medical history recorded.</p>
+            @endif
         </div>
 
         <div class="section">
-            <div class="section-title">4. Prenatal Visit (Latest Only)</div>
+            <div class="section-title">4. Prenatal Visit (Latest)</div>
             @if($latestVisit)
                 <div class="row"><div class="label">Visit Date</div><div class="value">{{ $latestVisit->visit_date }}</div></div>
                 <div class="row"><div class="label">Blood Pressure</div><div class="value">{{ $latestVisit->bp_sys }}/{{ $latestVisit->bp_dia }}</div></div>
                 <div class="row"><div class="label">Weight</div><div class="value">{{ $latestVisit->weight }} kg</div></div>
                 <div class="row"><div class="label">Temperature</div><div class="value">{{ $latestVisit->temperature }} °C</div></div>
                 <div class="row"><div class="label">Gestational Age</div><div class="value">{{ $latestVisit->gestational_age }}</div></div>
-                <div class="row"><div class="label">Assessment</div><div class="value">{{ $latestVisit->assessment }}</div></div>
-                <div class="row"><div class="label">Risk Level</div><div class="value">{{ $latestVisit->risk_level }}</div></div>
-                <div class="row"><div class="label">Risk Factors</div><div class="value">{{ $latestVisit->risk_reasons ?: 'N/A' }}</div></div>
-                <div class="row"><div class="label">Next Visit Date</div><div class="value">{{ $latestVisit->next_visit_date ?: 'N/A' }}</div></div>
             @else
                 <p class="small">No prenatal visits recorded.</p>
             @endif
         </div>
 
         <div class="section">
-            <div class="section-title">5. Risk Monitoring Summary</div>
-            <div class="row"><div class="label">Current Risk Level</div><div class="value">{{ $riskSummary['currentRiskLevel'] }}</div></div>
-            <div class="row"><div class="label">Identified Risk Factors</div><div class="value">{{ $riskSummary['identifiedRiskFactors'] }}</div></div>
-            <div class="row"><div class="label">Overdue Status</div><div class="value">{{ $riskSummary['overdueStatus'] }}</div></div>
+            <div class="section-title">5. Clinical Decision Summary</div>
+            @if($latestVisit)
+                @php
+                    $ds = $latestVisit->decision_source;
+                    $rl = $latestVisit->risk_level;
+                    $riskLabel = match($rl) {
+                        'HIGH' => 'High',
+                        'LOW' => 'Low',
+                        'ASSESSMENT INCOMPLETE' => 'Assessment Incomplete',
+                        default => $rl,
+                    };
+                    $dsLabel = match($ds) {
+                        'COMPLETENESS' => 'Completeness Check',
+                        'RULE_BASED' => 'Clinical Rules',
+                        'MACHINE_LEARNING' => 'Machine Learning',
+                        'MACHINE_LEARNING_INVALID' => 'ML Assessment Unavailable',
+                        null => 'Legacy Assessment',
+                        default => $ds,
+                    };
+                    $decisionPath = '';
+                    if ($ds === 'RULE_BASED') {
+                        $decisionPath = 'Deterministic clinical rules identified the listed risk factors. Machine learning was not executed because the rule-based safety pathway had already established a HIGH assessment.';
+                    } elseif ($ds === 'COMPLETENESS') {
+                        $decisionPath = 'The final assessment could not be completed because required clinical records were missing. Machine learning was not executed.';
+                    } elseif ($ds === 'MACHINE_LEARNING') {
+                        $decisionPath = 'No deterministic HIGH-risk rule was triggered. The machine-learning model produced a valid ' . ($latestVisit->ml_prediction ?? '') . ' contribution.';
+                    } elseif ($ds === 'MACHINE_LEARNING_INVALID') {
+                        $decisionPath = 'Required records were complete and no deterministic HIGH-risk rule was triggered, but the machine-learning component did not produce a valid result. The final state remains ASSESSMENT INCOMPLETE.';
+                    } elseif ($ds === null) {
+                        $decisionPath = 'This assessment predates structured explanation metadata. Detailed decision reconstruction is unavailable.';
+                    }
+                @endphp
+
+                <div class="row"><div class="label">Final Risk Assessment</div><div class="value">{{ $riskLabel }}</div></div>
+                <div class="row"><div class="label">Decision Source</div><div class="value">{{ $dsLabel }}</div></div>
+
+                @if($ds === 'RULE_BASED' && !empty($latestVisit->rule_reasons))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Triggered Clinical Rules:</div>
+                    <ul style="margin:4px 0 10px 20px;font-size:13px;color:#555;">
+                        @foreach($latestVisit->rule_reasons as $rule)
+                            <li>{{ $rule }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                @if($ds === 'COMPLETENESS' && !empty($latestVisit->missing_records))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Missing Required Records:</div>
+                    <ul style="margin:4px 0 10px 20px;font-size:13px;color:#555;">
+                        @foreach($latestVisit->missing_records as $record)
+                            <li>{{ $record }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+
+                @if($ds === 'MACHINE_LEARNING' && $latestVisit->ml_prediction)
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Machine-Learning Contribution:</div>
+                    <div style="margin:4px 0 10px 20px;font-size:13px;color:#555;">
+                        Prediction: {{ $latestVisit->ml_prediction }} (Valid)
+                    </div>
+                @endif
+
+                <div style="margin-top:8px;font-weight:600;color:#374151;">Decision Path:</div>
+                <div class="value" style="margin:4px 0 10px 0;font-size:13px;color:#555;line-height:1.5;">{{ $decisionPath }}</div>
+
+                <div class="row"><div class="label">Clinical Assessment</div><div class="value">{{ $latestVisit->assessment }}</div></div>
+                <div class="row"><div class="label">Recommended Action</div><div class="value">{{ $latestVisit->recommendation }}</div></div>
+                <div class="row"><div class="label">Recommended Follow-up</div><div class="value">{{ $latestVisit->next_visit_date ? \Carbon\Carbon::parse($latestVisit->next_visit_date)->format('M d, Y') : 'Not scheduled' }}</div></div>
+
+                <div style="margin-top:16px;padding:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;font-size:11px;color:#92400e;line-height:1.5;">
+                    <strong>Safety Disclaimer:</strong> This system-generated assessment is intended to support clinical decision-making and is not a medical diagnosis. Final clinical judgment remains with qualified clinic personnel.
+                </div>
+            @else
+                <p class="small">No assessment data available.</p>
+            @endif
         </div>
 
         @if($patient->status === 'DELIVERED' && $patient->babies->count() > 0)

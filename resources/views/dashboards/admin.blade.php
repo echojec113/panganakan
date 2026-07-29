@@ -187,6 +187,69 @@
             </div>
         </div>
 
+        {{-- ======= EXPLAINABLE RISK SUMMARY CARDS ======= --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">HIGH Risk</p>
+                        <p data-testid="admin-high-count" class="text-2xl font-bold text-red-600 mono">{{ $highRisk }}</p>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Patients whose latest assessment identified elevated-risk findings and require clinic review.
+                        </p>
+                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'HIGH']) }}" class="inline-block mt-2 text-xs font-semibold text-red-600 hover:text-red-800 underline">
+                            View all HIGH &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #16a34a;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">LOW Risk</p>
+                        <p data-testid="admin-low-count" class="text-2xl font-bold text-green-600 mono">{{ $lowRisk }}</p>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Patients whose latest completed assessment found no deterministic HIGH-risk rule and received a valid LOW model result.
+                        </p>
+                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'LOW']) }}" class="inline-block mt-2 text-xs font-semibold text-green-600 hover:text-green-800 underline">
+                            View all LOW &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #d97706;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment Incomplete</p>
+                        <p data-testid="admin-incomplete-count" class="text-2xl font-bold text-amber-600 mono">{{ $incompleteCount }}</p>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Patients whose latest assessment could not be finalized because required data or a valid model result was unavailable.
+                        </p>
+                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'ASSESSMENT INCOMPLETE']) }}" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">
+                            View incomplete &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #7c3aed;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Follow-ups Overdue</p>
+                        <p class="text-2xl font-bold text-violet-600 mono">{{ $overdueCount }}</p>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Patients with an overdue return visit date who require scheduling follow-up.
+                        </p>
+                        <a href="{{ route('risk.monitoring') }}" class="inline-block mt-2 text-xs font-semibold text-violet-600 hover:text-violet-800 underline">
+                            View all patients &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         {{-- ======= ROW 2: Priority Monitoring + Smart Insights ======= --}}
         <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
@@ -230,24 +293,59 @@
                 </div>
                 @endif
 
-                <div class="mt-2 max-h-72 overflow-y-auto">
+                <div class="mt-2 max-h-80 overflow-y-auto">
                     @forelse($highRiskPatients as $visit)
+                        @php
+                            $ds = $visit->decision_source;
+                            $dsLabel = match($ds) {
+                                'COMPLETENESS' => 'Completeness Check',
+                                'RULE_BASED' => 'Clinical Rules',
+                                'MACHINE_LEARNING' => 'Machine Learning',
+                                'MACHINE_LEARNING_INVALID' => 'ML Assessment Unavailable',
+                                null => 'Legacy Assessment',
+                                default => $ds,
+                            };
+                            $reasons = collect();
+                            if ($ds === 'RULE_BASED' && !empty($visit->rule_reasons)) {
+                                $reasons = collect($visit->rule_reasons)->take(2);
+                            } elseif ($ds === 'COMPLETENESS' && !empty($visit->missing_records)) {
+                                $reasons = collect($visit->missing_records)->take(2);
+                            } elseif ($ds === 'MACHINE_LEARNING' && $visit->ml_prediction) {
+                                $reasons = collect(['Valid ' . $visit->ml_prediction . ' prediction from ML model']);
+                            } elseif ($ds === 'MACHINE_LEARNING_INVALID') {
+                                $reasons = collect(['No valid ML assessment was produced']);
+                            }
+                            $nextLabel = $visit->getMonitoringNextVisitLabel();
+                            $isOverdue = $visit->isMonitoringOverdue();
+                        @endphp
                         <a href="{{ route('patients.show', $visit->patient) }}" class="priority-row group">
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
                                 <div class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 flex-shrink-0">
                                     {{ strtoupper(substr($visit->patient->first_name, 0, 1)) }}{{ strtoupper(substr($visit->patient->last_name, 0, 1)) }}
                                 </div>
-                                <div>
-                                    <p class="text-sm font-semibold text-slate-800">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>
-                                    <p class="text-xs text-slate-400 mt-0.5">
-                                        {{ $visit->visit_date->format('M d, Y') }}
-                                        @if($visit->gestational_age) &middot; GA {{ $visit->gestational_age }}w @endif
-                                    </p>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-semibold text-slate-800 truncate">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>
+                                    <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        <span class="text-xs font-medium @if($ds === 'COMPLETENESS') text-amber-700 @elseif($ds === 'RULE_BASED') text-orange-700 @elseif($ds === 'MACHINE_LEARNING') text-blue-700 @else text-slate-500 @endif">{{ $dsLabel }}</span>
+                                        @if($isOverdue)
+                                            <span class="text-xs text-red-600 font-semibold">Overdue</span>
+                                        @endif
+                                    </div>
+                                    @if($reasons->isNotEmpty())
+                                        <div class="text-xs text-slate-500 mt-0.5 leading-tight">
+                                            @foreach($reasons as $reason)
+                                                <span class="block truncate">{{ $reason }}</span>
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <span class="priority-badge">Priority</span>
-                                <svg width="14" height="14" fill="none" stroke="#94a3b8" stroke-width="2" viewBox="0 0 24 24" class="group-hover:stroke-slate-700 transition"><polyline points="9 18 15 12 9 6"/></svg>
+                            <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                                <div class="text-right">
+                                    <span class="priority-badge block">HIGH</span>
+                                    <span class="text-xs text-slate-400 block mt-0.5 whitespace-nowrap">{{ $nextLabel }}</span>
+                                </div>
+                                <svg width="14" height="14" fill="none" stroke="#94a3b8" stroke-width="2" viewBox="0 0 24 24" class="group-hover:stroke-slate-700 transition flex-shrink-0"><polyline points="9 18 15 12 9 6"/></svg>
                             </div>
                         </a>
                     @empty
