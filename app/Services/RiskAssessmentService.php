@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Patient;
 use App\Models\Ultrasound;
+use App\ValueObjects\AssessmentResult;
 
 class RiskAssessmentService
 {
@@ -24,7 +25,7 @@ class RiskAssessmentService
         $this->decisionIntegrationService = $decisionIntegrationService;
     }
 
-    public function assess(Patient $patient, array $inputs): array
+    public function assess(Patient $patient, array $inputs): AssessmentResult
     {
         // ======================
         // STEP 1: CHECK REQUIRED RECORDS

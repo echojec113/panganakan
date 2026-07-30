@@ -481,7 +481,180 @@ Created test "printable report renders with empty Medical History" that:
 - Pre-existing: ProfileTest soft-delete mismatch
 - Scikit-learn model version warning: model 1.8.0, runtime 1.9.0
 
+## Sprint 8 — Structured Assessment Result Object
+
+Status: Complete
+
+### Part A — Initial Implementation
+
+**Created:**
+- `app/ValueObjects/AssessmentResult.php` — immutable value object with 10 typed readonly properties
+
+**Modified:**
+- `app/Services/DecisionIntegrationService.php` — `decide()` returns `AssessmentResult` instead of `array`; `buildResponse()` removed; all five decision paths use `new AssessmentResult(...)` with named arguments
+- `app/Services/RiskAssessmentService.php` — `assess()` return type changed to `AssessmentResult`
+- `tests/Unit/Services/DecisionIntegrationServiceTest.php` — three tests adapted from `toHaveKey()` to property-based assertions
+
+### Part B — Hardening Patch (Sprint 8 Final)
+
+**1. CarbonImmutable nextVisit**
+
+`nextVisit` is now typed as `Carbon\CarbonImmutable` instead of `DateTimeInterface`. All `DecisionIntegrationService` paths construct immutable dates via `now()->toImmutable()->addDays(N)`. The same day offsets are preserved (30 for default/COMPLETENESS/ML_INVALID, 3 for HIGH risk paths). Controllers call `$riskAssessment['nextVisit']->toDateString()` via `ArrayAccess`, which works identically on `CarbonImmutable`.
+
+**2. ArrayAccess hardening**
+
+`offsetExists()` returns `false` for non-string offsets; returns `true` only for the ten approved keys. `offsetGet()` returns the corresponding property for valid keys and throws `OutOfBoundsException` for unknown or non-string offsets (previously returned `null` silently). `offsetSet()` and `offsetUnset()` continue throwing `LogicException`. The approved key list is defined as a private constant `APPROVED_KEYS`.
+
+**3. Dedicated value-object tests**
+
+Created `tests/Unit/ValueObjects/AssessmentResultTest.php` with 10 tests, 28 assertions:
+1. All ten typed properties are exposed
+2. `toArray()` contains exactly the ten approved keys
+3. Property access and array access return identical values
+4. Unknown key access throws `OutOfBoundsException`
+5. Array assignment throws `LogicException`
+6. Array unset throws `LogicException`
+7. `nextVisit` is `CarbonImmutable`
+8. Immutable date operation returns a new instance without altering the original
+9. Every `DecisionIntegrationService` path returns an `AssessmentResult`
+10. Serialization does not expose `raw_output` or `parsed_output`
+
+### Serialization Contract
+
+`toArray()` is the explicit serialization contract. It returns exactly the ten approved keys with their typed values. Controllers currently retain array-style reads through `ArrayAccess` (e.g. `$riskAssessment['risk_level']`) rather than calling `toArray()`. The `toArray()` method is verified in tests to contain (and be limited to) the ten approved fields and to exclude `raw_output` and `parsed_output`.
+
+### Files NOT Modified
+
+- Controllers (PrenatalVisitController, BirthPlanController, MedicalHistoryController, UltrasoundController) — continue using `$result['key']` syntax via `ArrayAccess`; not migrated to `toArray()`
+- All Blade views — untouched
+- ClinicalRuleEngine, CompletenessValidator, MachineLearningService — untouched
+- Models, migrations, routes, Python files, configuration — untouched
+- No database commands executed
+
+### Design Defense
+
+The associative array pattern had four drawbacks: no type safety, no discoverability, mutability, and no serialization contract. `AssessmentResult` solves all four with typed readonly properties, `ArrayAccess` for transitional backward compatibility, `CarbonImmutable` for date immutability, and `toArray()` as a single serialization contract. The strict `offsetGet` (throwing `OutOfBoundsException` on misspelled keys) prevents silent null propagation that would be invisible in the old array implementation.
+
+### Clinical Safety
+
+- No risk factor, threshold, decision hierarchy, or recommendation text changed
+- All assessment wording character-for-character identical
+- No database schema or migration touched
+
+### Test Results
+
+- PHP syntax check: clean on all changed PHP files
+- **56 unit tests pass** (46 from Sprint 7 + 10 new AssessmentResult tests)
+- **110 tests pass** in full suite (same 4 pre-existing failures)
+- Zero regressions
+- DB: `sqlite` / `:memory:` confirmed
+
+### Known Issues
+
+- Pre-existing: `recommendation` column in PrenatalVisit $fillable but missing from migrations
+- Pre-existing: `previous_cs` and `miscarriage` in Patient $fillable but missing from migrations
+- Pre-existing: Referral feature test has 403 authorization failure
+- Pre-existing: ProfileTest soft-delete mismatch
+- Scikit-learn model version warning: model 1.8.0, runtime 1.9.0
+
+## Sprint 9 — Clinical Factor Matrix (Documentation)
+
+Status: Complete
+
+### Objective
+
+Create a formal Clinical Factor Matrix that traces every prenatal risk factor from the eight source documents (DOCU 0–7) through the current Laravel implementation and into proposed future logic — without modifying any application code.
+
+### Constraint
+
+No PHP, Blade, Python, routes, models, controllers, services, tests, or migrations were modified. Only documentation files were created or updated.
+
+### What Was Created
+
+**`docs/CLINICAL_FACTOR_MATRIX.md`** (70 KB, 1,770 lines) — a formal 8-section document:
+
+**Section 1 — System Decision Hierarchy**
+- Current hierarchy (COMPLETENESS → RULE_BASED → MACHINE_LEARNING → final integration) rendered as an ASCII flow chart
+- Document-proposed hierarchy from DOCU 4 Part 12: Emergency/urgent trigger → deterministic HIGH → ML HIGH → incomplete → LOW — requiring a new pre-completeness assessment for severe BP (BP-URG) and warning symptoms
+
+**Section 2 — Clinical Factor Matrix** (16 individual factor entries)
+Every entry structured with: FACTOR ID, DB fields, validation, current engine behavior, test coverage, proposed rule (from source docs), boundary cases, and clinical-approval-needed field.
+
+| ID | Factor | Source |
+|----|--------|--------|
+| AGE-Y | Adolescent pregnancy (age < 19) | DOCU 4 |
+| AGE-A | Advanced maternal age (35+ first pregnancy) | DOCU 4 |
+| BP-H | Elevated blood pressure (>=140/90) | DOCU 4, DOCU 5 |
+| BP-URG | Severely elevated BP (>=160/110 urgent) | DOCU 4, DOCU 5 |
+| DM-01 | Diabetes in pregnancy | DOCU 4 |
+| AN-01 | Maternal anemia | DOCU 4 |
+| CS-01 | Previous cesarean delivery | DOCU 4 |
+| RM-03 | Recurrent miscarriage (>=3) | DOCU 4 |
+| US-P01 | Abnormal fetal presentation | DOCU 4 |
+| US-AF01 | Amniotic fluid abnormality | DOCU 4 |
+| US-FH01 | Fetal heartbeat abnormality | DOCU 4 |
+| MAT-WARN | Maternal warning symptoms | DOCU 1, DOCU 4 |
+| ML-HIGH | Machine-learning HIGH prediction | DOCU 3, DOCU 4 |
+| ML-LOW | Machine-learning LOW prediction | DOCU 4 |
+| INC-PATH | Assessment incomplete path | DOCU 4 |
+| COMP-01 | Required record completeness | DOCU 0, DOCU 4, DOCU 6 |
+
+**Section 3 — Required Factor Groups Coverage Summary (A–K)**
+- Maps all 11 factor groups from DOCU 4 Part 12 to current implementation
+- Status per group: Fully Covered (5), Partially (4), Not Covered (2)
+- Key gap: warning symptoms (group E) and medical-history conditions (group C sub-set) are stored but not evaluated by any clinical rule
+
+**Section 4 — Cross-Factor Interactions**
+- Documents the 8 interactions explicitly stated in DOCU 4 Part 12 (e.g. parity+age, CS+multiple gestation, PET+IUGR)
+- Current implementation: all treated as independent evaluations
+- Key gap: `completeness` checkbox in the current completion check means a visit can be marked "complete" before required labs are recorded, bypassing the deterministic rules
+
+**Section 5 — Current Code Gaps (6 sub-sections)**
+1. **Missing migrations** — `previous_cs`, `miscarriage` (Patient); `recommendation` (PrenatalVisit)
+2. **Unused database fields** — `pusd`, `efw`, `liquor_volume` (Ultrasound model fields present in migration but never read by any clinical rule)
+3. **Absent clinical rules** — Hb/anaemia lab-threshold rules, Doppler/CTG, labour/DELIVERY_DATE/EDD rules, post-term evaluation, outcome monitoring (DELIVERED LABOR)
+4. **Machine-learning provenance gap** — `predict.py` accepted by the system but contains no data dictionary, no training cohort description, no validation metrics, no version manifest
+5. **Known `$casts` vs migration mismatches** — fields expected as `boolean` or `integer` by the model but created as `text` or `varchar` in migrations
+6. **TPHA/RPR test and PH communication gap** — Patient `is_ph` (boolean) exists but RPR-lab-positive flag is not generated by any rule
+
+**Section 6 — Proposed Implementation Batches**
+- Sprint 10: BP verification + urgency classification — BP-H (>=140/90) remains HIGH when deterministic evaluation is reached (PROMPT/REVIEW REQUIRED verification, no pre-completeness bypass); BP-URG (>=160/110) is the only proposed pre-completeness urgent safety evaluation, with missing-record information preserved and displayed. Urgency metadata and structured BP reason metadata added. Repeat-BP workflow fields (`repeat_bp_sys`, `repeat_bp_dia`, `repeat_bp_recorded_at`, `repeat_bp_recorded_by`, `bp_verification_status`) require a separate migration.
+- Sprint 11: Warning-symptom evaluation (WARNING_SYMPTOM_YES), immediate referral
+- Later batches: US GA context, Hb/anaemia rules, diabetes provenance labels, stage-aware completeness, outcome monitoring after EDD
+
+**Section 7 — Clinical Approval Register** (16 entries)
+- Every proposed rule change, migration, and workflow addition given a unique APPROVAL-ID
+- Status: all 16 PENDING — every clinical automated rule requires qualified clinical reviewer approval before real-world deployment
+- COMP-01 added (stage-aware and field-level completeness)
+
+**Section 8 — Defense Summary** (7 statements)
+- Reasoning for documentation-first approach, single-source-of-truth, factor-level granularity, cross-factor interaction exposure, code-gap transparency, approval-before-implementation, and regulatory-readiness posture
+
+### What Was NOT Modified
+
+- No PHP, Blade, Python, routes, models, controllers, services, or test files were changed
+- No migrations were created or executed
+- No database commands were run
+- No `composer.json` or `package.json` dependencies were changed
+- No configuration files were modified
+
+### Clinical Safety
+
+Zero impact. No clinical logic, assessment hierarchy, risk threshold, recommendation text, or decision path was modified.
+
+### Known Issues
+
+(Same as Sprint 8 — no new issues introduced)
+
+- Pre-existing: `recommendation` column in PrenatalVisit $fillable but missing from migrations
+- Pre-existing: `previous_cs` and `miscarriage` in Patient $fillable but missing from migrations
+- Pre-existing: Referral feature test has 403 authorization failure
+- Pre-existing: ProfileTest soft-delete mismatch
+- Scikit-learn model version warning: model 1.8.0, runtime 1.9.0
+
 ## Next Planned Work
 
-1. Introduce structured assessment result objects
-2. Implement EDD-triggered pregnancy outcome monitoring
+1. Review and approve the corrected Sprint 9 Clinical Factor Matrix.
+2. Obtain adviser/qualified clinic reviewer decisions for BP-H and BP-URG.
+3. Begin Sprint 10 with approved BP verification and urgency scope.
+4. Keep EDD outcome monitoring for a later dedicated sprint.

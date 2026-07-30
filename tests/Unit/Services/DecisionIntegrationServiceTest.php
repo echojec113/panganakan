@@ -148,11 +148,11 @@ test('metadata keys are present in every returned result', function () {
     ];
 
     foreach ($scenarios as $result) {
-        expect($result)->toHaveKey('decision_source');
-        expect($result)->toHaveKey('missing_records');
-        expect($result)->toHaveKey('rule_reasons');
-        expect($result)->toHaveKey('ml_prediction');
-        expect($result)->toHaveKey('ml_valid');
+        expect($result->decision_source)->not->toBeNull();
+        expect($result->missing_records)->toBeArray();
+        expect($result->rule_reasons)->toBeArray();
+        expect($result->ml_prediction === null || is_string($result->ml_prediction))->toBeTrue();
+        expect($result->ml_valid)->toBeBool();
     }
 });
 
@@ -161,11 +161,11 @@ test('existing five public keys remain present', function () {
 
     $result = $service->decide([], [], ['valid' => true, 'prediction' => 'LOW']);
 
-    expect($result)->toHaveKey('risk_level');
-    expect($result)->toHaveKey('assessment');
-    expect($result)->toHaveKey('recommendation');
-    expect($result)->toHaveKey('reasons');
-    expect($result)->toHaveKey('nextVisit');
+    expect($result->risk_level)->toBeString();
+    expect($result->assessment)->toBeString();
+    expect($result->recommendation)->toBeString();
+    expect($result->reasons)->toBeArray();
+    expect($result->nextVisit)->toBeInstanceOf(\Carbon\CarbonImmutable::class);
 });
 
 test('rule-based reasons are preserved', function () {
@@ -182,6 +182,6 @@ test('ml raw output is not exposed', function () {
 
     $result = $service->decide([], [], ['valid' => true, 'prediction' => 'LOW']);
 
-    expect($result)->not->toHaveKey('raw_output');
-    expect($result)->not->toHaveKey('parsed_output');
+    expect($result->toArray())->not->toHaveKey('raw_output');
+    expect($result->toArray())->not->toHaveKey('parsed_output');
 });
