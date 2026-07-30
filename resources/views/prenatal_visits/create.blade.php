@@ -129,6 +129,54 @@
                             <p class="text-xs text-gray-500 mt-1">Normal: 36.5-37.5°C | Range: 35-40°C</p>
                         </div>
                     </div>
+
+                    <!-- Repeat BP Verification (shown when initial BP is elevated) -->
+                    <div id="repeatBpSection" class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg hidden">
+                        <div class="flex items-center gap-2 mb-3">
+                            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <h4 class="text-sm font-semibold text-amber-800">BP Verification</h4>
+                        </div>
+                        <p class="text-xs text-amber-700 mb-3">Initial BP is elevated. Record a repeat measurement after rest (15-30 mins) to verify.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Repeat BP Systolic (mmHg)</label>
+                                <input type="number" name="repeat_bp_sys" id="repeat_bp_sys"
+                                    value="{{ old('repeat_bp_sys') }}"
+                                    min="60" max="200" step="1"
+                                    placeholder="e.g., 130"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
+                                <p class="text-xs text-gray-500 mt-1">Range: 60-200 mmHg</p>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Repeat BP Diastolic (mmHg)</label>
+                                <input type="number" name="repeat_bp_dia" id="repeat_bp_dia"
+                                    value="{{ old('repeat_bp_dia') }}"
+                                    min="40" max="130" step="1"
+                                    placeholder="e.g., 85"
+                                    class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
+                                <p class="text-xs text-gray-500 mt-1">Range: 40-130 mmHg</p>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Verification Status</label>
+                            <select name="bp_verification_status" id="bp_verification_status"
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
+                                <option value="">Select status</option>
+                                <option value="PENDING_REPEAT" {{ old('bp_verification_status') == 'PENDING_REPEAT' ? 'selected' : '' }}>Pending Repeat</option>
+                                <option value="REPEAT_COMPLETED" {{ old('bp_verification_status') == 'REPEAT_COMPLETED' ? 'selected' : '' }}>Repeat Completed</option>
+                                <option value="UNABLE_TO_REPEAT" {{ old('bp_verification_status') == 'UNABLE_TO_REPEAT' ? 'selected' : '' }}>Unable to Repeat</option>
+                            </select>
+                        </div>
+                        <div class="mt-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Verification Note</label>
+                            <textarea name="bp_verification_note" rows="2"
+                                placeholder="Optional note about the verification..."
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">{{ old('bp_verification_note') }}</textarea>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Pregnancy Monitoring -->
@@ -446,6 +494,16 @@
                     } else {
                         clearWarning('bp_warning');
                     }
+
+                    // Show/hide repeat BP section
+                    const repeatSection = document.getElementById('repeatBpSection');
+                    if (repeatSection) {
+                        if ((sys >= 140 || dia >= 90) && sys && dia) {
+                            repeatSection.classList.remove('hidden');
+                        } else {
+                            repeatSection.classList.add('hidden');
+                        }
+                    }
                 }
                 return true;
             }
@@ -596,6 +654,26 @@
                 confirmedSubmit = true;
                 form.submit();
             });
+
+            function validateRepeatBP() {
+                const sys = parseFloat(document.getElementById('repeat_bp_sys')?.value);
+                const dia = parseFloat(document.getElementById('repeat_bp_dia')?.value);
+                if (sys && dia && sys <= dia) {
+                    const el = document.getElementById('repeat_bp_sys');
+                    let errorDiv = el.parentElement.querySelector('.error-message');
+                    if (!errorDiv) {
+                        errorDiv = document.createElement('p');
+                        errorDiv.className = 'error-message text-red-500 text-xs mt-1';
+                        el.parentElement.appendChild(errorDiv);
+                    }
+                    errorDiv.textContent = 'Repeat systolic BP must be greater than diastolic BP';
+                    return false;
+                }
+                return true;
+            }
+
+            document.getElementById('repeat_bp_sys')?.addEventListener('input', validateRepeatBP);
+            document.getElementById('repeat_bp_dia')?.addEventListener('input', validateRepeatBP);
         });
     </script>
 </x-app-layout>

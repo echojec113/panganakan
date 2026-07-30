@@ -500,7 +500,22 @@
                                             </div>
                                             <div class="col-span-2"><span class="font-medium">Assessment:</span> {{ $visit->assessment }}</div>
                                             <div><span class="font-medium">Recommendation:</span> {{ $visit->recommendation }}</div>
+                                            @if($visit->repeat_bp_sys && $visit->repeat_bp_dia)
+                                            <div><span class="font-medium">Repeat BP:</span> {{ $visit->repeat_bp_sys }}/{{ $visit->repeat_bp_dia }}</div>
+                                            @endif
+                                            @if($visit->bp_verification_status)
+                                            <div><span class="font-medium">BP Verification:</span> {{ str_replace('_', ' ', $visit->bp_verification_status) }}</div>
+                                            @endif
                                             <div><span class="font-medium">Next Visit:</span> {{ $visit->next_visit_date }}</div>
+                                            <div><span class="font-medium">Urgency:</span>
+                                                @if($visit->urgency === 'URGENT_CLINICAL_REVIEW')
+                                                    <span class="text-red-600 font-semibold">URGENT Clinical Review</span>
+                                                @elseif($visit->urgency === 'PROMPT')
+                                                    <span class="text-amber-600">PROMPT (within 1 week)</span>
+                                                @else
+                                                    <span class="text-gray-500">None</span>
+                                                @endif
+                                            </div>
                                         </div>
                                         @if(!empty($visit->missing_records) || !empty($visit->rule_reasons))
                                         <div class="mt-3 pt-3 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -803,17 +818,24 @@
                                 </svg>
                                 <h3 class="font-semibold text-gray-800">Risk Assessment</h3>
                             </div>
-                            <span class="px-3 py-1 rounded-full text-sm font-bold
-                                @if($rl == 'HIGH') bg-red-600 text-white
-                                @elseif($rl == 'LOW') bg-green-600 text-white
-                                @elseif($rl == 'ASSESSMENT INCOMPLETE') bg-amber-600 text-white
-                                @else bg-gray-600 text-white @endif">
-                                @if($rl == 'HIGH') High
-                                @elseif($rl == 'LOW') Low
-                                @elseif($rl == 'ASSESSMENT INCOMPLETE') Assessment Incomplete
-                                @else {{ $rl }}
+                            <div class="flex items-center gap-2">
+                                <span class="px-3 py-1 rounded-full text-sm font-bold
+                                    @if($rl == 'HIGH') bg-red-600 text-white
+                                    @elseif($rl == 'LOW') bg-green-600 text-white
+                                    @elseif($rl == 'ASSESSMENT INCOMPLETE') bg-amber-600 text-white
+                                    @else bg-gray-600 text-white @endif">
+                                    @if($rl == 'HIGH') High
+                                    @elseif($rl == 'LOW') Low
+                                    @elseif($rl == 'ASSESSMENT INCOMPLETE') Assessment Incomplete
+                                    @else {{ $rl }}
+                                    @endif
+                                </span>
+                                @if($latest->urgency === 'URGENT_CLINICAL_REVIEW')
+                                <span class="px-3 py-1 rounded-full text-sm font-bold bg-red-700 text-white animate-pulse">
+                                    URGENT
+                                </span>
                                 @endif
-                            </span>
+                            </div>
                         </div>
 
                         <div class="space-y-4">
@@ -845,6 +867,40 @@
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">{{ $ds }}</span>
                                 @endif
                             </div>
+
+                            {{-- BP Assessment --}}
+                            @if($latest->bp_assessment)
+                            <div class="bg-white/60 rounded-xl p-3 border @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') border-red-200 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') border-amber-200 @else border-gray-200 @endif">
+                                <div class="flex items-center space-x-2 mb-1">
+                                    <svg class="w-4 h-4 @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') text-red-600 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') text-amber-600 @else text-gray-400 @endif" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span class="text-xs font-semibold uppercase tracking-wide @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') text-red-700 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') text-amber-700 @else text-gray-500 @endif">Blood Pressure Assessment</span>
+                                </div>
+                                <div class="space-y-1">
+                                    <div class="flex items-center gap-2 text-sm">
+                                        <span class="text-gray-500">Reading:</span>
+                                        <span class="font-medium text-gray-800">{{ $latest->bp_sys }}/{{ $latest->bp_dia }}</span>
+                                    </div>
+                                    @if($latest->repeat_bp_sys && $latest->repeat_bp_dia)
+                                    <div class="flex items-center gap-2 text-sm">
+                                        <span class="text-gray-500">Repeat:</span>
+                                        <span class="font-medium text-gray-800">{{ $latest->repeat_bp_sys }}/{{ $latest->repeat_bp_dia }}</span>
+                                    </div>
+                                    @endif
+                                    <div class="flex items-center gap-2 text-sm">
+                                        <span class="text-gray-500">Classification:</span>
+                                        <span class="font-medium @if($latest->bp_assessment['reason_code'] === 'BP-URG') text-red-700 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') text-amber-700 @else text-gray-600 @endif">{{ $latest->bp_assessment['label'] ?? '' }}</span>
+                                    </div>
+                                    @if($latest->bp_assessment['interpretation'] ?? false)
+                                    <p class="text-xs text-gray-600 mt-1">{{ $latest->bp_assessment['interpretation'] }}</p>
+                                    @endif
+                                    @if($latest->bp_assessment['action'] ?? false)
+                                    <p class="text-xs @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') text-red-600 font-semibold @else text-gray-500 @endif mt-1">{{ $latest->bp_assessment['action'] }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                            @endif
 
                             {{-- Conditional evidence sections --}}
 

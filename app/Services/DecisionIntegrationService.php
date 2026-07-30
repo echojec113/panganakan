@@ -9,7 +9,9 @@ class DecisionIntegrationService
     public function decide(
         array $missingRecords,
         array $ruleReasons,
-        ?array $mlResult = null
+        ?array $mlResult = null,
+        ?string $urgency = null,
+        ?array $bpAssessment = null
     ): AssessmentResult {
         if (!empty($missingRecords)) {
             $missingList = implode(', ', $missingRecords);
@@ -24,6 +26,8 @@ class DecisionIntegrationService
                 rule_reasons: [],
                 ml_prediction: null,
                 ml_valid: false,
+                urgency: $urgency,
+                bp_assessment: $bpAssessment,
             );
         }
 
@@ -45,6 +49,8 @@ class DecisionIntegrationService
                 rule_reasons: $uniqueReasons,
                 ml_prediction: null,
                 ml_valid: false,
+                urgency: $urgency,
+                bp_assessment: $bpAssessment,
             );
         }
 
@@ -60,6 +66,8 @@ class DecisionIntegrationService
                 rule_reasons: [],
                 ml_prediction: 'HIGH',
                 ml_valid: true,
+                urgency: null,
+                bp_assessment: null,
             );
         }
 
@@ -75,6 +83,8 @@ class DecisionIntegrationService
                 rule_reasons: [],
                 ml_prediction: 'LOW',
                 ml_valid: true,
+                urgency: null,
+                bp_assessment: null,
             );
         }
 
@@ -89,6 +99,8 @@ class DecisionIntegrationService
             rule_reasons: [],
             ml_prediction: $mlResult['prediction'] ?? null,
             ml_valid: $mlResult['valid'] ?? false,
+            urgency: null,
+            bp_assessment: null,
         );
     }
 }

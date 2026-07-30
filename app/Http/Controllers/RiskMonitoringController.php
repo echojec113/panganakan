@@ -42,6 +42,18 @@ class RiskMonitoringController extends Controller
             $query->where('decision_source', $request->decision_source);
         }
 
+        // Apply urgency filter
+        $allowedUrgencies = ['URGENT_CLINICAL_REVIEW', 'PROMPT'];
+        if ($request->urgency && in_array($request->urgency, $allowedUrgencies)) {
+            $query->where('urgency', $request->urgency);
+        }
+
+        // Apply BP verification status filter
+        $allowedVerificationStatuses = ['PENDING_REPEAT', 'REPEAT_COMPLETED', 'UNABLE_TO_REPEAT', 'NOT_REQUIRED'];
+        if ($request->bp_verification_status && in_array($request->bp_verification_status, $allowedVerificationStatuses)) {
+            $query->where('bp_verification_status', $request->bp_verification_status);
+        }
+
         // SEARCH
         if ($request->search) {
             $query->whereHas('patient', function ($q) use ($request) {
@@ -59,6 +71,8 @@ class RiskMonitoringController extends Controller
         $highRiskCount = (clone $baseLatest)->where('risk_level', 'HIGH')->count();
         $lowRiskCount = (clone $baseLatest)->where('risk_level', 'LOW')->count();
         $incompleteCount = (clone $baseLatest)->where('risk_level', 'ASSESSMENT INCOMPLETE')->count();
+        $urgentBpCount = (clone $baseLatest)->where('urgency', 'URGENT_CLINICAL_REVIEW')->count();
+        $pendingRepeatCount = (clone $baseLatest)->where('bp_verification_status', 'PENDING_REPEAT')->count();
         $totalPatients = Patient::count();
 
         return view('risk.monitoring', compact(
@@ -66,6 +80,8 @@ class RiskMonitoringController extends Controller
             'highRiskCount',
             'lowRiskCount',
             'incompleteCount',
+            'urgentBpCount',
+            'pendingRepeatCount',
             'totalPatients'
         ));
     }

@@ -51,7 +51,15 @@ class PrenatalVisit extends Model
         'reminder_tomorrow_sent_at',
         'reminder_today_sent_at',
 
-        'notes'
+        'notes',
+
+        'repeat_bp_sys',
+        'repeat_bp_dia',
+        'repeat_bp_recorded_at',
+        'repeat_bp_recorded_by',
+        'bp_verification_status',
+        'urgency',
+        'bp_assessment',
     ];
     protected $casts = [
     'visit_date' => 'date',
@@ -67,12 +75,19 @@ class PrenatalVisit extends Model
     'ml_valid' => 'boolean',
     'created_at' => 'datetime',
     'updated_at' => 'datetime',
-    'deleted_at' => 'datetime'
+    'deleted_at' => 'datetime',
+    'repeat_bp_recorded_at' => 'datetime',
+    'bp_assessment' => 'array',
 ];
 
     public function patient()
     {
         return $this->belongsTo(\App\Models\Patient::class);
+    }
+
+    public function repeatBpRecordedBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'repeat_bp_recorded_by');
     }
 
     public function getMonitoringNextVisitLabel(): string

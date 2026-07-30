@@ -20,14 +20,6 @@ class ClinicalRuleEngine
             $reasons[] = "Advanced maternal age (35+) and first pregnancy";
         }
 
-        if ($inputs['bp_sys'] >= 140 || $inputs['bp_dia'] >= 90) {
-            $reasons[] = "Hypertension (BP: {$inputs['bp_sys']}/{$inputs['bp_dia']})";
-
-            if ($inputs['bp_sys'] >= 160 || $inputs['bp_dia'] >= 110) {
-                $reasons[] = "Severe hypertension (BP: {$inputs['bp_sys']}/{$inputs['bp_dia']})";
-            }
-        }
-
         if ($inputs['diabetes'] == 1) {
             $reasons[] = "Diabetes";
         }

@@ -20,6 +20,8 @@ class AssessmentResult implements ArrayAccess
         'rule_reasons',
         'ml_prediction',
         'ml_valid',
+        'urgency',
+        'bp_assessment',
     ];
 
     public readonly string $risk_level;
@@ -32,6 +34,8 @@ class AssessmentResult implements ArrayAccess
     public readonly array $rule_reasons;
     public readonly ?string $ml_prediction;
     public readonly bool $ml_valid;
+    public readonly ?string $urgency;
+    public readonly ?array $bp_assessment;
 
     public function __construct(
         string $risk_level,
@@ -43,7 +47,9 @@ class AssessmentResult implements ArrayAccess
         array $missing_records,
         array $rule_reasons,
         ?string $ml_prediction,
-        bool $ml_valid
+        bool $ml_valid,
+        ?string $urgency = null,
+        ?array $bp_assessment = null,
     ) {
         $this->risk_level = $risk_level;
         $this->assessment = $assessment;
@@ -55,6 +61,8 @@ class AssessmentResult implements ArrayAccess
         $this->rule_reasons = $rule_reasons;
         $this->ml_prediction = $ml_prediction;
         $this->ml_valid = $ml_valid;
+        $this->urgency = $urgency;
+        $this->bp_assessment = $bp_assessment;
     }
 
     public function toArray(): array
@@ -70,6 +78,8 @@ class AssessmentResult implements ArrayAccess
             'rule_reasons' => $this->rule_reasons,
             'ml_prediction' => $this->ml_prediction,
             'ml_valid' => $this->ml_valid,
+            'urgency' => $this->urgency,
+            'bp_assessment' => $this->bp_assessment,
         ];
     }
 

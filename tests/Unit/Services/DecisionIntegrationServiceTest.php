@@ -185,3 +185,46 @@ test('ml raw output is not exposed', function () {
     expect($result->toArray())->not->toHaveKey('raw_output');
     expect($result->toArray())->not->toHaveKey('parsed_output');
 });
+
+test('completeness path accepts urgency and bp_assessment', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide(
+        ['Medical History'],
+        [],
+        null,
+        'URGENT_CLINICAL_REVIEW',
+        ['reason_code' => 'BP-URG', 'label' => 'Severe hypertension', 'risk_level' => 'HIGH', 'triggered' => true]
+    );
+
+    expect($result['risk_level'])->toBe('ASSESSMENT INCOMPLETE');
+    expect($result->urgency)->toBe('URGENT_CLINICAL_REVIEW');
+    expect($result->bp_assessment)->toBeArray();
+    expect($result->bp_assessment['reason_code'])->toBe('BP-URG');
+});
+
+test('rule-based path accepts urgency and bp_assessment', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide(
+        [],
+        ['Diabetes'],
+        null,
+        null,
+        ['reason_code' => 'BP-H', 'label' => 'Elevated BP', 'risk_level' => 'HIGH', 'triggered' => true]
+    );
+
+    expect($result['risk_level'])->toBe('HIGH');
+    expect($result->urgency)->toBeNull();
+    expect($result->bp_assessment)->toBeArray();
+    expect($result->bp_assessment['reason_code'])->toBe('BP-H');
+});
+
+test('ml paths set urgency and bp_assessment to null when not provided', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide([], [], ['valid' => true, 'prediction' => 'LOW']);
+
+    expect($result->urgency)->toBeNull();
+    expect($result->bp_assessment)->toBeNull();
+});

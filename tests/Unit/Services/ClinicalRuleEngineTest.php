@@ -30,7 +30,7 @@ test('age 35 gravida 1 para 0 returns advanced maternal age reason', function ()
     expect($reasons)->toBe(['Advanced maternal age (35+) and first pregnancy']);
 });
 
-test('bp 140 over 90 returns hypertension reason', function () {
+test('bp values do not trigger hypertension reason (moved to BP service)', function () {
     $patient = new Patient(['age' => 25, 'gravida' => 2, 'para' => 1]);
 
     $engine = new ClinicalRuleEngine;
@@ -40,10 +40,10 @@ test('bp 140 over 90 returns hypertension reason', function () {
         'diabetes' => 0, 'anemia' => 0,
     ], null);
 
-    expect($reasons)->toBe(['Hypertension (BP: 140/90)']);
+    expect($reasons)->toBe([]);
 });
 
-test('bp 160 over 110 returns both hypertension and severe hypertension reasons', function () {
+test('severe bp values do not trigger bp reasons (moved to BP service)', function () {
     $patient = new Patient(['age' => 25, 'gravida' => 2, 'para' => 1]);
 
     $engine = new ClinicalRuleEngine;
@@ -53,10 +53,7 @@ test('bp 160 over 110 returns both hypertension and severe hypertension reasons'
         'diabetes' => 0, 'anemia' => 0,
     ], null);
 
-    expect($reasons)->toBe([
-        'Hypertension (BP: 160/110)',
-        'Severe hypertension (BP: 160/110)',
-    ]);
+    expect($reasons)->toBe([]);
 });
 
 test('diabetes returns diabetes reason', function () {
@@ -180,14 +177,13 @@ test('duplicate reasons are removed', function () {
     $engine = new ClinicalRuleEngine;
 
     $reasons = $engine->evaluate($patient, [
-        'bp_sys' => 140, 'bp_dia' => 90,
+        'bp_sys' => 110, 'bp_dia' => 70,
         'diabetes' => 1,
         'anemia' => 1,
     ], $ultrasound);
 
     expect($reasons)->toBe([
         'Teenage pregnancy (under 19)',
-        'Hypertension (BP: 140/90)',
         'Diabetes',
         'Anemia',
         'Abnormal fetal presentation (BREECH)',

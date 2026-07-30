@@ -150,7 +150,30 @@
                 @endphp
 
                 <div class="row"><div class="label">Final Risk Assessment</div><div class="value">{{ $riskLabel }}</div></div>
+
+                @if($latestVisit->urgency === 'URGENT_CLINICAL_REVIEW')
+                <div class="row"><div class="label">Urgency</div><div class="value" style="color:#b91c1c;font-weight:700;">URGENT CLINICAL REVIEW REQUIRED</div></div>
+                @elseif($latestVisit->urgency === 'PROMPT')
+                <div class="row"><div class="label">Urgency</div><div class="value" style="color:#d97706;font-weight:600;">PROMPT (within 1 week)</div></div>
+                @endif
+
                 <div class="row"><div class="label">Decision Source</div><div class="value">{{ $dsLabel }}</div></div>
+
+                @if($latestVisit->bp_assessment)
+                <div style="margin-top:8px;font-weight:600;color:#374151;">Blood Pressure Assessment:</div>
+                <div style="margin:4px 0 10px 20px;font-size:13px;color:#555;">
+                    <div>Reading: {{ $latestVisit->bp_sys }}/{{ $latestVisit->bp_dia }}</div>
+                    @if($latestVisit->repeat_bp_sys && $latestVisit->repeat_bp_dia)
+                    <div>Repeat: {{ $latestVisit->repeat_bp_sys }}/{{ $latestVisit->repeat_bp_dia }}</div>
+                    @endif
+                    <div>Classification: {{ $latestVisit->bp_assessment['label'] ?? '' }}</div>
+                    <div>Interpretation: {{ $latestVisit->bp_assessment['interpretation'] ?? '' }}</div>
+                    <div>Action: {{ $latestVisit->bp_assessment['action'] ?? '' }}</div>
+                    @if($latestVisit->bp_verification_status)
+                    <div>Verification: {{ str_replace('_', ' ', $latestVisit->bp_verification_status) }}</div>
+                    @endif
+                </div>
+                @endif
 
                 @if($ds === 'RULE_BASED' && !empty($latestVisit->rule_reasons))
                     <div style="margin-top:8px;font-weight:600;color:#374151;">Triggered Clinical Rules:</div>

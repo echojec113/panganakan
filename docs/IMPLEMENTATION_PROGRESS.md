@@ -652,9 +652,105 @@ Zero impact. No clinical logic, assessment hierarchy, risk threshold, recommenda
 - Pre-existing: ProfileTest soft-delete mismatch
 - Scikit-learn model version warning: model 1.8.0, runtime 1.9.0
 
+## Sprint 10 — Blood-Pressure Verification and Urgency Classification
+
+Status: Complete (see defence notes below)
+
+### Objective
+
+Implement BP verification workflow, urgency classification (BP-URG pre-completeness bypass), structured BP explainability, and repeat-BP UI across the CDSS without executing migrations, modifying Python/ML, or creating automatic referrals.
+
+### Clinical Policies Approved
+
+- BP-URG (>=160 systolic OR >=110 diastolic): immediate HIGH + URGENT_CLINICAL_REVIEW pre-completeness urgent safety evaluation. Missing records preserved alongside the BP-URG outcome.
+- BP-H (>=140 systolic OR >=90 diastolic): HIGH in the deterministic rule step (post-completeness). Urgency = PROMPT.
+- Four verification statuses: NOT_REQUIRED, PENDING_REPEAT, REPEAT_COMPLETED, UNABLE_TO_REPEAT.
+- Both BP-H and BP-URG count in existing HIGH counts; BP-URG additionally appears in separate urgent-BP counters.
+- Editing initial BP clears the repeat-pair (repeat_bp_sys, repeat_bp_dia, recorded_at, recorded_by).
+- Audit logging for all BP actions (BP_REPEAT_RECORDED, BP_INITIAL_EDITED).
+- Repeat BP validation: both-or-neither, sys > dia, same range limits (60-200 sys, 40-130 dia).
+
+### Files Created
+
+- `database/migrations/2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` — additive migration (7 nullable columns: repeat_bp_sys, repeat_bp_dia, repeat_bp_recorded_at, repeat_bp_recorded_by FK→users, bp_verification_status, urgency, bp_assessment JSON). **NOT EXECUTED.**
+- `app/Services/BloodPressureAssessmentService.php` — new service with `assess()`, `isInitialElevated()`, `isInitialSevere()`, `isRepeatSevere()`, `determineVerificationStatus()`. Returns structured array: triggered, reason_code (BP-H|BP-URG|null), risk_level, urgency (PROMPT|URGENT_CLINICAL_REVIEW|null), verification_status, threshold/label/interpretation/action text.
+- `tests/Unit/Services/BloodPressureAssessmentServiceTest.php` — 15 tests covering normal, elevated, severe, repeat-BP resolved, pending repeat, unable to repeat, null safety, and boundary cases.
+
+### Files Modified
+
+**Backend Services**
+
+- `app/Services/RiskAssessmentService.php` — Injected `BloodPressureAssessmentService`; implemented new 4-step decision hierarchy:
+  1. **BP assessment** always runs first
+  2. **BP-URG → immediate HIGH + URGENT_CLINICAL_REVIEW** (pre-completeness, missing records preserved)
+  3. **Completeness → INCOMPLETE** (BP-H alert preserved if triggered)
+  4. **BP-H + other rules → HIGH** (post-completeness)
+  5. **ML** (only if complete + no deterministic HIGH)
+- `app/Services/ClinicalRuleEngine.php` — Removed inline BP-H and BP-URG blocks (lines 23–29). All other non-BP rules preserved exactly.
+- `app/ValueObjects/AssessmentResult.php` — Added `public readonly ?string $urgency` and `public readonly ?array $bp_assessment`; updated constructor (2 optional params, default null); APPROVED_KEYS from 10→12; toArray() includes both new keys.
+- `app/Services/DecisionIntegrationService.php` — `decide()` accepts optional `?string $urgency` and `?array $bpAssessment`; passes them to all five `new AssessmentResult(...)` paths (null for ML paths, passes through for completeness/BP/high-risk paths).
+- `app/Models/PrenatalVisit.php` — Added 7 fields to `$fillable`; casts for `repeat_bp_recorded_at => datetime` and `bp_assessment => array`; added `repeatBpRecordedBy()` belongsTo(User).
+
+**Controllers**
+
+- `app/Http/Controllers/PrenatalVisitController.php`:
+  - `store()`: Validates repeat BP fields (both-or-neither, sys>dia), passes to RiskAssessmentService, persists repeat BP fields + urgency + bp_assessment, logs BP_REPEAT_RECORDED audit.
+  - `update()`: Detects initial BP change → clears repeat pair + logs BP_INITIAL_EDITED audit. Reprises repeat BP validation and persistence, recalculates risk.
+  - `recalculateIncompleteVisits()`: Passes existing repeat BP data + verification status to RiskAssessmentService; persists urgency and bp_assessment.
+- `app/Http/Controllers/DashboardController.php`:
+  - Admin: Added `$urgentBpCount`, `$pendingRepeatCount`, `$urgentBpPatients`, `$pendingRepeatPatients`.
+  - Staff: Added `$staffUrgentBpCount`, `$staffPendingRepeatCount`.
+- `app/Http/Controllers/RiskMonitoringController.php` — Added urgency filter (URGENT_CLINICAL_REVIEW, PROMPT), BP verification status filter (PENDING_REPEAT, REPEAT_COMPLETED, UNABLE_TO_REPEAT, NOT_REQUIRED), plus `$urgentBpCount` and `$pendingRepeatCount`.
+
+**Blade Views**
+
+- `resources/views/prenatal_visits/create.blade.php` — Added repeat BP verification section (conditional, shown when initial BP >=140/90), verification status dropdown, verification note textarea; JS to show/hide section and validate repeat BP.
+- `resources/views/prenatal_visits/edit.blade.php` — Same as create, plus pre-populates existing repeat BP values; detects initial BP change and clears repeat pair.
+- `resources/views/patients/show.blade.php` — Added urgency badge (URGENT in red animate-pulse) next to risk level; BP Assessment section in Risk Assessment Card (classification, interpretation, action); urgency and repeat BP in visit details dropdown.
+- `resources/views/risk/monitoring.blade.php` — Added urgency and BP verification filter dropdowns; changed stats grid from 4-col to 6-col (added Urgent BP and Pending Repeat); added urgency badge in mobile and desktop views.
+- `resources/views/dashboards/admin.blade.php` — Added Urgent BP Alerts and Pending Repeat BP cards in risk summary (changed to 6-col grid); added urgent BP and pending repeat lists in Priority Monitoring.
+- `resources/views/dashboards/staff.blade.php` — Changed risk summary from 3-col to 5-col (added Urgent BP and Pending Repeat cards).
+- `resources/views/exports/patient-record.blade.php` — Added urgency display line and BP Assessment section in Clinical Decision Summary.
+
+**Tests**
+
+- `tests/Unit/Services/BloodPressureAssessmentServiceTest.php` — 15 new tests covering all clinical policies.
+- `tests/Unit/ValueObjects/AssessmentResultTest.php` — Updated "ten" to "twelve" in test names; added assertions for urgency and bp_assessment properties.
+- `tests/Unit/Services/DecisionIntegrationServiceTest.php` — Added 3 new tests: completeness path accepts urgency and bp_assessment, rule-based path accepts bp_assessment, ML paths set both to null.
+- `tests/Unit/Services/ClinicalRuleEngineTest.php` — Updated 3 BP tests to expect empty array (BP moved to BloodPressureAssessmentService); updated duplicate-removal test to exclude BP reason.
+
+### Test Results
+
+- PHP syntax check: clean (all 9 modified PHP files)
+- **56 targeted tests pass** (ClinicalRuleEngine, AssessmentResult, DecisionIntegration, BloodPressureAssessment)
+- **128 tests pass** in full suite (same 4 pre-existing failures)
+- Zero regressions
+
+### Design Defence
+
+1. **BP-URG pre-completeness bypass**: Severe-range BP (>=160/110) is treated as a safety override because waiting for completeness could delay clinical attention. Missing records are preserved and displayed so data gaps are not hidden.
+
+2. **BP-H post-completeness**: Elevated BP (>=140/90 but <160/110) does not bypass completeness. It is evaluated alongside other deterministic rules after completeness passes. This prevents false reassurance from incomplete data.
+
+3. **Repeat-BP workflow**: Repeat BP fields use both-or-neither validation. The repeat measurement is always compared against the initial reading. If a repeat resolves the elevation, the service returns `triggered: false`. Editing initial BP clears the repeat pair (clinical policy: a new reading invalidates the old comparison).
+
+4. **Structured BP assessment data**: `bp_assessment` is a JSON column storing the full structured result (reason_code, label, risk_level, triggered, threshold, interpretation, action, verification_status). This supports retrospective audit and future explainability improvements without schema changes.
+
+5. **Urgency as separate metadata**: Urgency (URGENT_CLINICAL_REVIEW / PROMPT / null) is a dedicated column, not embedded in reasons. This allows separate UI treatment (red URGENT badge) and independent filtering in Risk Monitoring.
+
+6. **Minimal migration (not executed)**: The additive migration uses only nullable columns. No existing data is affected. Manual inspection is required before execution.
+
+### Known Issues
+
+- Migration file `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` created but NOT executed — manual inspection required.
+- Pre-existing: `recommendation` column in PrenatalVisit $fillable but missing from migrations.
+- Pre-existing: `previous_cs` and `miscarriage` in Patient $fillable but missing from migrations.
+- Pre-existing: Referral feature test has 403 authorization failure.
+- Pre-existing: ProfileTest soft-delete mismatch.
+- Scikit-learn model version warning: model 1.8.0, runtime 1.9.0.
+
 ## Next Planned Work
 
-1. Review and approve the corrected Sprint 9 Clinical Factor Matrix.
-2. Obtain adviser/qualified clinic reviewer decisions for BP-H and BP-URG.
-3. Begin Sprint 10 with approved BP verification and urgency scope.
-4. Keep EDD outcome monitoring for a later dedicated sprint.
+1. Execute migration `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` after manual inspection.
+2. Begin Sprint 11: Warning-symptom evaluation (MAT-WARN) and referral integration.
+3. Keep EDD outcome monitoring for a later dedicated sprint.

@@ -56,13 +56,32 @@
                         <option value="MACHINE_LEARNING_INVALID" {{ request('decision_source') == 'MACHINE_LEARNING_INVALID' ? 'selected' : '' }}>ML Assessment Unavailable</option>
                     </select>
                 </div>
-                
+
+<div class="sm:w-40 lg:w-44">
+    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Urgency</label>
+    <select name="urgency" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <option value="">All Urgencies</option>
+        <option value="URGENT_CLINICAL_REVIEW" {{ request('urgency') == 'URGENT_CLINICAL_REVIEW' ? 'selected' : '' }}>URGENT Clinical Review</option>
+        <option value="PROMPT" {{ request('urgency') == 'PROMPT' ? 'selected' : '' }}>PROMPT</option>
+    </select>
+</div>
+
+<div class="sm:w-44 lg:w-48">
+    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">BP Verification</label>
+    <select name="bp_verification_status" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+        <option value="">All Statuses</option>
+        <option value="PENDING_REPEAT" {{ request('bp_verification_status') == 'PENDING_REPEAT' ? 'selected' : '' }}>Pending Repeat</option>
+        <option value="REPEAT_COMPLETED" {{ request('bp_verification_status') == 'REPEAT_COMPLETED' ? 'selected' : '' }}>Repeat Completed</option>
+        <option value="UNABLE_TO_REPEAT" {{ request('bp_verification_status') == 'UNABLE_TO_REPEAT' ? 'selected' : '' }}>Unable to Repeat</option>
+    </select>
+</div>
+
                 <div class="flex gap-2 items-end">
                     <button type="submit"
                         class="flex-1 sm:flex-none px-4 sm:px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm">
                         Apply
                     </button>
-                    @if(request('search') || request('risk_filter') || request('decision_source'))
+                    @if(request('search') || request('risk_filter') || request('decision_source') || request('urgency') || request('bp_verification_status'))
                         <a href="{{ route('risk.monitoring') }}" 
                             class="flex-1 sm:flex-none px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm text-center">
                             Clear
@@ -127,7 +146,7 @@
         </div>
 
         <!-- Risk Statistics Overview - Responsive 4-column -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-4 mb-6 sm:mb-8">
             <div class="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
                 <div class="flex items-center justify-between">
                     <div>
@@ -183,6 +202,32 @@
                     </div>
                 </div>
             </div>
+<div class="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="text-xs sm:text-sm text-gray-500">Urgent BP</p>
+            <p class="text-xl sm:text-2xl font-bold text-red-700">{{ $urgentBpCount ?? 0 }}</p>
+        </div>
+        <div class="bg-red-100 rounded-full p-2 sm:p-3">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+    </div>
+</div>
+<div class="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <p class="text-xs sm:text-sm text-gray-500">Pending Repeat</p>
+            <p class="text-xl sm:text-2xl font-bold text-amber-600">{{ $pendingRepeatCount ?? 0 }}</p>
+        </div>
+        <div class="bg-amber-100 rounded-full p-2 sm:p-3">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+        </div>
+    </div>
+</div>
         </div>
 
         <!-- Patients List - Show all risk levels with decision source and evidence -->
@@ -263,6 +308,9 @@
                         <span class="px-2 py-1 rounded-full text-xs font-medium {{ $badgeColor }} flex-shrink-0 ml-2">
                             {{ $badgeLabel }}
                         </span>
+                        @if($visit->urgency === 'URGENT_CLINICAL_REVIEW')
+                        <span class="ml-1 px-2 py-1 rounded-full text-xs font-medium bg-red-700 text-white flex-shrink-0">URGENT</span>
+                        @endif
                     </div>
 
                     <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
@@ -318,6 +366,7 @@
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Risk Level</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Urgency</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Decision Source</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Evidence Summary</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Visit</th>
@@ -413,6 +462,15 @@
                                 </span>
                             </td>
                             <td class="px-6 py-4">
+                                @if($visit->urgency === 'URGENT_CLINICAL_REVIEW')
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-700 text-white">URGENT</span>
+                                @elseif($visit->urgency === 'PROMPT')
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">PROMPT</span>
+                                @else
+                                    <span class="text-xs text-gray-400">—</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4">
                                 <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium {{ $dsColor }}">
                                     {{ $dsLabel }}
                                 </span>
@@ -470,7 +528,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="8" class="px-6 py-12 text-center text-gray-500">
                                 No patients found matching the current filters.
                             </td>
                         </tr>

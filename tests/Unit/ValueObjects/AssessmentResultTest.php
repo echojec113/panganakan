@@ -22,7 +22,7 @@ function makeFullResult(): AssessmentResult
     );
 }
 
-test('exposes all ten typed properties', function () {
+test('exposes all twelve typed properties', function () {
     $result = makeFullResult();
 
     expect($result->risk_level)->toBeString();
@@ -35,20 +35,23 @@ test('exposes all ten typed properties', function () {
     expect($result->rule_reasons)->toBeArray();
     expect($result->ml_prediction)->toBeString();
     expect($result->ml_valid)->toBeTrue();
+    expect($result->urgency)->toBeNull();
+    expect($result->bp_assessment)->toBeNull();
 });
 
-test('toArray contains exactly ten approved keys', function () {
+test('toArray contains exactly twelve approved keys', function () {
     $result = makeFullResult();
     $array = $result->toArray();
 
     $approved = ['risk_level', 'assessment', 'recommendation', 'reasons', 'nextVisit',
-        'decision_source', 'missing_records', 'rule_reasons', 'ml_prediction', 'ml_valid'];
+        'decision_source', 'missing_records', 'rule_reasons', 'ml_prediction', 'ml_valid',
+        'urgency', 'bp_assessment'];
 
     foreach ($approved as $key) {
         expect($array)->toHaveKey($key);
     }
 
-    expect($array)->toHaveCount(10);
+    expect($array)->toHaveCount(12);
 });
 
 test('property access and array access return identical values', function () {
@@ -64,6 +67,8 @@ test('property access and array access return identical values', function () {
     expect($result['rule_reasons'])->toBe($result->rule_reasons);
     expect($result['ml_prediction'])->toBe($result->ml_prediction);
     expect($result['ml_valid'])->toBe($result->ml_valid);
+    expect($result['urgency'])->toBe($result->urgency);
+    expect($result['bp_assessment'])->toBe($result->bp_assessment);
 });
 
 test('unknown key access throws OutOfBoundsException', function () {

@@ -17,14 +17,21 @@
 ### Current Hierarchy (as implemented)
 
 ```
+0. BP-URG IMMEDIATE URGENT SAFETY EVALUATION (Sprint 10)
+   BloodPressureAssessmentService::assess()
+   └── BP >= 160/110 → HIGH + URGENT_CLINICAL_REVIEW + missing_records preserved
+   └── Pre-completeness; preserves missing-record display alongside BP-URG outcome
+
 1. REQUIRED-RECORD COMPLETENESS CHECK
    CompletenessValidator::missingRequiredRecords()
    └── Medical History, Ultrasound Record, Birth Plan
    └── Missing any → ASSESSMENT INCOMPLETE (COMPLETENESS)
+   └── BP-H alert preserved if triggered
 
 2. DETERMINISTIC CLINICAL-RULE EVALUATION
    ClinicalRuleEngine::evaluate()
-   └── 8 rule groups evaluated in fixed order
+   └── 7 rule groups (BP removed to BloodPressureAssessmentService)
+   └── BP-H evaluated in RiskAssessmentService post-completeness
    └── Any triggered → HIGH (RULE_BASED)
 
 3. MACHINE-LEARNING EXECUTION (only when eligible)
@@ -80,12 +87,13 @@
 5. LOW (complete + valid ML)   → LOW
 ```
 
-**Difference from current**: Documents add an explicit `Emergency/urgent` priority above deterministic HIGH. Currently, severe BP (>=160/110) adds a reason string but does not change the decision path — it still goes through the same `RULE_BASED` path. The document proposes separate emergency override logic with `urgency` output metadata.
+**Difference from current**: Documents add an explicit `Emergency/urgent` priority above deterministic HIGH. Sprint 10 implemented BP-URG as a pre-completeness urgent safety evaluation with `urgency` output metadata (URGENT_CLINICAL_REVIEW) and a separate `bp_assessment` JSON column. The system now matches the document-proposed hierarchy for BP.
 
 ### Recommended Future Behavior
 
-- Implement urgency as a separate metadata field (not embedded in reasons)
-- Add emergency override engine path before deterministic evaluation
+- Urgency is now implemented as a separate metadata field (urgency column + bp_assessment JSON) ✅
+- BP-URG pre-completeness bypass implemented ✅
+- Emergency override engine path added (BP-URG in RiskAssessmentService before completeness) ✅
 - Preserve existing hierarchy otherwise; it matches document specification
 
 ---
@@ -338,28 +346,40 @@ IF patient.age >= 35 AND patient.gravida == 1 AND patient.para == 0 THEN
 - `bp_dia`: `required|numeric|min:40|max:130`
 - Additional: `if ($request->bp_sys <= $request->bp_dia) → validation error`
 
-**Current ClinicalRuleEngine behavior:**
+**Current ClinicalRuleEngine behavior:** REMOVED (Sprint 10) — BP logic moved to `BloodPressureAssessmentService::assess()`
+
+**Current BloodPressureAssessmentService behavior:**
 ```php
-if ($inputs['bp_sys'] >= 140 || $inputs['bp_dia'] >= 90) {
-    $reasons[] = "Hypertension (BP: {$inputs['bp_sys']}/{$inputs['bp_dia']})";
-}
+// Assesses all BP inputs (initial + repeat) and returns:
+// - triggered: bool
+// - reason_code: 'BP-H' | 'BP-URG' | null
+// - risk_level: 'HIGH' | null
+// - urgency: 'PROMPT' | 'URGENT_CLINICAL_REVIEW' | null
+// - verification_status: one of 4 enum values
+// - threshold, label, interpretation, action: string
 ```
 
 **Current ML usage:**
 - Feature 4 (bp_sys) and Feature 5 (bp_dia) in `buildFeatureArray()`
 - Used by Random Forest
 
-**Current decision effect:** HIGH
+**Current decision effect:**
+- BP-H (>=140/90): HIGH via RiskAssessmentService post-completeness
+- Urgency: PROMPT
+- Verification: PENDING_REPEAT suggested if no repeat recorded
+- Does NOT bypass completeness check
 
 **Current explainability:**
-- Reason string includes the exact BP values
-- Displayed under "Triggered Rules" / "Risk Factors"
+- Reason string: "Hypertension (BP: X/Y)" — set by RiskAssessmentService
+- BP Assessment section shows classification, interpretation, action
+- Urgency badge (PROMPT = yellow) displayed in patient profile
+- Structured bp_assessment JSON stored for audit
 
 **Current test coverage:**
-- `ClinicalRuleEngineTest`: "bp 140 over 90 returns hypertension reason"
-- `ClinicalRuleEngineTest`: "bp 160 over 110 returns both hypertension and severe hypertension reasons"
+- `BloodPressureAssessmentServiceTest`: "bp 140 over 90 returns BP-H triggered with PROMPT urgency"
+- `RiskAssessmentService` tests via `DecisionIntegrationServiceTest` integration
 
-**Current implementation status:** IMPLEMENTED AND ACCEPTABLE
+**Current implementation status:** REFINED (Sprint 10) — BP logic extracted from ClinicalRuleEngine; verification and urgency implemented
 
 **Proposed exact future rule:**
 ```
@@ -405,13 +425,13 @@ IF bp_sys >= 140 OR bp_dia >= 90 THEN
 - BP 139/89 → no BP trigger (but may still be ML-evaluated)
 - BP 140/90 + ML LOW → HIGH (rule override confirmed)
 
-**Current code gap:** Currently, missing records bypasses rule evaluation entirely. Documents propose that only BP-URG (>=160/110) should be evaluated before completeness as an urgent safety net; BP-H (>=140/90) remains in the deterministic evaluation step.
+**Current code gap (resolved Sprint 10):** BP-URG is now evaluated before completeness as an urgent safety net; BP-H remains in post-completeness evaluation. Repeat-measurement workflow is implemented. Missing records preserved alongside BP-URG/BP-H outcomes.
 
-**Clinical approval needed:** YES — for BP-URG pre-completeness bypass; BP-H remains standard deterministic HIGH without completeness bypass
+**Clinical approval needed:** YES — for BP-URG pre-completeness bypass, BP verification workflow, and urgency display design. BP-H remains standard deterministic HIGH without completeness bypass (approved design).
 
 **Open questions:**
-- Should a repeat-measurement workflow be implemented for BP-H verification?
 - Should urine protein test results be integrated?
+- Staff training materials needed for BP verification workflow
 
 ---
 
@@ -437,55 +457,63 @@ IF bp_sys >= 140 OR bp_dia >= 90 THEN
 
 **Current controller validation:** Same as BP-H
 
-**Current ClinicalRuleEngine behavior:**
+**Current ClinicalRuleEngine behavior:** REMOVED (Sprint 10) — BP logic moved to `BloodPressureAssessmentService::assess()`
+
+**Current BloodPressureAssessmentService behavior:**
 ```php
-// Inside the BP >= 140/90 block:
-if ($inputs['bp_sys'] >= 160 || $inputs['bp_dia'] >= 110) {
-    $reasons[] = "Severe hypertension (BP: {$inputs['bp_sys']}/{$inputs['bp_dia']})";
-}
+// Triggered when bp_sys >= 160 OR bp_dia >= 110
+// Returns: triggered=true, reason_code='BP-URG', risk_level='HIGH',
+//          urgency='URGENT_CLINICAL_REVIEW', action='Immediate repeat measurement...'
+// Evaluated in RiskAssessmentService BEFORE completeness check
+// Missing records preserved alongside BP-URG outcome
+// Initial BP severe → verification_status = PENDING_REPEAT
 ```
-- Adds a second reason string alongside the regular hypertension reason
-- Does NOT change decision path or add urgency metadata
-- Does NOT bypass completeness check
 
 **Current ML usage:** Same feature positions as BP-H
 
-**Current decision effect:** HIGH (via same RULE_BASED path; no separate urgency)
+**Current decision effect:**
+- HIGH + URGENT_CLINICAL_REVIEW (pre-completeness urgent safety override)
+- Urgency: URGENT_CLINICAL_REVIEW
+- Missing records preserved (not hidden by bypass)
+- Repeat BP resolution: if repeat measurements are normal, triggered=false
 
 **Current explainability:**
-- Reason string: "Severe hypertension (BP: X/Y)"
-- No visual distinction from regular hypertension in the UI
-- Decision source remains "Clinical Rules" — no urgent indicator
+- Red URGENT badge in Risk Assessment Card
+- BP Assessment section with classification, interpretation, action text
+- Decision source: Clinical Rules (orange) with urgency indicator
+- Structured bp_assessment JSON stored for audit
 
 **Current test coverage:**
-- `ClinicalRuleEngineTest`: "bp 160 over 110 returns both hypertension and severe hypertension reasons"
+- `BloodPressureAssessmentServiceTest`: severe BP triggers BP-URG with URGENT_CLINICAL_REVIEW
+- `BloodPressureAssessmentServiceTest`: BP-URG repeat-resolved returns not triggered
+- `DecisionIntegrationServiceTest`: completeness path accepts urgency and bp_assessment for BP-URG bypass
 
-**Current implementation status:** IMPLEMENTED BUT NEEDS REFINEMENT
+**Current implementation status:** REFINED (Sprint 10) — urgency, pre-completeness bypass, repeat workflow, and structured explainability implemented
 
-**The gap:** Current code does not distinguish urgency. Documents require:
-- Emergency override priority before completeness check
-- Urgency metadata (URGENT or EMERGENCY)
-- Different recommendation (immediate assessment / hospital transfer)
-- Different explainability display
+**The gap (resolved Sprint 10):** Urgency is now distinguished. Documents require:
+- Emergency override priority before completeness check ✅
+- Urgency metadata (URGENT_CLINICAL_REVIEW) ✅
+- Different recommendation (immediate assessment / hospital transfer) ✅
+- Different explainability display ✅
 
-**Proposed exact future rule:**
+**Proposed exact future rule:** (IMPLEMENTED Sprint 10)
 ```
 IF bp_sys >= 160 OR bp_dia >= 110 THEN
     risk_level = HIGH
-    urgency = URGENT
+    urgency = URGENT_CLINICAL_REVIEW
     decision_source = RULE_BASED
     reason_code = BP-URG
     ML execution = SKIPPED
     action = "Immediate repeat measurement and qualified clinical assessment.
               Emergency referral or transfer according to local protocol."
 ```
-Additionally: this should be evaluated BEFORE the completeness check.
+Additionally: this is evaluated BEFORE the completeness check ✅.
 
 **Boundary cases:**
-- 160/100 → URGENT (systolic triggers)
-- 150/110 → URGENT (diastolic triggers)
+- 160/100 → URGENT_CLINICAL_REVIEW (systolic triggers)
+- 150/110 → URGENT_CLINICAL_REVIEW (diastolic triggers)
 - 159/109 → HIGH (BP-H only) via current thresholds
-- 160/110 → URGENT + HIGH
+- 160/110 → URGENT_CLINICAL_REVIEW + HIGH
 
 **Gestational context:** Gestational timing matters (early-onset vs late-onset) but is not currently captured
 
@@ -522,11 +550,12 @@ Additionally: this should be evaluated BEFORE the completeness check.
 - BP 159/109 → HIGH (BP-H only) no urgent flag
 - Urgency metadata present and correctly populated
 
-**Clinical approval needed:** YES — for changing completeness-check bypass behavior and adding urgency metadata
+**Clinical approval needed:** YES — for BP-URG pre-completeness bypass and urgency metadata implementation (design complete, awaiting clinical reviewer sign-off)
 
-**Open questions:**
-- Exact urgency display wording in UI
-- Repeat-measurement confirmation workflow design
+**Open questions (resolved Sprint 10):**
+- Urgency display: URGENT_CLINICAL_REVIEW badge (red animate-pulse) in patient profile ✅
+- Repeat-measurement workflow: both-or-neither validation, verification statuses, BP_INITIAL_EDITED clears repeat pair ✅
+- Audit logging for BP actions implemented ✅
 
 ---
 
@@ -1457,7 +1486,7 @@ missingRequiredRecords() returns labels for absent records
 | Group | Factors | Current Status |
 |-------|---------|----------------|
 | A. Maternal demographics | AGE-Y, AGE-A | IMPLEMENTED |
-| B. Vital signs | BP-H, BP-URG | IMPLEMENTED (needs urgency refinement) |
+| B. Vital signs | BP-H, BP-URG | REFINED (Sprint 10 — urgency, pre-completeness, verification, explainability) |
 | C. Medical history | DM-01, AN-01, heart_disease, asthma, thyroid, epilepsy, liver, mental health, allergies, smoking, drugs | DM-01, AN-01 implemented; others NOT IMPLEMENTED |
 | D. Obstetric history | CS-01, RM-03 | IMPLEMENTED (migration issues) |
 | E. Warning symptoms | severe_headache, visual_disturbance, chest_pain, shortness_breath | NOT IMPLEMENTED (data exists) |
@@ -1544,7 +1573,7 @@ missingRequiredRecords() returns labels for absent records
 - No interpregnancy interval tracking
 - No previous cesarean scar type
 - No fundic-height tracking for growth trends
-- No repeat-measurement protocol for BP
+- ~~No repeat-measurement protocol for BP~~ ✅ (Sprint 10 — implemented via repeat_bp_sys/dia, verification status, BP assessment service)
 
 ### 5.5 ML Features Without Sufficient Provenance
 
@@ -1590,47 +1619,41 @@ missingRequiredRecords() returns labels for absent records
 
 ## Section 6 — Proposed Implementation Batches
 
-### Sprint 10 — Blood-Pressure Verification and Structured BP Explainability
+### Sprint 10 — Blood-Pressure Verification and Structured BP Explainability ✅ COMPLETE
 
 **Clinical factors:** BP-H, BP-URG
 
-**Fields required:**
-- `urgency` metadata (added to `AssessmentResult`, no DB change)
-- Structured BP reason metadata (added to `AssessmentResult`, no DB change)
-- For complete repeat-BP workflow (separate migration, not Sprint 9/10):
-  - `repeat_bp_sys` (integer, nullable)
-  - `repeat_bp_dia` (integer, nullable)
-  - `repeat_bp_recorded_at` (datetime, nullable)
-  - `repeat_bp_recorded_by` (foreign key to users, nullable)
-  - `bp_verification_status` (string, nullable — values: UNVERIFIED, CONFIRMED, DISCREPANT)
+**Fields added (migration NOT executed):**
+- `urgency` metadata (AssessmentResult + DB column ✅)
+- `bp_assessment` JSON (AssessmentResult + DB column ✅)
+- Repeat-BP fields: `repeat_bp_sys`, `repeat_bp_dia`, `repeat_bp_recorded_at`, `repeat_bp_recorded_by` ✅
+- `bp_verification_status` (string — values: PENDING_REPEAT, REPEAT_COMPLETED, UNABLE_TO_REPEAT, NOT_REQUIRED) ✅
 
-**Services affected:**
-- `DecisionIntegrationService` — add urgency to output
-- `ClinicalRuleEngine` — separate BP-H from BP-URG with different urgency; BP-URG evaluated before completeness check
-- `RiskAssessmentService` — pre-completeness urgent-BP path for BP-URG only
-- `AssessmentResult` — add `urgency` property
+**Implementation summary:**
+- `BloodPressureAssessmentService` — new service with `assess()` ✅
+- `ClinicalRuleEngine` — BP logic removed (lines 23–29) ✅
+- `RiskAssessmentService` — pre-completeness BP-URG urgent safety path ✅
+- `DecisionIntegrationService` — urgency + bp_assessment passed through all paths ✅
+- `AssessmentResult` — `$urgency` and `$bp_assessment` added (12 approved keys) ✅
+- `PrenatalVisitController` — repeat BP validation, audit logging, persistence ✅
+- `DashboardController` — urgent BP + pending repeat KPIs and priority lists ✅
+- `RiskMonitoringController` — urgency + verification status filters ✅
+- Blade views — urgency badge, BP Assessment section, repeat BP panel, filter dropdowns ✅
+- 56 targeted tests pass; 0 regressions ✅
 
-**UI affected:**
-- Patient profile: show urgency badge for BP-URG
-- Risk Monitoring: show urgency filter/column
-- Dashboard: consider urgent count separate from HIGH count
+**Clinical approval needed:** YES — for BP-URG pre-completeness bypass and BP verification workflow. BP-H does NOT bypass completeness (PROMPT/REVIEW REQUIRED only).
 
-**Tests required:**
-- BP-URG complete override path (bypass completeness)
-- Urgency metadata propagation
-- Urgency display in all explainability views
-- Boundary cases (159/109 vs 160/100)
+**Key policy decisions (IMPLEMENTED, awaiting clinical reviewer sign-off):**
+- BP-H (>=140/90) remains in post-completeness evaluation; does NOT bypass completeness check.
+- BP-URG (>=160/110) is the ONLY pre-completeness urgent safety evaluation.
+- Missing-record information preserved and displayed alongside BP-URG/BP-H outcomes.
+- Repeat-BP: both-or-neither validation; editing initial BP clears repeat pair.
+- Audit logging for BP actions (BP_REPEAT_RECORDED, BP_INITIAL_EDITED).
 
-**Clinical approval needed:** YES — for BP-URG pre-completeness bypass only. BP-H does NOT bypass completeness (PROMPT/REVIEW REQUIRED only).
-
-**Key policy decisions (PENDING approval):**
-- BP-H (>=140/90) remains in the deterministic evaluation step; does NOT bypass completeness check. Missing records are displayed even when BP-URG triggers HIGH.
-- BP-URG (>=160/110) is the ONLY proposed pre-completeness urgent safety evaluation.
-- Missing-record information must be preserved and displayed alongside the BP-URG outcome.
-
-**Primary risks:**
-- BP-URG completeness bypass could mask missing records when BP is incidentally elevated — mitigated by preserving missing-record display
-- Urgency display requires UI design decisions
+**Primary risks (mitigated):**
+- BP-URG completeness bypass could mask missing records → preserved in missing_records and displayed alongside BP-URG outcome ✅
+- Urgency display requires UI design → red URGENT badge + amber PROMPT badge + BP Assessment section implemented ✅
+- Migration NOT executed → requires manual inspection before `php artisan migrate`
 
 ---
 
@@ -1695,8 +1718,8 @@ missingRequiredRecords() returns labels for absent records
 |-----------|--------------|-----------------|------------------------------|-----------------------------------|-----------|------|----------|-------|
 | AGE-Y | Age < 19 → HIGH | WHO, ACOG cited | Yes | Yes | PENDING | — | — | Current implementation matches; requires reviewer sign-off |
 | AGE-A | Age >= 35 + G1P0 → HIGH | ACOG (narrowed) | Yes (narrower than guidelines) | Yes | PENDING | — | — | Consider adding AGE-40 rule |
-| BP-H | BP >= 140/90 → HIGH | NICE, WHO, ISSHP | Yes (completeness-bypass policy) | Yes | PENDING | — | — | BP-H does NOT bypass completeness; PROMPT/REVIEW REQUIRED only |
-| BP-URG | BP >= 160/110 → URGENT | NICE, WHO | Yes (completeness bypass) | Yes | PENDING | — | — | Only pre-completeness urgent evaluation |
+| BP-H | BP >= 140/90 → HIGH (post-completeness) + PROMPT urgency | NICE, WHO, ISSHP | Yes (completeness-bypass policy) | Yes | PENDING | — | — | Implemented Sprint 10: BP-H remains post-completeness; PROMPT urgency; repeat-BP workflow implemented |
+| BP-URG | BP >= 160/110 → HIGH + URGENT_CLINICAL_REVIEW (pre-completeness) | NICE, WHO | Yes (completeness bypass) | Yes | PENDING | — | — | Implemented Sprint 10: pre-completeness urgent safety override; URGENT_CLINICAL_REVIEW metadata; repeat-BP resolution; missing records preserved |
 | DM-01 | Diabetes → HIGH | WHO, NICE, ACOG | Yes (source reconciliation) | Yes | PENDING | — | — | Needs medical history integration |
 | AN-01 | Anemia → HIGH | WHO 2024 | Yes (lab value addition) | Yes | PENDING | — | — | Needs Hb field |
 | CS-01 | Previous CS → HIGH | NICE, RCOG | Yes (migration fix) | Yes | PENDING | — | — | Migration fix required |
@@ -1753,7 +1776,9 @@ Per DOCU 5 Part 2 and DOCU 4 Part 12:
 
 ### Why Urgency Is Separate from Risk Classification
 
-Risk classification (HIGH vs LOW) determines whether closer review is needed. Urgency (ROUTINE → EMERGENCY) determines how quickly action is required. A patient can be HIGH with routine urgency (e.g., age < 19 with no other factors) or HIGH with urgent action (e.g., BP >= 160/110). Separating these allows precise clinical communication. This separation is not yet implemented in the current code but is specified in documents.
+Risk classification (HIGH vs LOW) determines whether closer review is needed. Urgency (ROUTINE → EMERGENCY) determines how quickly action is required. A patient can be HIGH with routine urgency (e.g., age < 19 with no other factors) or HIGH with urgent action (e.g., BP >= 160/110 → URGENT_CLINICAL_REVIEW). Separating these allows precise clinical communication.
+
+**Implemented in Sprint 10:** Urgency is stored as a dedicated DB column (`urgency`) and structured BP assessment data (`bp_assessment` JSON), displayed as a red URGENT badge in patient profile, filterable in Risk Monitoring, and counted in dashboard KPIs.
 
 ### Why Clinical Approval Is Required Before Rule Expansion
 
