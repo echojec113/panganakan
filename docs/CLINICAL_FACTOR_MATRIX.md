@@ -613,7 +613,7 @@ if ($inputs['diabetes'] == 1) {
 **Current implementation status:** IMPLEMENTED BUT NEEDS REFINEMENT
 
 **Issues:**
-1. Source of truth ambiguity: currently reads from prenatal visit checkbox, not from medical history. The medical history also has a diabetes field. These could conflict.
+1. Source of truth ambiguity: currently reads from prenatal visit checkbox, not from medical history. The medical history also has a diabetes field. These could conflict. **Sprint 11 decision: the prenatal-visit checkbox remains the engine's source of truth; Medical History's `diabetes`/`anemia` are stored/displayed but not consumed by the engine.** The CDSS allowlist and the exact data path are locked by tests.
 2. No distinction between pre-existing T1DM/T2DM and GDM — documents recognize this as a limitation
 3. No treatment-plan or glycemic-control information used
 4. Reason string "Diabetes" is minimal — document proposes more contextual wording
@@ -655,9 +655,10 @@ Documents also propose DM-INC (incomplete if diabetes flagged but no treatment d
 
 **Required automated tests:**
 - Diabetes in prenatal visit → HIGH via DM-01
-- Diabetes in medical history only → HIGH via DM-01 (requires updating rule engine to check medical history)
+- Diabetes in medical history only → HIGH via DM-01 (requires updating rule engine to check medical history — NOT implemented; deferred for clinical approval)
 - Both sources → single DM-01 reason, not duplicated
 - Diabetes + ML LOW → HIGH (rule override)
+- Warning-symptom inputs → never produce reasons (Sprint 11 allowlist test)
 
 **Clinical approval needed:** YES — for:
 - Adding medical history as a diabetes source
@@ -1489,7 +1490,7 @@ missingRequiredRecords() returns labels for absent records
 | B. Vital signs | BP-H, BP-URG | REFINED (Sprint 10 — urgency, pre-completeness, verification, explainability) |
 | C. Medical history | DM-01, AN-01, heart_disease, asthma, thyroid, epilepsy, liver, mental health, allergies, smoking, drugs | DM-01, AN-01 implemented; others NOT IMPLEMENTED |
 | D. Obstetric history | CS-01, RM-03 | IMPLEMENTED (migration issues) |
-| E. Warning symptoms | severe_headache, visual_disturbance, chest_pain, shortness_breath | NOT IMPLEMENTED (data exists) |
+| E. Warning symptoms | severe_headache, visual_disturbance, chest_pain, shortness_breath | NOT IMPLEMENTED (data exists). Sprint 11 confirmed record-only: stored/displayed, never evaluated |
 | F. Ultrasound | US-P01, US-AF01, US-FH01 | IMPLEMENTED (needs GA context) |
 | G. Prenatal exam | fundic_height, FHT, fetal_movement, presentation, cervical, BOW | NOT USED in clinical logic |
 | H. Completeness | COMP-01, missing records | IMPLEMENTED (field-level missing) |
@@ -1657,13 +1658,68 @@ missingRequiredRecords() returns labels for absent records
 
 ---
 
-### Sprint 11 — Approved Maternal Warning Symptoms and Referral Integration
+### Sprint 11 — Medical History Scope Stabilization ✅ COMPLETE
+
+**Clinical factors:** DM-01, AN-01 (scope governance), MAT-WARN (deliberately NOT implemented)
+
+**Scope:** Stabilize Medical History as a scoped, integrity-safe clinical record. NO new clinical rules. No migrations. BP/ML/decision-hierarchy untouched.
+
+**Decisions implemented:**
+- CDSS allowlist: only `diabetes` and `anemia` are CDSS-active from Medical History. The `ClinicalRuleEngine` consumes them from prenatal-visit inputs (`$visit->diabetes`/`$visit->anemia`), never from Medical History directly — documented source of truth, pinned by tests.
+- MAT-WARN warning symptoms (`severe_headache`, `visual_disturbance`, `chest_pain`, `shortness_breath`) confirmed **record-only**: labeled "Informational — never used in the risk assessment" in UI; no engine path exists.
+- Existence-based completeness gate verified and locked by tests (a Medical History satisfies the gate regardless of checked fields).
+- Validated `store()`/`update()` (`$request->validate()` return value; `$request->boolean()` normalization; `other_specify` `required_if:other,1`; `patient_id` preserved on update).
+- Duplicate prevention (application-level; redirects `create()`/`store()` to edit with "A Medical History record already exists for this pregnancy.").
+- Delivered-patient protection on create/store/edit/update via the existing `Patient::isDelivered()` pattern.
+- Extracted `app/Services/PatientAssessmentRecalculationService.php`; all `app(PrenatalVisitController::class)` calls removed from MedicalHistory/Ultrasound/BirthPlan controllers.
+- Grouped, scoped forms + profile section with allowlist banner and stable `medical-history-form` id (fixes confirmation-modal `document.querySelector('form')` risk).
+- 21 new tests; full suite 203 pass / 3 pre-existing unrelated failures.
+
+**Clinical approval needed:** NO new rules introduced. Re-affirms DM-01 source-of-truth decision (visit inputs).
+
+---
+
+### Sprint 11 Hardening Patch — Source-of-Truth Wording, One-Way Sync, Recalculation Safety ✅ COMPLETE
+
+**Clinical factors:** DM-01, AN-01 (source-of-truth governance), MAT-WARN (still record-only)
+
+**Scope:** Implementation-only hardening. NO new clinical rules, no migrations, no BP/ML/decision-hierarchy changes. MAT-WARN symptom→action mapping remains deferred pending clinical approval.
+
+**Decisions implemented (12):**
+1. Prenatal Visit is the source of truth for dated diabetes/anemia CDSS inputs; Medical History is pregnancy-level background documentation + completeness evidence.
+2. One-way monotonic sync limited to `diabetes` and `anemia` — visit Yes may set history true; visit No never clears.
+3. No auto-create: a missing Medical History is never created by the sync.
+4. Clearing a pregnancy-level condition requires explicit staff editing; no diagnosis inferred by sync.
+5. New `MedicalHistoryConditionSyncService::syncConfirmedVisitConditions()` returning `changed` / `updated_fields` / `skipped_reason` / `visit_id`; saves only on actual change.
+6. Sync runs after successful visit persistence, inside the existing store/update transaction, using persisted values; never on the assessment path; never triggers an assessment.
+7. `MEDICAL_HISTORY_SYNC` audit entry only when history actually changes ("Medical History {field} updated from prenatal visit ID: {id}").
+8. `PatientAssessmentRecalculationService::recalculateIncompleteVisits()` guards: missing patient → no-op; DELIVERED → no-op; all three records required; only `ASSESSMENT INCOMPLETE` visits recalculated; HIGH/LOW historical visits never rewritten.
+9. Repeat-BP pair, verification status/note, BP assessment metadata, and existing `next_visit_date` preserved on recalculation.
+10. Wording: "CDSS-Active Factors" → "Conditions Also Assessed During Prenatal Visits"; "Warning Symptoms & Notes" → "Legacy Historical or Recurring Concerns"; permanent "never used in the risk assessment" phrasing removed.
+11. Patient profile presents diabetes/anemia as pregnancy-level background updates; optional note when a visit recorded a condition but no Medical History exists.
+12. No migrations, thresholds, rules, routes, ML, or referral automation changed.
+13. Delivered-patient sync guard: `syncConfirmedVisitConditions()` checks `$patient->isDelivered()` before any Medical History lookup and returns `skipped_reason = 'PATIENT_DELIVERED'` with no update, no audit, and no recalculation. **Synchronization is disabled for delivered (completed) pregnancies.**
+
+**UI wording (exact):**
+- Medical History banner: "Diabetes and Anemia are also assessed during prenatal visits and may affect that visit's CDSS result. This Medical History record stores pregnancy-level background information and is not directly submitted to the risk engine."
+- Legacy group note: "These fields store previously reported or recurring concerns. They do not confirm that a symptom is present during the current prenatal visit and are not evaluated by the current CDSS."
+- Prenatal visit Risk Factors note: "Diabetes and anemia are assessed for this visit. When marked Yes, the existing Medical History background record will also be updated. A No value does not automatically remove a previously recorded condition."
+
+**Tests added/updated:** MedicalHistoryConditionSyncServiceTest (13 incl. delivered-patient guard), PrenatalVisitConditionSyncTest (10), PatientAssessmentRecalculationServiceTest (9), MedicalHistoryScopeTest (19 incl. prenatal page coverage), ClinicalRuleEngineTest renamed. Full suite 233 pass / 3 pre-existing unrelated failures.
+
+**Clinical approval needed:** NO new rules. MAT-WARN remains deferred.
+
+---
+
+### MAT-WARN Integration (DEFERRED — requires clinical approval)
 
 **Clinical factors:** MAT-WARN (severe headache, visual disturbance, chest pain, shortness of breath)
 
+**Status:** NOT IMPLEMENTED. Sprint 11 deliberately kept these fields record-only. No symptom → action-level mapping exists.
+
 **Fields required:** None (data exists in `medical_histories`)
 
-**Services affected:**
+**Services affected (when approved):**
 - `ClinicalRuleEngine` — add warning symptom evaluation
 - `DecisionIntegrationService` — add EMERGENCY/URGENT paths
 - `AssessmentResult` — already has urgency capacity (from Sprint 10)
@@ -1673,7 +1729,7 @@ missingRequiredRecords() returns labels for absent records
 - Risk Monitoring: action-level column
 - Referral: automated reason population
 
-**Tests required:**
+**Tests required (when approved):**
 - Each symptom → correct action level
 - Symptom + normal BP → still triggers urgency
 - Multiple symptoms → highest urgency applied
@@ -1727,7 +1783,7 @@ missingRequiredRecords() returns labels for absent records
 | US-P01 | Abnormal presentation → HIGH | ISUOG | Yes (GA context) | Yes | PENDING | — | — | Needs GA >= 36 check |
 | US-AF01 | Low/High fluid → HIGH | ISUOG | Yes | Yes | PENDING | — | — | Current matches; needs reviewer sign-off |
 | US-FH01 | Abnormal FHR → HIGH | ISUOG | Yes (absent FHR protocol) | Yes | PENDING | — | — | Needs urgency differentiation |
-| MAT-WARN | Warning symptoms → action levels | WHO, NICE | Yes | Yes | PENDING | — | — | Full mapping needed |
+| MAT-WARN | Warning symptoms → action levels | WHO, NICE | Yes | Yes | PENDING | — | — | Sprint 11 confirmed record-only; symptom-to-action mapping deferred pending clinical sign-off |
 | ML-HIGH | ML HIGH → HIGH (no rule) | System design | Yes | Yes | PENDING | — | — | Current matches; ML provenance documentation required |
 | ML-LOW | ML LOW → LOW (complete + no rule) | System design | Yes | Yes | PENDING | — | — | Current matches; ML provenance documentation required |
 | INC-PATH | Incomplete → INCOMPLETE | System design | Yes | Yes | PENDING | — | — | Current matches; needs reviewer sign-off |

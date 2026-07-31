@@ -189,3 +189,39 @@ test('duplicate reasons are removed', function () {
         'Abnormal fetal presentation (BREECH)',
     ]);
 });
+
+test('warning symptom inputs are ignored by the rule engine', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 2, 'para' => 1]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0,
+        'anemia' => 0,
+        'severe_headache' => 1,
+        'visual_disturbance' => 1,
+        'chest_pain' => 1,
+        'shortness_breath' => 1,
+    ], null);
+
+    expect($reasons)->toBe([]);
+});
+
+test('clinical rule engine consumes visit diabetes and anemia inputs only', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 2, 'para' => 1]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 1,
+        'anemia' => 1,
+        'severe_headache' => 1,
+        'visual_disturbance' => 1,
+        'chest_pain' => 1,
+        'shortness_breath' => 1,
+    ], null);
+
+    expect($reasons)->toBe(['Diabetes', 'Anemia']);
+});

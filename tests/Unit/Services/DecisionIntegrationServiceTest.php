@@ -186,7 +186,7 @@ test('ml raw output is not exposed', function () {
     expect($result->toArray())->not->toHaveKey('parsed_output');
 });
 
-test('completeness path accepts urgency and bp_assessment', function () {
+test('bp-urg overrides completeness and preserves missing records', function () {
     $service = new DecisionIntegrationService;
 
     $result = $service->decide(
@@ -194,13 +194,29 @@ test('completeness path accepts urgency and bp_assessment', function () {
         [],
         null,
         'URGENT_CLINICAL_REVIEW',
-        ['reason_code' => 'BP-URG', 'label' => 'Severe hypertension', 'risk_level' => 'HIGH', 'triggered' => true]
+        ['reason_code' => 'BP-URG', 'label' => 'Severe-range blood-pressure finding', 'risk_level' => 'HIGH', 'triggered' => true]
     );
 
-    expect($result['risk_level'])->toBe('ASSESSMENT INCOMPLETE');
+    expect($result['risk_level'])->toBe('HIGH');
+    expect($result['decision_source'])->toBe('RULE_BASED');
     expect($result->urgency)->toBe('URGENT_CLINICAL_REVIEW');
     expect($result->bp_assessment)->toBeArray();
     expect($result->bp_assessment['reason_code'])->toBe('BP-URG');
+    expect($result->missing_records)->toBe(['Medical History']);
+});
+
+test('bp-urg always includes the bp label in reasons even when no rule reasons', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decideUrgentBp(
+        [],
+        [],
+        ['reason_code' => 'BP-URG', 'label' => 'Severe-range blood-pressure finding', 'risk_level' => 'HIGH', 'triggered' => true]
+    );
+
+    expect($result->reasons)->toContain('Severe-range blood-pressure finding');
+    expect($result->rule_reasons)->toContain('Severe-range blood-pressure finding');
+    expect($result['assessment'])->toContain('Severe-range blood-pressure finding');
 });
 
 test('rule-based path accepts urgency and bp_assessment', function () {

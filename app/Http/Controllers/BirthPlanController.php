@@ -5,9 +5,16 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\BirthPlan;
 use App\Models\Patient;
+use App\Services\PatientAssessmentRecalculationService;
 
 class BirthPlanController extends Controller
 {
+    private PatientAssessmentRecalculationService $recalculationService;
+
+    public function __construct(PatientAssessmentRecalculationService $recalculationService)
+    {
+        $this->recalculationService = $recalculationService;
+    }
 
     public function index()
     {
@@ -111,8 +118,7 @@ $this->logAction(
 );
 
         // Auto-recalculate incomplete prenatal visits
-        $prenatalController = app(PrenatalVisitController::class);
-        $prenatalController->recalculateIncompleteVisits($request->patient_id);
+        $this->recalculationService->recalculateIncompleteVisits($request->patient_id);
 
         return redirect()->route('patients.show',$request->patient_id)
             ->with('success','Birth plan saved successfully');
@@ -184,8 +190,7 @@ $this->logAction(
 );
 
     // Auto-recalculate incomplete prenatal visits
-    $prenatalController = app(PrenatalVisitController::class);
-    $prenatalController->recalculateIncompleteVisits($birthPlan->patient_id);
+    $this->recalculationService->recalculateIncompleteVisits($birthPlan->patient_id);
 
     return redirect()->route('patients.show', $birthPlan->patient_id)
         ->with('success','Birth plan updated successfully');

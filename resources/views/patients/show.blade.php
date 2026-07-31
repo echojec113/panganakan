@@ -6,6 +6,12 @@
             </div>
         @endif
 
+        @if(session('error'))
+            <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {{ session('error') }}
+            </div>
+        @endif
+
         @if($errors->any())
             <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <div class="font-semibold">Please review the highlighted issues.</div>
@@ -443,6 +449,10 @@
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($patient->prenatalVisits as $visit)
+                                @php
+                                    $visitMissingRecords = \App\Support\ListNormalizer::normalize($visit->missing_records);
+                                    $visitRuleReasons = \App\Support\ListNormalizer::normalize($visit->rule_reasons);
+                                @endphp
                                 <tr class="hover:bg-gray-50 transition cursor-pointer" onclick="toggleVisitDetails({{ $visit->id }})">
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $visit->visit_date }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-900">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</td>
@@ -511,34 +521,38 @@
                                                 @if($visit->urgency === 'URGENT_CLINICAL_REVIEW')
                                                     <span class="text-red-600 font-semibold">URGENT Clinical Review</span>
                                                 @elseif($visit->urgency === 'PROMPT')
-                                                    <span class="text-amber-600">PROMPT (within 1 week)</span>
+                                                    <span class="text-amber-600">Prompt Clinical Review</span>
                                                 @else
                                                     <span class="text-gray-500">None</span>
                                                 @endif
                                             </div>
                                         </div>
-                                        @if(!empty($visit->missing_records) || !empty($visit->rule_reasons))
+                                        @if(!empty($visitMissingRecords) || !empty($visitRuleReasons))
                                         <div class="mt-3 pt-3 border-t border-gray-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                            @if(!empty($visit->missing_records))
                                             <div>
                                                 <span class="font-medium text-amber-700">Missing Records:</span>
+                                                @if(!empty($visitMissingRecords))
                                                 <ul class="list-disc list-inside text-gray-600 mt-1">
-                                                    @foreach($visit->missing_records as $r)
+                                                    @foreach($visitMissingRecords as $r)
                                                     <li>{{ $r }}</li>
                                                     @endforeach
                                                 </ul>
+                                                @else
+                                                <span class="text-gray-500 text-xs">None</span>
+                                                @endif
                                             </div>
-                                            @endif
-                                            @if(!empty($visit->rule_reasons))
                                             <div>
                                                 <span class="font-medium text-orange-700">Triggered Rules:</span>
+                                                @if(!empty($visitRuleReasons))
                                                 <ul class="list-disc list-inside text-gray-600 mt-1">
-                                                    @foreach($visit->rule_reasons as $r)
+                                                    @foreach($visitRuleReasons as $r)
                                                     <li>{{ $r }}</li>
                                                     @endforeach
                                                 </ul>
+                                                @else
+                                                <span class="text-gray-500 text-xs">None</span>
+                                                @endif
                                             </div>
-                                            @endif
                                         </div>
                                         @endif
                                     </td>
@@ -654,48 +668,81 @@
                     </div>
                     <div class="p-6">
                         @if($patient->medicalHistory)
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            @php
-                                $conditions = [
-                                    'epilepsy' => 'Epilepsy',
-                                    'severe_headache' => 'Severe Headache',
-                                    'visual_disturbance' => 'Visual Disturbance',
-                                    'chest_pain' => 'Chest Pain',
-                                    'shortness_breath' => 'Shortness of Breath',
-                                    'breast_mass' => 'Breast Mass',
-                                    'liver_disease' => 'Liver Disease',
-                                    'smoking' => 'Smoking',
-                                    'allergies' => 'Allergies',
-                                    'drug_intake' => 'Drug Intake',
-                                    'std_history' => 'STD History',
-                                    'diabetes' => 'Diabetes',
-                                    'hypertension' => 'Hypertension',
-                                    'asthma' => 'Asthma',
-                                    'thyroid_disease' => 'Thyroid Disease',
-                                    'heart_disease' => 'Heart Disease',
-                                    'anemia' => 'Anemia',
-                                    'mental_health_condition' => 'Mental Health Condition',
-                                ];
-                            @endphp
-                            @foreach($conditions as $field => $label)
-                                @if($patient->medicalHistory->$field)
-                                    <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100">
-                                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                        </svg>
-                                        <span class="text-sm text-gray-700">{{ $label }}</span>
+                        <div class="mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                            <strong>Diabetes</strong> and <strong>Anemia</strong> are also assessed during prenatal visits and may affect that visit's CDSS result. This Medical History record stores pregnancy-level background information and is not directly submitted to the risk engine.
+                        </div>
+                        @php
+                            $conditionGroups = [
+                                'Conditions Also Assessed During Prenatal Visits' => [
+                                    'note' => 'Confirmed during prenatal visits and updated in this background record.',
+                                    'fields' => [
+                                        'diabetes' => 'Diabetes',
+                                        'anemia' => 'Anemia',
+                                    ],
+                                ],
+                                'Chronic & Background Conditions' => [
+                                    'note' => 'Record only.',
+                                    'fields' => [
+                                        'epilepsy' => 'Epilepsy',
+                                        'hypertension' => 'Hypertension',
+                                        'asthma' => 'Asthma',
+                                        'thyroid_disease' => 'Thyroid Disease',
+                                        'heart_disease' => 'Heart Disease',
+                                        'liver_disease' => 'Liver Disease',
+                                        'mental_health_condition' => 'Mental Health Condition',
+                                    ],
+                                ],
+                                'Lifestyle, History & Physical Findings' => [
+                                    'note' => 'Record only.',
+                                    'fields' => [
+                                        'smoking' => 'Smoking',
+                                        'allergies' => 'Allergies',
+                                        'drug_intake' => 'Drug Intake',
+                                        'std_history' => 'STD History',
+                                        'breast_mass' => 'Breast Mass',
+                                    ],
+                                ],
+                                'Legacy Historical or Recurring Concerns' => [
+                                    'note' => 'Previously reported or recurring concerns.',
+                                    'fields' => [
+                                        'severe_headache' => 'Severe Headache',
+                                        'visual_disturbance' => 'Visual Disturbance',
+                                        'chest_pain' => 'Chest Pain',
+                                        'shortness_breath' => 'Shortness of Breath',
+                                    ],
+                                ],
+                            ];
+                        @endphp
+                        <div class="space-y-5">
+                            @foreach($conditionGroups as $groupName => $group)
+                                <div>
+                                    <div class="mb-2 flex items-baseline justify-between gap-2">
+                                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $groupName }}</h4>
+                                        <span class="text-xs text-gray-400">{{ $group['note'] }}</span>
                                     </div>
-                                @else
-                                    <div class="flex items-center space-x-2 p-2 bg-red-50 rounded-lg border border-red-100 opacity-60">
-                                        <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                        </svg>
-                                        <span class="text-sm text-gray-500">{{ $label }}</span>
+                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                        @foreach($group['fields'] as $field => $label)
+                                            @if($patient->medicalHistory->$field)
+                                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100">
+                                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                    </svg>
+                                                    <span class="text-sm text-gray-700">{{ $label }}</span>
+                                                </div>
+                                            @else
+                                                <div class="flex items-center space-x-2 p-2 bg-red-50 rounded-lg border border-red-100 opacity-60">
+                                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                    </svg>
+                                                    <span class="text-sm text-gray-500">{{ $label }}</span>
+                                                </div>
+                                            @endif
+                                        @endforeach
                                     </div>
-                                @endif
+                                </div>
                             @endforeach
                             @if($patient->medicalHistory->other_specify)
-                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100 col-span-full">
+                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100">
                                     <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                     </svg>
@@ -705,6 +752,16 @@
                         </div>
                         @else
                         <p class="text-gray-500 text-center py-4">No medical history recorded</p>
+                        @php
+                            $visitRecordedCondition = $patient->prenatalVisits->contains(function ($visit) {
+                                return (bool) $visit->diabetes || (bool) $visit->anemia;
+                            });
+                        @endphp
+                        @if($visitRecordedCondition)
+                            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                A condition was recorded during a prenatal visit. Complete the Medical History record to maintain the pregnancy background record.
+                            </div>
+                        @endif
                         @endif
                     </div>
                 </div>
@@ -794,306 +851,329 @@
             <!-- RIGHT COLUMN (30%) -->
             <div class="lg:w-1/3 space-y-6">
                 <!-- Risk Assessment Card -->
+                @if($latestAssessment)
                 @php
-                    $latest = $patient->prenatalVisits->sortByDesc('visit_date')->first();
+                    $ds = $latestAssessment->decision_source;
+                    $rl = $latestAssessment->risk_level;
+                    $bp = is_array($latestAssessment->bp_assessment) ? $latestAssessment->bp_assessment : [];
+                    $bpCode = $bp['reason_code'] ?? null;
+                    $urgency = $latestAssessment->urgency;
+
+                    $latestMissingRecords = \App\Support\ListNormalizer::normalize($latestAssessment->missing_records);
+                    $latestRuleReasons = \App\Support\ListNormalizer::normalize($latestAssessment->rule_reasons);
+                    $latestRiskReasons = \App\Support\ListNormalizer::normalize($latestAssessment->risk_reasons);
+
+                    $triggeredFactors = array_values(array_unique(array_merge($latestRuleReasons, $latestRiskReasons)));
+                    if ($bpCode === 'BP-URG') {
+                        $bpLabel = $bp['label'] ?? null;
+                        if ($bpLabel && !in_array($bpLabel, $triggeredFactors, true)) {
+                            array_unshift($triggeredFactors, $bpLabel);
+                        }
+                    }
+
+                    $verificationLabels = [
+                        'NOT_REQUIRED' => 'Not Required',
+                        'PENDING_REPEAT' => 'Repeat Pending',
+                        'REPEAT_COMPLETED' => 'Repeat Completed',
+                        'UNABLE_TO_REPEAT' => 'Unable to Repeat',
+                    ];
+                    $repeatLabels = [
+                        'NOT_RECORDED' => 'Not Recorded',
+                        'NORMAL' => 'Normal Range',
+                        'ELEVATED' => 'Elevated Range',
+                        'SEVERE' => 'Severe Range',
+                    ];
+                    $urgencyLabels = [
+                        'URGENT_CLINICAL_REVIEW' => 'Urgent Clinical Review',
+                        'PROMPT' => 'Prompt Clinical Review',
+                    ];
+
+                    $verificationKey = $bp['verification_status'] ?? $latestAssessment->bp_verification_status;
+                    $verificationDisplay = $verificationKey ? ($verificationLabels[$verificationKey] ?? $verificationKey) : 'Not Required';
+                    $repeatDisplay = !empty($bp['repeat_interpretation']) ? ($repeatLabels[$bp['repeat_interpretation']] ?? $bp['repeat_interpretation']) : 'Not Recorded';
+                    $urgencyDisplay = $urgency ? ($urgencyLabels[$urgency] ?? $urgency) : 'None';
                 @endphp
-                @if($latest)
-                @php
-                    $ds = $latest->decision_source;
-                    $rl = $latest->risk_level;
-                @endphp
-                <div class="rounded-2xl shadow-sm border overflow-hidden 
-                    @if($rl == 'HIGH') bg-red-50 border-red-200
-                    @elseif($rl == 'LOW') bg-green-50 border-green-200
-                    @elseif($rl == 'ASSESSMENT INCOMPLETE') bg-amber-50 border-amber-200
-                    @else bg-gray-50 border-gray-200 @endif">
-                    <div class="p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-6 h-6 @if($rl == 'HIGH') text-red-600
-                                    @elseif($rl == 'LOW') text-green-600
-                                    @elseif($rl == 'ASSESSMENT INCOMPLETE') text-amber-600
-                                    @else text-gray-600 @endif" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                </svg>
-                                <h3 class="font-semibold text-gray-800">Risk Assessment</h3>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <span class="px-3 py-1 rounded-full text-sm font-bold
-                                    @if($rl == 'HIGH') bg-red-600 text-white
-                                    @elseif($rl == 'LOW') bg-green-600 text-white
-                                    @elseif($rl == 'ASSESSMENT INCOMPLETE') bg-amber-600 text-white
-                                    @else bg-gray-600 text-white @endif">
-                                    @if($rl == 'HIGH') High
-                                    @elseif($rl == 'LOW') Low
-                                    @elseif($rl == 'ASSESSMENT INCOMPLETE') Assessment Incomplete
-                                    @else {{ $rl }}
+                <div class="rounded-2xl shadow-md border overflow-hidden
+                    @if($rl === 'HIGH') border-red-300
+                    @elseif($rl === 'LOW') border-green-300
+                    @elseif($rl === 'ASSESSMENT INCOMPLETE') border-amber-300
+                    @else border-gray-200 @endif">
+                    {{-- A. PROMINENT STATUS HERO --}}
+                    <div class="p-6
+                        @if($rl === 'HIGH') bg-red-600
+                        @elseif($rl === 'LOW') bg-green-600
+                        @elseif($rl === 'ASSESSMENT INCOMPLETE') bg-amber-500
+                        @else bg-gray-600 @endif">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Risk Assessment</p>
+                                <h3 class="mt-1 text-2xl font-extrabold text-white">
+                                    @if($rl === 'HIGH') HIGH RISK
+                                    @elseif($rl === 'LOW') LOW RISK
+                                    @elseif($rl === 'ASSESSMENT INCOMPLETE') ASSESSMENT INCOMPLETE
+                                    @else {{ $rl ?? 'NO ASSESSMENT AVAILABLE' }}
                                     @endif
-                                </span>
-                                @if($latest->urgency === 'URGENT_CLINICAL_REVIEW')
-                                <span class="px-3 py-1 rounded-full text-sm font-bold bg-red-700 text-white animate-pulse">
-                                    URGENT
-                                </span>
+                                </h3>
+                                @if($urgency === 'URGENT_CLINICAL_REVIEW')
+                                <p class="mt-2 inline-block bg-white text-red-700 text-sm font-bold px-3 py-1 rounded-full">URGENT CLINICAL REVIEW</p>
                                 @endif
                             </div>
+                            <div class="text-right shrink-0">
+                                <p class="text-xs text-white/70">Assessment Date</p>
+                                <p class="mt-1 text-sm font-semibold text-white">{{ $latestAssessment->visit_date ? \Carbon\Carbon::parse($latestAssessment->visit_date)->format('M d, Y') : '—' }}</p>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="space-y-4">
-
-                            {{-- Decision Source --}}
-                            <div class="bg-white/60 rounded-xl p-3 border @if($ds === 'COMPLETENESS') border-amber-200 @elseif($ds === 'RULE_BASED') border-orange-200 @elseif($ds === 'MACHINE_LEARNING') border-blue-200 @else border-gray-200 @endif">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="bg-white">
+                        <div class="px-6 pt-5 pb-6 space-y-5">
+                            {{-- B. DECISION SOURCE --}}
+                            <div>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
                                     </svg>
                                     <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Decision Source</span>
                                 </div>
-                                @if($ds === 'COMPLETENESS')
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Completeness Check</span>
-                                    <p class="text-xs text-gray-500 mt-1">Required records are missing — risk cannot be fully assessed.</p>
-                                @elseif($ds === 'RULE_BASED')
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800">Clinical Rules</span>
-                                    <p class="text-xs text-gray-500 mt-1">Deterministic clinical rules identified risk factors.</p>
+                                @if($ds === 'RULE_BASED')
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-800">Rule-Based Clinical Assessment</span>
                                 @elseif($ds === 'MACHINE_LEARNING')
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">Machine Learning</span>
-                                    <p class="text-xs text-gray-500 mt-1">ML model evaluated the case with valid inputs.</p>
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">Machine Learning Assessment</span>
+                                @elseif($ds === 'COMPLETENESS')
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Required Records Check</span>
                                 @elseif($ds === 'MACHINE_LEARNING_INVALID')
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-800">ML Assessment Unavailable</span>
-                                    <p class="text-xs text-gray-500 mt-1">The ML model could not produce a valid prediction.</p>
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">ML Assessment Unavailable</span>
                                 @elseif($ds === null)
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">Legacy Assessment</span>
-                                    <p class="text-xs text-gray-500 mt-1">Legacy assessment — explanation metadata unavailable.</p>
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">Legacy Assessment</span>
                                 @else
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">{{ $ds }}</span>
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">{{ $ds }}</span>
                                 @endif
                             </div>
 
-                            {{-- BP Assessment --}}
-                            @if($latest->bp_assessment)
-                            <div class="bg-white/60 rounded-xl p-3 border @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') border-red-200 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') border-amber-200 @else border-gray-200 @endif">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <svg class="w-4 h-4 @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') text-red-600 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') text-amber-600 @else text-gray-400 @endif" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span class="text-xs font-semibold uppercase tracking-wide @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') text-red-700 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') text-amber-700 @else text-gray-500 @endif">Blood Pressure Assessment</span>
+                            {{-- C. CLINICAL SUMMARY --}}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="sm:col-span-2 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Clinical Assessment</span>
+                                    <p class="mt-1 text-sm text-gray-800">{{ $latestAssessment->assessment ?: 'No assessment text recorded.' }}</p>
                                 </div>
-                                <div class="space-y-1">
-                                    <div class="flex items-center gap-2 text-sm">
-                                        <span class="text-gray-500">Reading:</span>
-                                        <span class="font-medium text-gray-800">{{ $latest->bp_sys }}/{{ $latest->bp_dia }}</span>
-                                    </div>
-                                    @if($latest->repeat_bp_sys && $latest->repeat_bp_dia)
-                                    <div class="flex items-center gap-2 text-sm">
-                                        <span class="text-gray-500">Repeat:</span>
-                                        <span class="font-medium text-gray-800">{{ $latest->repeat_bp_sys }}/{{ $latest->repeat_bp_dia }}</span>
-                                    </div>
-                                    @endif
-                                    <div class="flex items-center gap-2 text-sm">
-                                        <span class="text-gray-500">Classification:</span>
-                                        <span class="font-medium @if($latest->bp_assessment['reason_code'] === 'BP-URG') text-red-700 @elseif($latest->bp_assessment['reason_code'] === 'BP-H') text-amber-700 @else text-gray-600 @endif">{{ $latest->bp_assessment['label'] ?? '' }}</span>
-                                    </div>
-                                    @if($latest->bp_assessment['interpretation'] ?? false)
-                                    <p class="text-xs text-gray-600 mt-1">{{ $latest->bp_assessment['interpretation'] }}</p>
-                                    @endif
-                                    @if($latest->bp_assessment['action'] ?? false)
-                                    <p class="text-xs @if($latest->urgency === 'URGENT_CLINICAL_REVIEW') text-red-600 font-semibold @else text-gray-500 @endif mt-1">{{ $latest->bp_assessment['action'] }}</p>
+                                <div class="sm:col-span-2 rounded-xl border-l-4 bg-blue-50/60 p-4
+                                    @if($rl === 'HIGH') border-red-500
+                                    @elseif($rl === 'LOW') border-green-500
+                                    @else border-amber-500 @endif">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-blue-700">Recommendation</span>
+                                    <p class="mt-1 text-sm text-gray-800">{{ $latestAssessment->recommendation ?: 'No recommendation recorded.' }}</p>
+                                </div>
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Next Visit</span>
+                                    <p class="mt-1 text-sm font-medium text-gray-800">{{ $latestAssessment->next_visit_date ? \Carbon\Carbon::parse($latestAssessment->next_visit_date)->format('M d, Y') : 'Not scheduled' }}</p>
+                                </div>
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Assessment Date</span>
+                                    <p class="mt-1 text-sm font-medium text-gray-800">{{ $latestAssessment->visit_date ? \Carbon\Carbon::parse($latestAssessment->visit_date)->format('M d, Y') : '—' }}</p>
+                                </div>
+                            </div>
+
+                            {{-- D. BLOOD PRESSURE CARD --}}
+                            @if($bp)
+                            <div class="rounded-xl border p-4 {{ $bpCode === 'BP-URG' ? 'border-red-300 bg-red-50' : ($bpCode === 'BP-H' ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white') }}">
+                                <div class="flex items-center justify-between gap-2 mb-3">
+                                    <span class="text-xs font-semibold uppercase tracking-wide {{ $bpCode === 'BP-URG' ? 'text-red-700' : ($bpCode === 'BP-H' ? 'text-amber-700' : 'text-gray-500') }}">Blood Pressure</span>
+                                    @if(!empty($bp['label']))
+                                    <span class="text-xs font-bold {{ $bpCode === 'BP-URG' ? 'text-red-700' : ($bpCode === 'BP-H' ? 'text-amber-700' : 'text-gray-600') }}">{{ $bp['label'] }}</span>
                                     @endif
                                 </div>
+                                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                                    <div>
+                                        <dt class="text-gray-500">Initial BP</dt>
+                                        <dd class="font-medium text-gray-900">{{ $latestAssessment->bp_sys }}/{{ $latestAssessment->bp_dia }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Repeat BP</dt>
+                                        <dd class="font-medium text-gray-900">{{ (!empty($latestAssessment->repeat_bp_sys) && !empty($latestAssessment->repeat_bp_dia)) ? $latestAssessment->repeat_bp_sys . '/' . $latestAssessment->repeat_bp_dia : 'Not recorded' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Verification</dt>
+                                        <dd class="font-medium text-gray-900">{{ $verificationDisplay }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Repeat Interpretation</dt>
+                                        <dd class="font-medium text-gray-900">{{ $repeatDisplay }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Urgency</dt>
+                                        <dd class="font-medium {{ $urgency === 'URGENT_CLINICAL_REVIEW' ? 'text-red-700' : 'text-gray-900' }}">{{ $urgencyDisplay }}</dd>
+                                    </div>
+                                </dl>
+                                @if(!empty($bp['verification_note']))
+                                <p class="mt-3 pt-2 border-t border-gray-200 text-xs text-gray-600"><span class="font-semibold">Verification Note:</span> {{ $bp['verification_note'] }}</p>
+                                @endif
                             </div>
                             @endif
 
-                            {{-- Conditional evidence sections --}}
-
-                            @if($ds === 'COMPLETENESS')
-                                {{-- Missing Records --}}
-                                @if(!empty($latest->missing_records))
-                                <div class="bg-white/60 rounded-xl p-3 border border-amber-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-amber-700">Missing Records</span>
-                                    </div>
-                                    <ul class="space-y-1">
-                                        @foreach($latest->missing_records as $record)
-                                        <li class="flex items-center space-x-2 text-sm text-gray-700">
-                                            <span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
-                                            <span>{{ $record }}</span>
-                                        </li>
-                                        @endforeach
-                                    </ul>
-                                </div>
-                                @endif
-                                {{-- ML note --}}
-                                <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">ML Assessment</span>
-                                    </div>
-                                    <p class="text-sm text-gray-600">Not executed because required information was incomplete.</p>
-                                </div>
-                            @endif
-
-                            @if($ds === 'RULE_BASED')
-                                {{-- Triggered Rules --}}
-                                @if(!empty($latest->rule_reasons))
-                                <div class="bg-white/60 rounded-xl p-3 border border-orange-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-orange-700">Triggered Rules</span>
-                                    </div>
-                                    <ul class="space-y-1">
-                                        @foreach($latest->rule_reasons as $reason)
-                                        <li class="flex items-center space-x-2 text-sm text-gray-700">
-                                            <span class="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
-                                            <span>{{ $reason }}</span>
-                                        </li>
-                                        @endforeach
-                                    </ul>
-                                </div>
-                                @endif
-                                {{-- ML note --}}
-                                <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">ML Assessment</span>
-                                    </div>
-                                    <p class="text-sm text-gray-600">Not executed because deterministic clinical safety rules already established HIGH.</p>
-                                </div>
-                            @endif
-
-                            @if($ds === 'MACHINE_LEARNING')
-                                {{-- Deterministic Rules note --}}
-                                <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Deterministic Rules</span>
-                                    </div>
-                                    <p class="text-sm text-gray-600">No HIGH-risk rule was triggered.</p>
-                                </div>
-                                {{-- ML Assessment --}}
-                                <div class="bg-white/60 rounded-xl p-3 border border-blue-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-blue-700">ML Assessment</span>
-                                    </div>
-                                    <div class="flex flex-wrap gap-3 text-sm">
-                                        <span class="text-gray-600">Prediction:</span>
-                                        <span class="font-semibold {{ $latest->ml_prediction === 'HIGH' ? 'text-red-600' : 'text-green-600' }}">{{ $latest->ml_prediction ?? 'N/A' }}</span>
-                                        <span class="text-gray-400">|</span>
-                                        <span class="text-gray-600">Validation Status:</span>
-                                        <span class="font-semibold {{ $latest->ml_valid ? 'text-green-600' : 'text-amber-600' }}">{{ $latest->ml_valid ? 'Valid' : 'Invalid' }}</span>
-                                    </div>
-                                    <p class="text-xs text-gray-500 mt-2">
-                                        @if($latest->ml_prediction === 'HIGH') The model supported the final HIGH assessment.
-                                        @elseif($latest->ml_prediction === 'LOW') The model supported the final LOW assessment.
-                                        @else {{ '' }}
-                                        @endif
-                                    </p>
-                                </div>
-                            @endif
-
-                            @if($ds === 'MACHINE_LEARNING_INVALID')
-                                <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Required Records</span>
-                                    </div>
-                                    <p class="text-sm text-green-700">All required records are complete.</p>
-                                </div>
-                                <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Deterministic Rules</span>
-                                    </div>
-                                    <p class="text-sm text-gray-600">No HIGH-risk rule was triggered.</p>
-                                </div>
-                                <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                                        </svg>
-                                        <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">ML Assessment</span>
-                                    </div>
-                                    <p class="text-sm text-gray-600">ML Assessment unavailable. The model could not produce a valid prediction.</p>
-                                    <p class="text-xs text-gray-500 mt-1">Final assessment remains ASSESSMENT INCOMPLETE.</p>
-                                </div>
-                            @endif
-
-                            {{-- Risk Factors (only when non-empty AND HIGH) --}}
-                            @if(!empty($latest->risk_reasons) && $rl === 'HIGH')
-                            <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                    </svg>
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Risk Factors</span>
-                                </div>
-                                <div class="space-y-1">
-                                    @foreach($latest->risk_reasons as $reason)
-                                        <div class="flex items-center space-x-2 text-sm text-gray-600">
-                                            <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                                            <span>{{ $reason }}</span>
-                                        </div>
+                            {{-- E. TRIGGERED FACTORS --}}
+                            @if($rl === 'HIGH')
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Triggered Clinical Rules</span>
+                                @if(!empty($triggeredFactors))
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @foreach($triggeredFactors as $factor)
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {{ $bpCode === 'BP-URG' && $factor === ($bp['label'] ?? null) ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800' }}">{{ $factor }}</span>
                                     @endforeach
                                 </div>
+                                @else
+                                <p class="mt-1 text-sm text-gray-600">No structured clinical factors recorded.</p>
+                                @endif
                             </div>
                             @endif
 
-                            {{-- Clinical Assessment --}}
-                            <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                    </svg>
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Clinical Assessment</span>
-                                </div>
-                                <p class="text-sm text-gray-700">{{ $latest->assessment }}</p>
+                            {{-- F. REQUIRED RECORDS --}}
+                            @if(!empty($latestMissingRecords))
+                            <div class="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-amber-800">Required Records Still Missing</span>
+                                <ul class="mt-2 space-y-1">
+                                    @foreach($latestMissingRecords as $record)
+                                    <li class="flex items-start space-x-2 text-sm text-amber-900">
+                                        <span class="w-1.5 h-1.5 mt-1.5 bg-amber-500 rounded-full"></span>
+                                        <span>{{ $record }}</span>
+                                    </li>
+                                    @endforeach
+                                </ul>
+                                <p class="mt-2 text-xs text-amber-700">Data-quality warning — the assessment may not reflect the full clinical picture.</p>
                             </div>
+                            @endif
 
-                            {{-- Recommendation & Next Steps --}}
-                            <div class="bg-white/60 rounded-xl p-3 border border-gray-200">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Recommendation & Next Steps</span>
+                            {{-- G. MACHINE LEARNING DISPLAY --}}
+                            @if($ds === 'MACHINE_LEARNING')
+                            <div class="rounded-xl border border-blue-300 bg-blue-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-blue-700">Machine Learning Assessment</span>
+                                <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                                    <span class="text-gray-600">Prediction:</span>
+                                    <span class="font-semibold {{ $latestAssessment->ml_prediction === 'HIGH' ? 'text-red-700' : 'text-green-700' }}">{{ $latestAssessment->ml_prediction ?? 'N/A' }}</span>
+                                    <span class="text-gray-400">|</span>
+                                    <span class="text-gray-600">Output Valid:</span>
+                                    <span class="font-semibold {{ $latestAssessment->ml_valid ? 'text-green-700' : 'text-amber-700' }}">{{ $latestAssessment->ml_valid ? 'Yes' : 'No' }}</span>
                                 </div>
-                                <p class="text-sm text-gray-700 mb-2">{{ $latest->recommendation }}</p>
-                                <div class="flex items-center space-x-2 text-sm">
-                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                    </svg>
-                                    <span class="font-medium text-gray-600">Next Visit:</span>
-                                    <span class="text-gray-800">{{ $latest->next_visit_date ? \Carbon\Carbon::parse($latest->next_visit_date)->format('M d, Y') : 'Not scheduled' }}</span>
-                                </div>
+                                <p class="mt-2 text-xs text-gray-600">The model prediction was used as the basis for this final assessment.</p>
                             </div>
+                            @elseif($ds === 'MACHINE_LEARNING_INVALID')
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Machine Learning</span>
+                                <p class="mt-1 text-sm text-gray-700">Machine learning output was unavailable or invalid.</p>
+                            </div>
+                            @else
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Machine Learning</span>
+                                <p class="mt-1 text-sm text-gray-700">
+                                    Machine learning was not used for the final decision.
+                                    @if($ds === 'RULE_BASED') A deterministic clinical rule already determined the result.
+                                    @elseif($ds === 'COMPLETENESS') Required records were incomplete.
+                                    @else Legacy assessment without machine-learning metadata.
+                                    @endif
+                                </p>
+                            </div>
+                            @endif
 
+                            {{-- H. DECISION FLOW --}}
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Assessment Flow</span>
+                                <dl class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                    @if($bpCode === 'BP-URG')
+                                        <div>
+                                            <dt class="text-gray-500">Severe BP safety check</dt>
+                                            <dd class="font-medium text-red-700">Triggered</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Required records check</dt>
+                                            <dd class="font-medium {{ empty($latestMissingRecords) ? 'text-green-700' : 'text-amber-700' }}">{{ empty($latestMissingRecords) ? 'Completed' : 'Missing records noted' }}</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Deterministic rules</dt>
+                                            <dd class="font-medium text-red-700">HIGH</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Machine learning</dt>
+                                            <dd class="text-gray-600">Skipped</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Final result</dt>
+                                            <dd class="font-bold text-red-700">HIGH</dd>
+                                        </div>
+                                    @elseif($ds === 'RULE_BASED')
+                                        <div>
+                                            <dt class="text-gray-500">Required records check</dt>
+                                            <dd class="font-medium text-green-700">Complete</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Deterministic rules</dt>
+                                            <dd class="font-medium text-red-700">Triggered</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Machine learning</dt>
+                                            <dd class="text-gray-600">Skipped</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Final result</dt>
+                                            <dd class="font-bold {{ $rl === 'HIGH' ? 'text-red-700' : 'text-gray-700' }}">{{ $rl === 'HIGH' ? 'HIGH' : ($rl ?? '—') }}</dd>
+                                        </div>
+                                    @elseif($ds === 'COMPLETENESS')
+                                        <div>
+                                            <dt class="text-gray-500">Required records check</dt>
+                                            <dd class="font-medium text-amber-700">Incomplete</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Deterministic rules</dt>
+                                            <dd class="text-gray-600">Not finalized</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Machine learning</dt>
+                                            <dd class="text-gray-600">Skipped</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Final result</dt>
+                                            <dd class="font-bold text-amber-700">Assessment Incomplete</dd>
+                                        </div>
+                                    @elseif($ds === 'MACHINE_LEARNING')
+                                        <div>
+                                            <dt class="text-gray-500">Required records check</dt>
+                                            <dd class="font-medium text-green-700">Complete</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Deterministic rules</dt>
+                                            <dd class="text-gray-600">No HIGH rule</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Machine learning</dt>
+                                            <dd class="font-medium text-blue-700">Valid prediction</dd>
+                                        </div>
+                                        <div>
+                                            <dt class="text-gray-500">Final result</dt>
+                                            <dd class="font-bold {{ $rl === 'HIGH' ? 'text-red-700' : 'text-green-700' }}">{{ $rl }}</dd>
+                                        </div>
+                                    @else
+                                        <div class="sm:col-span-2">
+                                            <dt class="text-gray-500">Assessment type</dt>
+                                            <dd class="font-medium text-gray-700">Legacy assessment without a structured decision flow.</dd>
+                                        </div>
+                                    @endif
+                                </dl>
+                            </div>
                         </div>
                     </div>
                 </div>
                 @else
-                <div class="bg-gray-50 rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
-                    <p class="text-gray-500">No risk assessment available</p>
-                    @if($patient->status === 'ONGOING')
-                    <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="mt-2 inline-block text-blue-600 text-sm">Add first visit</a>
-                    @else
-                    <p class="mt-2 text-sm text-gray-500">Historical pregnancy record</p>
-                    @endif
+                <div class="rounded-2xl shadow-md border border-gray-200 bg-white overflow-hidden">
+                    <div class="bg-gray-600 p-6">
+                        <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Risk Assessment</p>
+                        <h3 class="mt-1 text-2xl font-extrabold text-white">NO ASSESSMENT AVAILABLE</h3>
+                    </div>
+                    <div class="p-6 text-center">
+                        <p class="text-gray-600">No prenatal risk assessment has been recorded for this patient.</p>
+                        @if($patient->status === 'ONGOING')
+                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="mt-3 inline-block bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Add first visit</a>
+                        @else
+                        <p class="mt-2 text-sm text-gray-500">Historical pregnancy record.</p>
+                        @endif
+                    </div>
                 </div>
                 @endif
 

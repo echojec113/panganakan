@@ -51,11 +51,9 @@ class RiskAssessmentService
             $missingRecords = $this->completenessValidator
                 ->missingRequiredRecords($patient);
 
-            return $this->decisionIntegrationService->decide(
+            return $this->decisionIntegrationService->decideUrgentBp(
                 $missingRecords,
-                ['Severe-range blood-pressure finding'],
-                null,
-                'URGENT_CLINICAL_REVIEW',
+                [$bpResult['label']],
                 $bpResult
             );
         }

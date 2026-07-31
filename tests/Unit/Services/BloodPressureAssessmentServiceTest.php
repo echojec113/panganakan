@@ -107,13 +107,15 @@ test('initial severe with unable to repeat status preserved', function () {
     $result = $service->assess(
         bpSys: 160,
         bpDia: 95,
-        verificationStatus: BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT
+        verificationStatus: BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT,
+        verificationNote: 'Patient declined to wait for repeat measurement'
     );
 
     expect($result['triggered'])->toBeTrue();
     expect($result['reason_code'])->toBe('BP-URG');
     expect($result['urgency'])->toBe(BloodPressureAssessmentService::URGENCY_URGENT);
     expect($result['verification_status'])->toBe(BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT);
+    expect($result['verification_note'])->toBe('Patient declined to wait for repeat measurement');
 });
 
 test('null values do not throw and return not triggered', function () {
@@ -181,7 +183,7 @@ test('determineVerificationStatus returns repeat completed when both repeat valu
     expect($status)->toBe(BloodPressureAssessmentService::VERIFICATION_REPEAT_COMPLETED);
 });
 
-test('determineVerificationStatus returns unable to repeat when explicit status set', function () {
+test('determineVerificationStatus returns unable to repeat when explicit status and note set', function () {
     $service = new BloodPressureAssessmentService;
 
     $reflection = new ReflectionMethod($service, 'determineVerificationStatus');
@@ -191,8 +193,92 @@ test('determineVerificationStatus returns unable to repeat when explicit status 
         $service,
         BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT,
         null,
-        null
+        null,
+        'Patient declined to wait for repeat measurement'
     );
 
     expect($status)->toBe(BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT);
+});
+
+test('determineVerificationStatus ignores unable status without a note', function () {
+    $service = new BloodPressureAssessmentService;
+
+    $reflection = new ReflectionMethod($service, 'determineVerificationStatus');
+    $reflection->setAccessible(true);
+
+    $status = $reflection->invoke(
+        $service,
+        BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT,
+        null,
+        null,
+        null
+    );
+
+    expect($status)->toBe(BloodPressureAssessmentService::VERIFICATION_PENDING_REPEAT);
+});
+
+test('severe repeat with normal initial triggers bp-urg', function () {
+    $service = new BloodPressureAssessmentService;
+
+    $result = $service->assess(bpSys: 120, bpDia: 80, repeatSys: 165, repeatDia: 110);
+
+    expect($result['triggered'])->toBeTrue();
+    expect($result['reason_code'])->toBe('BP-URG');
+    expect($result['urgency'])->toBe(BloodPressureAssessmentService::URGENCY_URGENT);
+    expect($result['verification_status'])->toBe(BloodPressureAssessmentService::VERIFICATION_REPEAT_COMPLETED);
+    expect($result['repeat_interpretation'])->toBe(BloodPressureAssessmentService::REPEAT_SEVERE);
+    expect($result['effective_max_systolic'])->toBe(165);
+    expect($result['effective_max_diastolic'])->toBe(110);
+});
+
+test('forged repeat completed without repeat pair falls back to pending', function () {
+    $service = new BloodPressureAssessmentService;
+
+    $result = $service->assess(
+        bpSys: 140,
+        bpDia: 80,
+        verificationStatus: BloodPressureAssessmentService::VERIFICATION_REPEAT_COMPLETED
+    );
+
+    expect($result['triggered'])->toBeTrue();
+    expect($result['reason_code'])->toBe('BP-H');
+    expect($result['verification_status'])->toBe(BloodPressureAssessmentService::VERIFICATION_PENDING_REPEAT);
+});
+
+test('explicit unable without repeat pair requires a note', function () {
+    $service = new BloodPressureAssessmentService;
+
+    $result = $service->assess(
+        bpSys: 140,
+        bpDia: 80,
+        verificationStatus: BloodPressureAssessmentService::VERIFICATION_UNABLE_TO_REPEAT
+    );
+
+    expect($result['triggered'])->toBeTrue();
+    expect($result['reason_code'])->toBe('BP-H');
+    expect($result['verification_status'])->toBe(BloodPressureAssessmentService::VERIFICATION_PENDING_REPEAT);
+});
+
+test('classify repeat returns not recorded when missing', function () {
+    $service = new BloodPressureAssessmentService;
+
+    expect($service->classifyRepeat(null, null))->toBe(BloodPressureAssessmentService::REPEAT_NOT_RECORDED);
+});
+
+test('classify repeat returns normal when below thresholds', function () {
+    $service = new BloodPressureAssessmentService;
+
+    expect($service->classifyRepeat(120, 80))->toBe(BloodPressureAssessmentService::REPEAT_NORMAL);
+});
+
+test('classify repeat returns elevated when systolic only elevated', function () {
+    $service = new BloodPressureAssessmentService;
+
+    expect($service->classifyRepeat(140, 80))->toBe(BloodPressureAssessmentService::REPEAT_ELEVATED);
+});
+
+test('classify repeat returns severe when diastolic severe', function () {
+    $service = new BloodPressureAssessmentService;
+
+    expect($service->classifyRepeat(150, 110))->toBe(BloodPressureAssessmentService::REPEAT_SEVERE);
 });

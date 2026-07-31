@@ -138,7 +138,7 @@
                             </svg>
                             <h4 class="text-sm font-semibold text-amber-800">BP Verification</h4>
                         </div>
-                        <p class="text-xs text-amber-700 mb-3">Initial BP is elevated. Record a repeat measurement after rest (15-30 mins) to verify.</p>
+                        <p class="text-xs text-amber-700 mb-3">Initial BP is elevated. Record a repeat measurement according to the clinic's approved protocol to verify.</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Repeat BP Systolic (mmHg)</label>
@@ -164,10 +164,9 @@
                             <select name="bp_verification_status" id="bp_verification_status"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
                                 <option value="">Select status</option>
-                                <option value="PENDING_REPEAT" {{ old('bp_verification_status') == 'PENDING_REPEAT' ? 'selected' : '' }}>Pending Repeat</option>
-                                <option value="REPEAT_COMPLETED" {{ old('bp_verification_status') == 'REPEAT_COMPLETED' ? 'selected' : '' }}>Repeat Completed</option>
                                 <option value="UNABLE_TO_REPEAT" {{ old('bp_verification_status') == 'UNABLE_TO_REPEAT' ? 'selected' : '' }}>Unable to Repeat</option>
                             </select>
+                            <p class="text-xs text-gray-500 mt-1">Verification status is derived automatically from the repeat measurement.</p>
                         </div>
                         <div class="mt-3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Verification Note</label>
@@ -266,6 +265,9 @@
                             </select>
                         </div>
                     </div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        Diabetes and anemia are assessed for this visit. When marked Yes, the existing Medical History background record will also be updated. A No value does not automatically remove a previously recorded condition.
+                    </p>
                 </div>
 
                 <!-- Clinical Examination -->

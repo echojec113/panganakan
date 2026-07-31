@@ -749,8 +749,389 @@ Implement BP verification workflow, urgency classification (BP-URG pre-completen
 - Pre-existing: ProfileTest soft-delete mismatch.
 - Scikit-learn model version warning: model 1.8.0, runtime 1.9.0.
 
+## Sprint 10 Safety Corrections
+
+Status: Complete
+
+### Objective
+
+Apply eight approved release-blocker corrections to the Sprint 10 BP verification workflow without changing clinical thresholds, the decision hierarchy, Python/ML, routes, or auth policy. All changes are server-authoritative: the client (Blade forms) can no longer override the system's verification decision.
+
+### Corrections Applied
+
+1. **BP-URG overrides completeness.** Severe-range BP (BP-URG, >=160/110) now resolves to HIGH + RULE_BASED + URGENT_CLINICAL_REVIEW even when required records are missing. Missing records are preserved so data gaps are not hidden.
+2. **Severe repeat evaluated first.** A severe repeat reading (e.g. 165/110 after a normal 120/80 initial) now triggers BP-URG + URGENT_CLINICAL_REVIEW. Repeat measurements can escalate, not just confirm, the initial reading.
+3. **Initial severe BP is always urgent.** Initial BP in the severe range returns BP-URG + URGENT_CLINICAL_REVIEW (previously it could return PROMPT), regardless of repeat outcome.
+4. **Server-authoritative verification status.** `determineVerificationStatus()` derives status from actual data first: both repeat values present => REPEAT_COMPLETED; explicit UNABLE_TO_REPEAT with a non-empty note => UNABLE_TO_REPEAT; otherwise PENDING_REPEAT. Client-supplied PENDING_REPEAT, REPEAT_COMPLETED (without a repeat pair), and NOT_REQUIRED are ignored/re-derived.
+5. **UNABLE_TO_REPEAT requires a note.** Controller validation (store + update) rejects UNABLE_TO_REPEAT with a blank/whitespace-only verification note. The service also only preserves the note when the computed status is UNABLE_TO_REPEAT.
+6. **Initial BP edits clear stale repeat data.** When submitted initial BP differs from the stored value, the repeat pair (repeat_bp_sys/dia/recorded_at/by), a stale prefilled repeat pair, and the old verification status are cleared and re-derived in a single coherent persistence update. BP_INITIAL_EDITED audit log preserved.
+7. **Approved UI wording.** Removed the hardcoded "15-30 mins" wait-time phrasing from create/edit forms; replaced with the approved protocol message ("Record a repeat measurement according to the clinic's approved protocol to verify."). Verification-status dropdown restricted to only the UNABLE_TO_REPEAT client-requestable option; PENDING_REPEAT/REPEAT_COMPLETED are derived server-side.
+8. **Corrected the wrong existing test.** The `DecisionIntegrationServiceTest` case that asserted "BP-URG + missing records => ASSESSMENT INCOMPLETE" now asserts HIGH + RULE_BASED + URGENT_CLINICAL_REVIEW with missing_records preserved.
+
+### Implementation Details
+
+**`app/Services/BloodPressureAssessmentService.php`** (rewritten)
+
+- Evaluation order: normalize pair -> initial severe -> repeat severe -> BP-URG (if either severe) -> initial elevated check -> not elevated (NOT_REQUIRED, no trigger) -> BP-H + PROMPT.
+- Added `classifyRepeat()` returning repeat_interpretation: NOT_RECORDED / NORMAL / ELEVATED / SEVERE; `repeat_interpretation` included in every payload.
+- `determineVerificationStatus()` is now public and server-authoritative (see Correction 4).
+- BP-URG payload adds `effective_max_systolic` / `effective_max_diastolic` (max of initial + repeat) and label "Severe-range blood-pressure finding".
+- `verification_note` only accepted when computed status is UNABLE_TO_REPEAT; trimmed.
+
+**`app/Services/DecisionIntegrationService.php`**
+
+- Added `decideUrgentBp()` returning HIGH + RULE_BASED + URGENT_CLINICAL_REVIEW with `missing_records` preserved, `bp_assessment` forwarded, `ml_prediction` null, `ml_valid` false.
+- `decide()` short-circuits to `decideUrgentBp()` when the incoming `bp_assessment` has `reason_code === 'BP-URG'` (defense-in-depth so the urgent safety path is preserved even if completeness was checked first).
+
+**`app/Services/RiskAssessmentService.php`**
+
+- BP-URG now routes through `decideUrgentBp($missingRecords, [$bpResult['label']], $bpResult)` before the completeness branch. ML is never invoked on this path.
+
+**`app/Http/Controllers/PrenatalVisitController.php`**
+
+- Injected `BloodPressureAssessmentService` for the NOT_REQUIRED default constant.
+- Repeat-BP systolic > diastolic checks now use `filled()` (store + update).
+- UNABLE_TO_REPEAT note validation added in store + update.
+- `store()` persists `bp_verification_status` from the server-derived `bp_assessment.verification_status` (default NOT_REQUIRED), plus `urgency` and `bp_assessment`.
+- `update()` rewritten: initial-BP change detection clears stale repeat fields + ignores prefilled repeat values in that same request, verification status/note are nulled when initial BP changed, and all fields (clinical + repeat + risk + urgency + bp_assessment) persist in one coherent `update()` call.
+- `recalculateInvisits()` persists server-derived `bp_verification_status` and reuses the stored `verification_note` from `bp_assessment` when re-running UNABLE_TO_REPEAT records.
+
+**`resources/views/prenatal_visits/create.blade.php` / `edit.blade.php`**
+
+- Removed "15-30 mins" phrasing; replaced with approved protocol wording.
+- Verification-status dropdown now offers only `UNABLE_TO_REPEAT` (plus empty default); added hint that status is derived automatically.
+
+**`database/migrations/2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php`** (new, additive)
+
+- Adds nullable `notes` and `recommendation` columns to `prenatal_visits` (both columns are written by the controller but were missing from the migration set - pre-existing drift). Uses `Schema::hasColumn()` guards so it is safe whether or not either column already exists; `down()` only drops existing columns. **NOT EXECUTED.**
+
+### Tests
+
+- `tests/Unit/Services/BloodPressureAssessmentServiceTest.php` - 23 tests (was 15). New coverage: severe-repeat-first (BP-URG from a severe repeat after normal initial), forged REPEAT_COMPLETED falls back to PENDING_REPEAT, UNABLE_TO_REPEAT requires a note, repeat classification (NOT_RECORDED/NORMAL/ELEVATED/SEVERE), and updated UNABLE_TO_REPEAT tests to pass a note.
+- `tests/Unit/Services/DecisionIntegrationServiceTest.php` - corrected the BP-URG + missing-records expectation (Correction 8).
+- `tests/Unit/Services/RiskAssessmentServiceTest.php` (new) - 10 orchestrator tests: BP-URG overrides completeness (case 1), initial severe + normal repeat stays urgent (case 2), normal initial + severe repeat is BP-URG (case 3), BP-H + missing records stays INCOMPLETE (case 8), BP-H complete => HIGH RULE_BASED (case 9), BP-H overrides ML LOW (case 10), BP-H overrides ML HIGH (case 11), ML never invoked on BP-URG, UNABLE_TO_REPEAT requires note, forged REPEAT_COMPLETED resolves to PENDING_REPEAT.
+- `tests/Feature/Sprint10BloodPressureCorrectionsTest.php` (new) - 6 controller-level tests: UNABLE note required on store + update, BP-URG store persists HIGH + URGENT + PENDING_REPEAT, BP-H store persists PROMPT + PENDING_REPEAT, initial-BP edit clears stale repeat pair + derives NOT_REQUIRED, forged REPEAT_COMPLETED on update derives PENDING_REPEAT.
+
+### Test Results
+
+- PHP syntax check: clean on all changed PHP files.
+- **57 focused tests pass** (BloodPressureAssessment 23 + DecisionIntegration 18 + RiskAssessment 10 + Sprint10 feature 6).
+- Full suite: **152 pass**, 4 pre-existing failures (ExampleTest guest redirect, PatientPhilhealthTest 403, ProfileTest soft-delete, RiskMonitoringStatusTest 403) - zero new regressions.
+- Testing database: in-memory SQLite (`:memory:`).
+
+### Records Modified
+
+- `app/Services/BloodPressureAssessmentService.php`
+- `app/Services/DecisionIntegrationService.php`
+- `app/Services/RiskAssessmentService.php`
+- `app/Http/Controllers/PrenatalVisitController.php`
+- `resources/views/prenatal_visits/create.blade.php`
+- `resources/views/prenatal_visits/edit.blade.php`
+- `database/migrations/2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php` (new, not executed)
+- `tests/Unit/Services/BloodPressureAssessmentServiceTest.php`
+- `tests/Unit/Services/DecisionIntegrationServiceTest.php`
+- `tests/Unit/Services/RiskAssessmentServiceTest.php` (new)
+- `tests/Feature/Sprint10BloodPressureCorrectionsTest.php` (new)
+- `docs/IMPLEMENTATION_PROGRESS.md` (this entry)
+
+### Records NOT Modified
+
+- `app/Services/ClinicalRuleEngine.php` - untouched (BP rules remain extracted).
+- Machine-learning service / Python files - untouched.
+- Routes, auth/authorization middleware - untouched.
+- Clinical thresholds (BP-H 140/90, BP-URG 160/110) - unchanged.
+- Models (except PrenatalVisit fillable/casts from original Sprint 10) - untouched.
+- No `php artisan migrate` executed; both Sprint 10 migrations remain unexecuted on the dev DB.
+
+### Known Issues
+
+- Migrations `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` and `2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php` created but NOT executed - manual inspection required.
+- Pre-existing: `previous_cs` and `miscarriage` in Patient $fillable but missing from migrations.
+- Pre-existing: Referral feature test has 403 authorization failure.
+- Pre-existing: ProfileTest soft-delete mismatch.
+- Scikit-learn model version warning: model 1.8.0, runtime 1.9.0.
+
+## Sprint 10 Hardening Patch
+
+Status: Complete
+
+### Objective
+
+Apply seven final release-hardening corrections to the Sprint 10 BP workflow. No migrations executed; no clinical thresholds, ML/Python, routes, or auth changed.
+
+### Corrections Applied
+
+1. **Non-destructive rollback.** `2026_08_01_000002` `down()` is now an intentional no-op with an explanatory comment. `notes`/`recommendation` predate the migration (already present in production), so rollback must never drop historical clinical data.
+2. **BP label always surfaced.** `decideUrgentBp()` always appends the `bp_assessment.label` to reasons/rule_reasons, even when the caller supplies no rule reasons, preventing an empty "Risk factors identified:" assessment.
+3. **Strict ML-never-invoked tests.** Added `ml is never invoked on the complete bp-h path` to `RiskAssessmentServiceTest` (alongside the existing BP-URG one), both using `shouldReceive('predict')->never()`.
+4. **Controller status validation restricted.** `bp_verification_status` validation in store + update now allows only `UNABLE_TO_REPEAT` (or absent). `PENDING_REPEAT` / `REPEAT_COMPLETED` are rejected and remain server-derived.
+5. **Edit form note source fixed.** `edit.blade.php` now loads the verification note from `$visit->bp_assessment['verification_note']` instead of the nonexistent `bp_verification_note` model column.
+6. **Neutral severe-range wording.** `clinical_interpretation` for BP-URG changed from "requires immediate repeat measurement..." to "The recorded reading met the severe-range screening threshold and requires urgent qualified clinical review."
+7. **Removed unapproved transport instruction.** BP-URG `suggested_action` changed from "...Ensure transport, receiving facility, and handover according to clinic protocol." to "Immediate qualified assessment and referral evaluation are recommended according to clinic protocol."
+
+### Files Modified
+
+- `database/migrations/2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php` (down() no-op)
+- `app/Services/DecisionIntegrationService.php` (label always in reasons/rule_reasons)
+- `app/Http/Controllers/PrenatalVisitController.php` (status validation restricted to UNABLE_TO_REPEAT, store + update)
+- `app/Services/BloodPressureAssessmentService.php` (clinical_interpretation + suggested_action wording)
+- `resources/views/prenatal_visits/edit.blade.php` (note from bp_assessment)
+- `tests/Unit/Services/DecisionIntegrationServiceTest.php` (new label-inclusion test)
+- `tests/Unit/Services/RiskAssessmentServiceTest.php` (ML-never-invoked on complete BP-H)
+- `tests/Feature/Sprint10BloodPressureCorrectionsTest.php` (forged-status test now asserts validation rejection; added no-status update derivation test)
+- `docs/IMPLEMENTATION_PROGRESS.md` (this entry)
+
+### Test Results
+
+- PHP syntax check: clean on all changed PHP files.
+- Focused Sprint 10 tests: **60 pass** (BloodPressureAssessment 23, DecisionIntegration 19, RiskAssessment 11, Sprint10 feature 7).
+- Full suite: 152 pass, same 4 pre-existing failures (ExampleTest guest redirect, PatientPhilhealthTest 403, ProfileTest soft-delete, RiskMonitoringStatusTest 403) - zero new regressions.
+- `git diff --check`: clean.
+- Testing database: in-memory SQLite (`:memory:`).
+
+## Sprint 10.1 — Latest-Assessment Retrieval Fix and CDSS Risk UI Redesign
+
+Status: Complete
+
+### Objective
+
+Two-part sprint on the patient profile (`patients.show`), strictly retrieval + presentation. No migrations, no clinical thresholds, no ML/Python, no routes, no auth changes.
+
+1. **Retrieval correctness:** The profile picked the latest visit by `visit_date` only (`sortByDesc('visit_date')->first()`), so two visits sharing the same visit date (common in active clinics) could surface an older, lower-risk assessment. The selection now resolves ties deterministically newest-first: `created_at DESC` then `id DESC`.
+2. **UI redesign:** Replace the compact "Risk Factors" block with a prominent Risk Assessment panel that summarizes the full CDSS decision in one place, using plain-clinical-friendly wording throughout.
+
+### Changes
+
+1. **`app/Http/Controllers/PatientController.php` — `show()`.** Latest assessment is now resolved server-side via `$patient->prenatalVisits()->orderByDesc('created_at')->orderByDesc('id')->first()` and passed to the view as `$latestAssessment`. The `prenatalVisits` relation is re-sorted newest-first (same tie-breaker) so the history table is deterministic. `medicalHistory`/`ultrasound`/`birthPlan` flags unchanged.
+2. **`resources/views/patients/show.blade.php` — Risk Assessment panel redesign.** The old "Risk factors identified" card is replaced by a full CDSS summary card:
+
+   - **Status hero** — colored banner: red "HIGH RISK" (with a white "URGENT CLINICAL REVIEW" pill when `urgency` is set), green "LOW RISK", amber "ASSESSMENT INCOMPLETE", or a gray "NO ASSESSMENT AVAILABLE" empty state (with an Add First Visit link for ONGOING patients). Labels shown verbatim.
+   - **Decision source** — friendly badge per source: "Rule-Based Clinical Assessment", "Machine Learning Assessment", "Required Records Check", "ML Assessment Unavailable", or "Legacy Assessment".
+   - **Clinical summary** — assessment text + prominent recommendation + next visit date + assessment date.
+   - **Blood-pressure card** — initial/repeat readings with friendly labels: verification "Not Required"/"Repeat Pending"/"Repeat Completed"/"Unable to Repeat"; repeat interpretation "Not Recorded"/"Normal Range"/"Elevated Range"/"Severe Range"; urgency "Urgent Clinical Review"/"Prompt Clinical Review". Labels never assert a diagnosis. Guarded with `is_array($latestAssessment->bp_assessment)` for legacy data.
+   - **Triggered factors** — chips from `rule_reasons` ∪ `risk_reasons` via `ListNormalizer`; a BP-URG visit prepends its BP label chip; HIGH with no factors shows "No structured clinical factors recorded."
+   - **Required records** — amber "Required Records Still Missing" section for `missing_records`.
+   - **Machine-learning display** — shows a valid prediction only on `MACHINE_LEARNING` results; on `RULE_BASED`/`COMPLETENESS` shows "Machine learning was not used for the final decision." (with the deterministic rule / incomplete-records variant); on invalid ML shows "Machine learning output was unavailable or invalid."
+   - **Decision flow** — per-source summary lines (factors found / completeness / ML verdict) mirroring Risk Monitoring.
+   - History-table urgency wording "PROMPT (within 1 week)" replaced with "Prompt Clinical Review".
+3. **Tests** — new `tests/Feature/PatientProfileRiskPanelTest.php` (9 scenarios: newest-wins same visit date, rule-based HIGH, BP-URG urgent, stale ML hidden, ML LOW, completeness incomplete, legacy plain-string rule reasons, null `bp_assessment`, no-visit empty state). `tests/Feature/LegacyPatientShowRenderingTest.php` fallback assertion updated to the new panel wording.
+
+### Design Notes
+
+- Retrieval is resolved in the controller so the rule is testable in isolation and the view stays presentation-only.
+- `created_at DESC, id DESC` guarantees a stable, deterministic winner even for ties, without inventing a "visit serial" column (no migration).
+- The ML verdict is only rendered when it was the actual decision source, preventing stale `ml_prediction` from previous rows being shown as if it applied to the current result.
+- All urgency/verification wording is descriptive of the workflow, not a diagnosis, preserving patient-safety and explainability rules.
+
+### Files Modified
+
+- `app/Http/Controllers/PatientController.php`
+- `resources/views/patients/show.blade.php`
+- `tests/Feature/PatientProfileRiskPanelTest.php` (new)
+- `tests/Feature/LegacyPatientShowRenderingTest.php` (fallback wording)
+- `docs/IMPLEMENTATION_PROGRESS.md` (this entry)
+
+### Test Results
+
+- PHP syntax check: clean on all changed PHP files.
+- Focused suites: `PatientProfileRiskPanelTest` 9, `LegacyPatientShowRenderingTest` 6, `ExplainabilitySprint7Test` 21 (includes existing patient-profile explainability regression test), `StaffAccessControlTest` 8, `Sprint10BloodPressureCorrectionsTest` 10, `DeliveredPatientWorkflowTest` 2, unit services 53 — all pass.
+- Full suite: **173 pass / 4 fail** (562 assertions) — same 4 pre-existing failures (ExampleTest guest redirect, PatientPhilhealthTest 403, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403); zero new regressions.
+- `git diff --check`: clean.
+
+## Post-Sprint 10.1 — PhilHealth Data-Integrity Patch (small)
+
+Status: Complete
+
+### Objective
+
+Small data-integrity patch: enforce the rule that a PhilHealth number may only be persisted for a PhilHealth member. No clinical assessment, BP, migration, route, Python/ML, referral, or unrelated patient-field changes.
+
+### Changes
+
+1. **`PatientController::store()`** — builds patient data from `$request->validated()` instead of `$request->all()`, converts `philhealth_member` to boolean via `$request->boolean()`, and forces `philhealth_number` to `null` whenever membership is false. A submitted number for a non-member is never persisted.
+2. **`PatientController::update()`** — same rule. Changing an existing member to non-member clears the stored number from the database (even when the form omits the field). When membership stays true, the existing `required_if:philhealth_member,1` validation still requires a number, so the number is preserved.
+3. **`tests/Feature/PatientPhilhealthTest.php`** — rebuilt with a staff user (the old test authenticated a factory user without a role and therefore never reached `store`; it was one of the four pre-existing 403 failures). Now covers:
+   - create non-member with submitted number → stored number is `null`
+   - update member → non-member → old number cleared
+   - member with valid number → number preserved on update
+   - member without required number → validation fails and stored number unchanged
+
+### Design Notes
+
+- `$request->validated()` guarantees persistence uses only approved inputs; `$request->all()` is no longer used for patient creation.
+- Boolean normalization happens in the controller so the stored flag is always a real boolean regardless of form string values.
+- The null-forcing rule is applied after validation, so the `required_if` membership rule still governs member validation and the integrity rule governs persistence.
+
+### Files Modified
+
+- `app/Http/Controllers/PatientController.php`
+- `tests/Feature/PatientPhilhealthTest.php`
+- `docs/IMPLEMENTATION_PROGRESS.md` (this entry)
+
+### Known Gaps (preserved)
+
+- **Delivered-patient prenatal-visit protection:** there is still no protection preventing creation/editing of prenatal visits for patients whose status is no longer ONGOING (no policy; only `auth` + `staff` middleware). This remains an open gap for a future sprint and is unchanged by this patch.
+- Migrations `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` and `2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php` created but NOT executed - manual inspection required.
+- Pre-existing: `previous_cs` and `miscarriage` in Patient `$fillable` but missing from migrations.
+- Pre-existing: ProfileTest soft-delete mismatch; RiskMonitoringStatusTest referral 403.
+- Scikit-learn model version warning: model 1.8.0, runtime 1.9.0.
+
+### Test Results
+
+- PHP syntax check: clean on `app/Http/Controllers/PatientController.php`.
+- Focused PhilHealth tests: 4 pass (previously 1 failing with 403 due to missing staff role in the test).
+- Full suite: **173 pass / 3 fail** (562 assertions) — the PatientPhilhealthTest 403 is resolved; remaining failures are the 3 pre-existing, unrelated ones (ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403).
+- `git diff --check`: clean.
+
+## Final Consistency Patch (post-Sprint 10.1)
+
+Status: Complete
+
+### Objective
+
+Two small consistency fixes. No migrations executed; no clinical rules, BP thresholds, ML/Python, routes, authorization, referrals, or unrelated UI changed.
+
+### Changes
+
+1. **`tests/Feature/PatientPhilhealthTest.php` — future-proofed test-only schema setup.** The `previous_cs`/`miscarriage` columns are now added to the in-memory test schema only when `Schema::hasColumn()` reports they are missing, so the tests keep working after the eventual real migrations add them (the documented `previous_cs`/`miscarriage` migration gap).
+2. **Latest-visit selection consistency in exports.** `PatientController::show()`, `downloadPatientCsv()`, and `downloadPatientPdf()` all previously selected the latest visit by `visit_date` only (the exports used `sortByDesc('visit_date')`), which was inconsistent with the deterministic `created_at DESC, id DESC` ordering applied to the profile in Sprint 10.1. A single private helper now owns the selection:
+
+   ```php
+   private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
+   {
+       return $patient->prenatalVisits()
+           ->orderByDesc('created_at')
+           ->orderByDesc('id')
+           ->first();
+   }
+   ```
+
+   `show()`, `downloadPatientCsv()`, and `downloadPatientPdf()` all reuse it, so the profile, CSV export, and PDF export resolve the identical newest assessment when multiple visits share a `visit_date`.
+3. **Focused tests** — new `tests/Feature/PatientExportConsistencyTest.php` (3 scenarios with two visits sharing the same `visit_date`):
+   - profile displays the newer visit
+   - CSV export embeds the newer visit's assessment (asserted on response content, not raw PDF text)
+   - PDF export passes the newer visit to `exports.patient-record` (verified by capturing the `dompdf.wrapper` view data via a container stub, avoiding unreliable PDF binary assertions)
+
+### Files Modified
+
+- `app/Http/Controllers/PatientController.php`
+- `tests/Feature/PatientPhilhealthTest.php`
+- `tests/Feature/PatientExportConsistencyTest.php` (new)
+- `docs/IMPLEMENTATION_PROGRESS.md` (this entry)
+
+### Test Results
+
+- PHP syntax check: clean on `app/Http/Controllers/PatientController.php`.
+- Focused suites: `PatientExportConsistencyTest` 3, `PatientPhilhealthTest` 4, `PatientProfileRiskPanelTest` 9, `LegacyPatientShowRenderingTest` 6 — all pass.
+- Full suite: **180 pass / 3 fail** (588 assertions) — same 3 pre-existing, unrelated failures (ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403); zero new regressions.
+- `git diff --check`: clean.
+
+## Sprint 11 — Medical History Scope Stabilization, Data Integrity, and CDSS Input Governance
+
+Status: Complete
+
+### Objective
+
+Stabilize the Medical History feature as a scoped, integrity-safe clinical record. Explicitly govern which fields the CDSS may consume. **No new clinical rules were added.** No migrations were created or executed. Routes, BP thresholds, the `BloodPressureAssessmentService`/`DecisionIntegrationService`/`RiskAssessmentService` decision hierarchy, and Python/ML were untouched.
+
+### CDSS Input Allowlist (documented + locked by tests)
+
+1. **Only `diabetes` and `anemia` are CDSS-active** from Medical History. The `ClinicalRuleEngine` reads them from prenatal-visit assessment inputs, not from Medical History directly — `recalculateIncompleteVisits()` passes `$visit->diabetes`/`$visit->anemia` (`PrenatalVisitController`), so the visit checkboxes are the source of truth for the engine. This pre-existing "source of truth ambiguity" (see matrix DM-01 note) is now explicitly documented and pinned by tests.
+2. **The four legacy warning-symptom fields (`severe_headache`, `visual_disturbance`, `chest_pain`, `shortness_breath`) are confirmed record-only.** They are stored and displayed with an "Informational only — never used in the risk assessment" label and are never evaluated by any clinical service.
+3. **All other fields (epilepsy, hypertension, asthma, thyroid_disease, heart_disease, liver_disease, smoking, allergies, drug_intake, std_history, breast_mass, mental_health_condition, other_specify) are record-only** background factors.
+4. **The completeness gate is existence-based**, not content-based. A Medical History record satisfies the gate regardless of which checkboxes are set. Verified by test.
+
+### Data-Integrity Changes
+
+5. **Validated `store()`/`update()`.** Uses `$request->validate()` return value (the base `Request` has no `validated()`), normalizes every checkbox with `$request->boolean()` (unchecked → `false`), and stores `other_specify` as `required_if:other,1`, nulled whenever the `other` checkbox is unchecked.
+6. **`patient_id` is preserved on update.** The update route never changes a record's patient; a posted `patient_id` is ignored.
+7. **Duplicate prevention (application-level, no migration).** `create()` and `store()` redirect to the existing record's edit page with: "A Medical History record already exists for this pregnancy." The DB has no unique constraint; prevention is enforced in the controller.
+8. **Delivered-patient protection.** `create()`, `store()`, `edit()`, and `update()` reject delivered patients via the existing `Patient::isDelivered()` pattern (no new trait; the previously assumed `app/Traits/BlocksDeliveredPatientActions.php` does not exist in this codebase).
+
+### Service Extraction
+
+9. **New `app/Services/PatientAssessmentRecalculationService.php`.** The `recalculateIncompleteVisits()` body moved out of `PrenatalVisitController` (which now keeps a thin delegate for API compatibility). `MedicalHistoryController`, `UltrasoundController`, and `BirthPlanController` now inject the service directly — all `app(PrenatalVisitController::class)` controller-to-controller calls were removed, aligning with AGENTS.md ("Prefer small services over large controllers").
+
+### UI/UX
+
+10. **Scoped, grouped forms.** `medical_histories/create.blade.php` and `edit.blade.php` now render four labeled groups (CDSS-Active Factors / Chronic & Background Conditions / Lifestyle, History & Physical Findings / Warning Symptoms & Notes) with a banner explaining the allowlist. The patient profile's Medical History section groups the same way with scope notes.
+11. **`old()` preservation on validation errors.** The edit form distinguishes a validation-failed re-render (`old('_token') !== null`) so an unchecked box stays unchecked instead of reverting to the stored value.
+12. **Stable form id `medical-history-form`.** The edit confirmation modal's `submitUpdateForm()` previously used `document.querySelector('form')`, which could target the layout's logout form; it now submits the explicit id.
+
+### Files Modified
+
+- `app/Http/Controllers/MedicalHistoryController.php` (rewritten: validation, allowlist constant, duplicate + delivered guards, service injection)
+- `app/Http/Controllers/PrenatalVisitController.php` (constructor + thin delegate)
+- `app/Http/Controllers/UltrasoundController.php` (service injection)
+- `app/Http/Controllers/BirthPlanController.php` (service injection)
+- `app/Services/PatientAssessmentRecalculationService.php` (new)
+- `resources/views/medical_histories/create.blade.php` (grouped + scoped)
+- `resources/views/medical_histories/edit.blade.php` (grouped + scoped + stable form id)
+- `resources/views/patients/show.blade.php` (error flash + grouped Medical History section)
+- `tests/Feature/MedicalHistoryScopeTest.php` (new — 16 scenarios)
+- `tests/Unit/Services/PatientAssessmentRecalculationServiceTest.php` (new — 3 scenarios)
+- `tests/Unit/Services/ClinicalRuleEngineTest.php` (2 new allowlist tests)
+- `docs/IMPLEMENTATION_PROGRESS.md`, `docs/CLINICAL_FACTOR_MATRIX.md` (this entry)
+
+### Test Results
+
+- PHP syntax check: clean on all changed controllers/services.
+- Blade compile: `php artisan view:cache` clean.
+- Focused suites: `MedicalHistoryScopeTest` 16, `PatientAssessmentRecalculationServiceTest` 3, `ClinicalRuleEngineTest` 15 — all pass.
+- Full suite: **203 pass / 3 fail** (674 assertions) — the same 3 pre-existing, unrelated failures (ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403); zero new regressions.
+- `git diff --check`: clean.
+
+### Design Defense
+
+Scope labeling ("Only Diabetes and Anemia affect the risk assessment") keeps the clinical user informed that the four warning-symptom checkboxes are documentation, not triggers, preventing the false belief that checking them raised a HIGH. Enforcing the allowlist at both the engine and the view layers protects explainability: every displayed reason maps to a documented evaluated factor. Duplicate prevention and delivered-patient guards enforce record integrity without a migration, which would have required a manual production review.
+
+## Sprint 11 Hardening Patch — Source-of-Truth Wording, One-Way Visit→History Sync, and Recalculation Safety
+
+### Objective
+
+Stabilize the source-of-truth boundary between the dated Prenatal Visit and the pregnancy-level Medical History record, correct UI wording that overclaimed Medical History's role, and make auto-recalculation strictly protect finalized (HIGH/LOW) and delivered-patient visits.
+
+### Decisions (recorded and locked by tests)
+
+1. **Prenatal Visit is the source of truth** for the dated diabetes/anemia CDSS inputs; Medical History is pregnancy-level background documentation plus completeness evidence.
+2. **One-way monotonic sync**, limited to `diabetes` and `anemia`: a confirmed visit Yes may set the background history value to true; a visit No never clears a true history value.
+3. **No auto-create**: a missing Medical History is never created by the sync; the visit still stores its assessment without the background update.
+4. **Clearing a pregnancy-level condition** requires explicit staff editing of the Medical History record; no diagnosis is inferred by the sync.
+5. **New service**: `App\Services\MedicalHistoryConditionSyncService::syncConfirmedVisitConditions(Patient $patient, bool $diabetes, bool $anemia, ?PrenatalVisit $visit = null)` returns `changed`, `updated_fields`, `skipped_reason`, `visit_id`. Saves only when a value actually changes.
+6. **Sync placement**: after successful visit persistence, inside the existing store/update transaction, using persisted visit values. Never invoked from the risk-assessment path; never triggers an assessment.
+7. **Audit**: `MEDICAL_HISTORY_SYNC` entry written only when the history actually changes ("Medical History {diabetes, anemia} updated from prenatal visit ID: {id}"). No audit when nothing changed or when no history exists.
+8. **Recalculation safety**: `PatientAssessmentRecalculationService::recalculateIncompleteVisits()` loads the patient first (no-op if missing or DELIVERED), requires all three records, and recalculates only `risk_level = 'ASSESSMENT INCOMPLETE'` visits. HIGH and LOW are historical and never rewritten.
+9. **Preservation on recalculation**: repeat-BP pair, verification status/note, BP assessment metadata, and an existing `next_visit_date` are passed through and preserved.
+10. **Wording**: "CDSS-Active Factors" → "Conditions Also Assessed During Prenatal Visits"; "Warning Symptoms & Notes" → "Legacy Historical or Recurring Concerns"; permanent "never used in the risk assessment" phrasing removed (future visit-level warning-symptom workflow pending approval).
+11. **Patient profile**: diabetes/anemia presented as pregnancy-level background updates from confirmed prenatal visits; optional note shown when a visit recorded a condition but no Medical History exists (derived from the already-loaded `prenatalVisits` relation).
+12. **No migrations, no threshold/rule changes**: the patch is implementation-only; no schema, BP, or CDSS-rule changes.
+13. **Delivered-patient sync guard**: `MedicalHistoryConditionSyncService::syncConfirmedVisitConditions()` checks `$patient->isDelivered()` before any Medical History lookup; delivered pregnancies are never modified by visit synchronization (`skipped_reason = 'PATIENT_DELIVERED'`, no audit, no recalculation). Synchronization is disabled for completed pregnancies.
+
+### Files Modified (this patch)
+
+- `app/Services/MedicalHistoryConditionSyncService.php` (new)
+- `app/Services/PatientAssessmentRecalculationService.php` (safety guards)
+- `app/Http/Controllers/PrenatalVisitController.php` (sync inside store/update transactions + audit)
+- `app/Http/Controllers/MedicalHistoryController.php` (source-of-truth comments)
+- `resources/views/medical_histories/create.blade.php` + `edit.blade.php` (headings + banner)
+- `resources/views/prenatal_visits/create.blade.php` + `edit.blade.php` (one-way sync note)
+- `resources/views/patients/show.blade.php` (profile wording + optional missing-history note)
+- `tests/Unit/Services/MedicalHistoryConditionSyncServiceTest.php` (new, 13 tests incl. delivered-patient guard)
+- `tests/Feature/PrenatalVisitConditionSyncTest.php` (new, 10 tests)
+- `tests/Unit/Services/PatientAssessmentRecalculationServiceTest.php` (9 tests)
+- `tests/Feature/MedicalHistoryScopeTest.php` (wording assertions + prenatal page coverage)
+- `tests/Unit/Services/ClinicalRuleEngineTest.php` (test renamed to "clinical rule engine consumes visit diabetes and anemia inputs only")
+
+### Test Results
+
+Focused suites all green. Full suite: **233 passed, 3 failed** — the three failures are the documented pre-existing ones (ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403), unrelated to this patch.
+
+### Design Defense
+
+Keeping the sync monotonic and one-way prevents a negative visit from silently erasing a staff-confirmed background condition, which would corrupt the pregnancy record and the patient's perceived continuity of care. Running the sync inside the visit's own transaction guarantees either the visit and its background update persist together or neither does. Restricting recalculation to ASSESSMENT INCOMPLETE visits protects the historical explainability of already-finalized HIGH/LOW assessments while still completing interrupted assessments once all required records exist.
+
 ## Next Planned Work
 
-1. Execute migration `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` after manual inspection.
-2. Begin Sprint 11: Warning-symptom evaluation (MAT-WARN) and referral integration.
+1. MAT-WARN evaluation and referral integration remains **deferred and requires clinical approval** (symptom → action-level mapping is NOT implemented; Sprint 11 deliberately confirmed the fields are record-only). This is a decision for a future, separately approved sprint.
+2. Execute migrations `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` and `2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php` after manual inspection.
 3. Keep EDD outcome monitoring for a later dedicated sprint.
