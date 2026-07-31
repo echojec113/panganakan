@@ -188,7 +188,7 @@
         </div>
 
         {{-- ======= EXPLAINABLE RISK SUMMARY CARDS ======= --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <div class="kpi-card" style="border-left: 4px solid #dc2626;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
@@ -244,6 +244,36 @@
                         </p>
                         <a href="{{ route('risk.monitoring') }}" class="inline-block mt-2 text-xs font-semibold text-violet-600 hover:text-violet-800 underline">
                             View all patients &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Urgent BP Alerts</p>
+                        <p class="text-2xl font-bold text-red-700 mono">{{ $urgentBpCount ?? 0 }}</p>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Patients with BP-URG requiring immediate clinical review.
+                        </p>
+                        <a href="{{ route('risk.monitoring', ['urgency' => 'URGENT_CLINICAL_REVIEW']) }}" class="inline-block mt-2 text-xs font-semibold text-red-700 hover:text-red-900 underline">
+                            View urgent BP cases &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #d97706;">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Pending Repeat BP</p>
+                        <p class="text-2xl font-bold text-amber-600 mono">{{ $pendingRepeatCount ?? 0 }}</p>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Patients awaiting repeat BP measurement for verification.
+                        </p>
+                        <a href="{{ route('risk.monitoring', ['bp_verification_status' => 'PENDING_REPEAT']) }}" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">
+                            View pending repeats &rarr;
                         </a>
                     </div>
                 </div>
@@ -357,6 +387,54 @@
                             <p class="text-xs text-slate-400 mt-1">No priority cases at this time</p>
                         </div>
                     @endforelse
+
+                    @if($urgentBpPatients->isNotEmpty())
+                    <div class="border-t border-gray-100 mt-2">
+                        <div class="px-5 py-2 bg-red-50 border-b border-red-100">
+                            <p class="text-xs font-bold text-red-700 uppercase tracking-wider">Urgent BP Alerts</p>
+                        </div>
+                        @foreach($urgentBpPatients as $visit)
+                        <a href="{{ route('patients.show', $visit->patient) }}" class="priority-row group">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                <div class="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-sm font-bold text-red-600 flex-shrink-0">
+                                    {{ strtoupper(substr($visit->patient->first_name, 0, 1)) }}{{ strtoupper(substr($visit->patient->last_name, 0, 1)) }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-semibold text-slate-800 truncate">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">BP: {{ $visit->bp_sys }}/{{ $visit->bp_dia }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                                <span class="priority-badge" style="background:#fef2f2;color:#b91c1c;">URGENT</span>
+                            </div>
+                        </a>
+                        @endforeach
+                    </div>
+                    @endif
+
+                    @if($pendingRepeatPatients->isNotEmpty())
+                    <div class="border-t border-gray-100 mt-2">
+                        <div class="px-5 py-2 bg-amber-50 border-b border-amber-100">
+                            <p class="text-xs font-bold text-amber-700 uppercase tracking-wider">Pending Repeat BP</p>
+                        </div>
+                        @foreach($pendingRepeatPatients as $visit)
+                        <a href="{{ route('patients.show', $visit->patient) }}" class="priority-row group">
+                            <div class="flex items-center gap-3 min-w-0 flex-1">
+                                <div class="w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center text-sm font-bold text-amber-600 flex-shrink-0">
+                                    {{ strtoupper(substr($visit->patient->first_name, 0, 1)) }}{{ strtoupper(substr($visit->patient->last_name, 0, 1)) }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <p class="text-sm font-semibold text-slate-800 truncate">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p>
+                                    <p class="text-xs text-slate-500 mt-0.5">BP: {{ $visit->bp_sys }}/{{ $visit->bp_dia }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 flex-shrink-0 ml-2">
+                                <span class="priority-badge">Pending Repeat</span>
+                            </div>
+                        </a>
+                        @endforeach
+                    </div>
+                    @endif
                 </div>
             </div>
 

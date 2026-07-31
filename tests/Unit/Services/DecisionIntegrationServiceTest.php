@@ -148,11 +148,11 @@ test('metadata keys are present in every returned result', function () {
     ];
 
     foreach ($scenarios as $result) {
-        expect($result)->toHaveKey('decision_source');
-        expect($result)->toHaveKey('missing_records');
-        expect($result)->toHaveKey('rule_reasons');
-        expect($result)->toHaveKey('ml_prediction');
-        expect($result)->toHaveKey('ml_valid');
+        expect($result->decision_source)->not->toBeNull();
+        expect($result->missing_records)->toBeArray();
+        expect($result->rule_reasons)->toBeArray();
+        expect($result->ml_prediction === null || is_string($result->ml_prediction))->toBeTrue();
+        expect($result->ml_valid)->toBeBool();
     }
 });
 
@@ -161,11 +161,11 @@ test('existing five public keys remain present', function () {
 
     $result = $service->decide([], [], ['valid' => true, 'prediction' => 'LOW']);
 
-    expect($result)->toHaveKey('risk_level');
-    expect($result)->toHaveKey('assessment');
-    expect($result)->toHaveKey('recommendation');
-    expect($result)->toHaveKey('reasons');
-    expect($result)->toHaveKey('nextVisit');
+    expect($result->risk_level)->toBeString();
+    expect($result->assessment)->toBeString();
+    expect($result->recommendation)->toBeString();
+    expect($result->reasons)->toBeArray();
+    expect($result->nextVisit)->toBeInstanceOf(\Carbon\CarbonImmutable::class);
 });
 
 test('rule-based reasons are preserved', function () {
@@ -182,6 +182,65 @@ test('ml raw output is not exposed', function () {
 
     $result = $service->decide([], [], ['valid' => true, 'prediction' => 'LOW']);
 
-    expect($result)->not->toHaveKey('raw_output');
-    expect($result)->not->toHaveKey('parsed_output');
+    expect($result->toArray())->not->toHaveKey('raw_output');
+    expect($result->toArray())->not->toHaveKey('parsed_output');
+});
+
+test('bp-urg overrides completeness and preserves missing records', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide(
+        ['Medical History'],
+        [],
+        null,
+        'URGENT_CLINICAL_REVIEW',
+        ['reason_code' => 'BP-URG', 'label' => 'Severe-range blood-pressure finding', 'risk_level' => 'HIGH', 'triggered' => true]
+    );
+
+    expect($result['risk_level'])->toBe('HIGH');
+    expect($result['decision_source'])->toBe('RULE_BASED');
+    expect($result->urgency)->toBe('URGENT_CLINICAL_REVIEW');
+    expect($result->bp_assessment)->toBeArray();
+    expect($result->bp_assessment['reason_code'])->toBe('BP-URG');
+    expect($result->missing_records)->toBe(['Medical History']);
+});
+
+test('bp-urg always includes the bp label in reasons even when no rule reasons', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decideUrgentBp(
+        [],
+        [],
+        ['reason_code' => 'BP-URG', 'label' => 'Severe-range blood-pressure finding', 'risk_level' => 'HIGH', 'triggered' => true]
+    );
+
+    expect($result->reasons)->toContain('Severe-range blood-pressure finding');
+    expect($result->rule_reasons)->toContain('Severe-range blood-pressure finding');
+    expect($result['assessment'])->toContain('Severe-range blood-pressure finding');
+});
+
+test('rule-based path accepts urgency and bp_assessment', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide(
+        [],
+        ['Diabetes'],
+        null,
+        null,
+        ['reason_code' => 'BP-H', 'label' => 'Elevated BP', 'risk_level' => 'HIGH', 'triggered' => true]
+    );
+
+    expect($result['risk_level'])->toBe('HIGH');
+    expect($result->urgency)->toBeNull();
+    expect($result->bp_assessment)->toBeArray();
+    expect($result->bp_assessment['reason_code'])->toBe('BP-H');
+});
+
+test('ml paths set urgency and bp_assessment to null when not provided', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide([], [], ['valid' => true, 'prediction' => 'LOW']);
+
+    expect($result->urgency)->toBeNull();
+    expect($result->bp_assessment)->toBeNull();
 });

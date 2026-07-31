@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Baby;
 use App\Models\Patient;
+use App\Models\PrenatalVisit;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -59,7 +60,7 @@ class PatientController extends Controller
     
    public function store(Request $request)
 {
-    $request->validate([
+    $validated = $request->validate([
         'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
         'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:255',
         'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
@@ -97,8 +98,13 @@ class PatientController extends Controller
         return back()->withErrors(['miscarriage' => 'Miscarriage cannot exceed Gravida'])->withInput();
     }
 
-    $data = $request->all();
+    $data = $validated;
+    $data['philhealth_member'] = $request->boolean('philhealth_member');
     $data['assigned_staff_id'] = auth()->id();
+
+    if (!$data['philhealth_member']) {
+        $data['philhealth_number'] = null;
+    }
 
     $patient = Patient::create($data);
 
@@ -119,13 +125,26 @@ class PatientController extends Controller
     {
         $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies'])->findOrFail($id);
 
+        // Newest persisted prenatal visit, deterministically: created_at desc,
+        // then id desc as a tie-breaker for records created in the same second.
+        // Never rely on visit_date alone because multiple visits can share a date.
+        $latestAssessment = $this->latestPrenatalVisit($patient);
+
+        // Visit history table: newest-first, deterministic.
+        $patient->setRelation(
+            'prenatalVisits',
+            $patient->prenatalVisits->sortByDesc(function ($visit) {
+                return [$visit->created_at?->timestamp ?? 0, $visit->id];
+            })->values()
+        );
+
         // Check for required records before allowing prenatal visit creation
         $hasMedicalHistory = $patient->medicalHistory !== null;
         $hasUltrasound = $patient->ultrasounds()->exists();
         $hasBirthPlan = $patient->birthPlan !== null;
         $canAddPrenatalVisit = $hasMedicalHistory && $hasUltrasound && $hasBirthPlan;
 
-        return view('patients.show', compact('patient', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit'));
+        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit'));
     }
 
     public function download(Request $request, string $id)
@@ -202,6 +221,19 @@ class PatientController extends Controller
         return $missing;
     }
 
+    /**
+     * Newest persisted prenatal visit, deterministically: created_at desc,
+     * then id desc as a tie-breaker for records created in the same second.
+     * Never rely on visit_date alone because multiple visits can share a date.
+     */
+    private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
+    {
+        return $patient->prenatalVisits()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
 
     public function startNewPregnancy(Request $request, $id)
 {
@@ -270,7 +302,7 @@ class PatientController extends Controller
 
     private function downloadPatientCsv(Patient $patient)
     {
-        $latestVisit = $patient->prenatalVisits->sortByDesc('visit_date')->first();
+        $latestVisit = $this->latestPrenatalVisit($patient);
 
         $patientInfo = collect([
             'Name' => trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name),
@@ -382,7 +414,7 @@ class PatientController extends Controller
 
     private function downloadPatientPdf(Patient $patient)
     {
-        $latestVisit = $patient->prenatalVisits->sortByDesc('visit_date')->first();
+        $latestVisit = $this->latestPrenatalVisit($patient);
 
         $riskSummary = [
             'currentRiskLevel' => $latestVisit?->risk_level ?: 'N/A',
@@ -421,7 +453,7 @@ class PatientController extends Controller
      // ======================
     // VALIDATION
     // ======================
-    $request->validate([
+    $validated = $request->validate([
     'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
     'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:255',
     'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
@@ -461,25 +493,14 @@ if ($request->miscarriage > $request->gravida) {
 }
 
 
-    $patient->update([
-    'first_name'        => $request->first_name,
-    'middle_name'       => $request->middle_name,
-    'last_name'         => $request->last_name,
-    'birthdate'         => $request->birthdate,
-    'age'               => $request->age,
-    'address'           => $request->address,
-    'contact_number'    => $request->contact_number,
-    'email'             => $request->email,
-    'civil_status'      => $request->civil_status,
-    'philhealth_member' => $request->philhealth_member,
-    'philhealth_number' => $request->philhealth_number,
-    'gravida'           => $request->gravida,
-    'para'              => $request->para,
-    'previous_cs'       => $request->previous_cs,
-    'miscarriage'       => $request->miscarriage,
-    'lmp'               => $request->lmp,
-    'edd'               => $request->edd,
-]);
+    $data = $validated;
+    $data['philhealth_member'] = $request->boolean('philhealth_member');
+
+    if (!$data['philhealth_member']) {
+        $data['philhealth_number'] = null;
+    }
+
+    $patient->update($data);
 
    
 

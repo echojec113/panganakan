@@ -51,6 +51,14 @@ class DashboardController extends Controller
         $lowRisk = $this->countLatestByRisk('LOW');
         $incompleteCount = $this->countLatestByRisk('ASSESSMENT INCOMPLETE');
 
+        // Urgent BP alerts & pending repeats (latest visit per patient)
+        $urgentBpCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('urgency', 'URGENT_CLINICAL_REVIEW')
+            ->count();
+        $pendingRepeatCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('bp_verification_status', 'PENDING_REPEAT')
+            ->count();
+
         // ======================
         // CONDITION COUNTS
         // ======================
@@ -104,6 +112,28 @@ class DashboardController extends Controller
 
         $highRiskPatients = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
+            ->whereIn('id', $this->latestVisitSubquery())
+            ->orderByDesc('visit_date')
+            ->take(5)
+            ->get();
+
+        // ======================
+        // URGENT BP ALERTS (UNIQUE, LATEST)
+        // ======================
+
+        $urgentBpPatients = PrenatalVisit::with('patient')
+            ->where('urgency', 'URGENT_CLINICAL_REVIEW')
+            ->whereIn('id', $this->latestVisitSubquery())
+            ->orderByDesc('visit_date')
+            ->take(5)
+            ->get();
+
+        // ======================
+        // PENDING REPEAT BP (UNIQUE, LATEST)
+        // ======================
+
+        $pendingRepeatPatients = PrenatalVisit::with('patient')
+            ->where('bp_verification_status', 'PENDING_REPEAT')
             ->whereIn('id', $this->latestVisitSubquery())
             ->orderByDesc('visit_date')
             ->take(5)
@@ -172,7 +202,11 @@ class DashboardController extends Controller
             'incompleteCount',
             'incompletePatients',
             'overdueCount',
-            'overdueFollowUps'
+            'overdueFollowUps',
+            'urgentBpCount',
+            'pendingRepeatCount',
+            'urgentBpPatients',
+            'pendingRepeatPatients'
         ));
     }
 
@@ -269,6 +303,19 @@ class DashboardController extends Controller
             ->take(10)
             ->get();
 
+        // ======================
+        // URGENT BP & PENDING REPEAT COUNTS (STAFF-FILTERED)
+        // ======================
+
+        $staffUrgentBpCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('urgency', 'URGENT_CLINICAL_REVIEW')
+            ->whereHas('patient', $assignedPatient)
+            ->count();
+        $staffPendingRepeatCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->where('bp_verification_status', 'PENDING_REPEAT')
+            ->whereHas('patient', $assignedPatient)
+            ->count();
+
         return view('dashboards.staff', compact(
             'patientsToday',
             'appointmentsToday',
@@ -281,7 +328,9 @@ class DashboardController extends Controller
             'recentVisits',
             'staffHighRiskCount',
             'staffLowRiskCount',
-            'staffIncompleteCount'
+            'staffIncompleteCount',
+            'staffUrgentBpCount',
+            'staffPendingRepeatCount'
         ));
     }
 

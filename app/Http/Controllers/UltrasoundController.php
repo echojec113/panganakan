@@ -6,9 +6,17 @@ use Illuminate\Http\Request;
 use App\Models\Ultrasound;
 use App\Models\Patient;
 use Carbon\Carbon;
+use App\Services\PatientAssessmentRecalculationService;
 
 class UltrasoundController extends Controller
 {
+    private PatientAssessmentRecalculationService $recalculationService;
+
+    public function __construct(PatientAssessmentRecalculationService $recalculationService)
+    {
+        $this->recalculationService = $recalculationService;
+    }
+
     public function create($patient_id)
     {
         // Verify patient exists
@@ -137,8 +145,7 @@ class UltrasoundController extends Controller
         );
 
         // Auto-recalculate incomplete prenatal visits
-        $prenatalController = app(PrenatalVisitController::class);
-        $prenatalController->recalculateIncompleteVisits($request->patient_id);
+        $this->recalculationService->recalculateIncompleteVisits($request->patient_id);
 
         return redirect()->route('patients.show', $request->patient_id)
             ->with('success', 'Ultrasound added successfully.');
@@ -266,8 +273,7 @@ class UltrasoundController extends Controller
         );
 
         // Auto-recalculate incomplete prenatal visits
-        $prenatalController = app(PrenatalVisitController::class);
-        $prenatalController->recalculateIncompleteVisits($ultrasound->patient_id);
+        $this->recalculationService->recalculateIncompleteVisits($ultrasound->patient_id);
 
         return redirect()->route('patients.show', $ultrasound->patient_id)
             ->with('success', 'Ultrasound updated successfully');

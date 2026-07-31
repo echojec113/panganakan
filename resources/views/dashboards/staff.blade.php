@@ -150,7 +150,7 @@
     <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
 
         {{-- ======= EXPLAINABLE RISK SUMMARY ======= --}}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-4">
             <div class="kpi-card" style="border-left: 4px solid #dc2626;">
                 <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">HIGH Risk</p>
                 <p data-testid="staff-high-count" class="text-2xl font-bold text-red-600 mono">{{ $staffHighRiskCount }}</p>
@@ -168,6 +168,20 @@
                 <p data-testid="staff-low-count" class="text-2xl font-bold text-green-600 mono">{{ $staffLowRiskCount }}</p>
                 <p class="text-xs text-slate-400 mt-1">No HIGH rule triggered; valid LOW model result.</p>
                 <a href="{{ route('risk.monitoring', ['risk_filter' => 'LOW']) }}" class="inline-block mt-2 text-xs font-semibold text-green-600 hover:text-green-800 underline">View &rarr;</a>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Urgent BP</p>
+                <p class="text-2xl font-bold text-red-700 mono">{{ $staffUrgentBpCount ?? 0 }}</p>
+                <p class="text-xs text-slate-400 mt-1">BP-URG requiring immediate review.</p>
+                <a href="{{ route('risk.monitoring', ['urgency' => 'URGENT_CLINICAL_REVIEW']) }}" class="inline-block mt-2 text-xs font-semibold text-red-700 hover:text-red-900 underline">View &rarr;</a>
+            </div>
+
+            <div class="kpi-card" style="border-left: 4px solid #d97706;">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Pending Repeat</p>
+                <p class="text-2xl font-bold text-amber-600 mono">{{ $staffPendingRepeatCount ?? 0 }}</p>
+                <p class="text-xs text-slate-400 mt-1">Awaiting repeat BP measurement.</p>
+                <a href="{{ route('risk.monitoring', ['bp_verification_status' => 'PENDING_REPEAT']) }}" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">View &rarr;</a>
             </div>
         </div>
 

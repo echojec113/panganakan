@@ -8,17 +8,28 @@ use App\Models\Patient;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Mail\PrenatalVisitReminderMail;
 use App\Mail\PrenatalVisitScheduleUpdatedMail;
+use App\Services\BloodPressureAssessmentService;
+use App\Services\MedicalHistoryConditionSyncService;
+use App\Services\PatientAssessmentRecalculationService;
 use App\Services\RiskAssessmentService;
 
 class PrenatalVisitController extends Controller
 {
     private RiskAssessmentService $riskAssessmentService;
+    private PatientAssessmentRecalculationService $recalculationService;
+    private MedicalHistoryConditionSyncService $medicalHistorySyncService;
 
-    public function __construct(RiskAssessmentService $riskAssessmentService)
-    {
+    public function __construct(
+        RiskAssessmentService $riskAssessmentService,
+        PatientAssessmentRecalculationService $recalculationService,
+        MedicalHistoryConditionSyncService $medicalHistorySyncService
+    ) {
         $this->riskAssessmentService = $riskAssessmentService;
+        $this->recalculationService = $recalculationService;
+        $this->medicalHistorySyncService = $medicalHistorySyncService;
     }
 
 
@@ -43,32 +54,38 @@ class PrenatalVisitController extends Controller
         $validated = $request->validate([
             'patient_id' => 'required|exists:patients,id',
             'visit_date' => 'required|date|before_or_equal:today',
-            
+
             // Vital Signs
             'bp_sys' => 'required|numeric|min:60|max:200',
             'bp_dia' => 'required|numeric|min:40|max:130',
             'weight' => 'required|numeric|min:30|max:150',
             'temperature' => 'nullable|numeric|min:35|max:40',
-            
+
+            // Repeat BP (optional, both-or-neither)
+            'repeat_bp_sys' => 'nullable|required_with:repeat_bp_dia|numeric|min:60|max:200',
+            'repeat_bp_dia' => 'nullable|required_with:repeat_bp_sys|numeric|min:40|max:130',
+            'bp_verification_status' => 'nullable|string|in:UNABLE_TO_REPEAT',
+            'bp_verification_note' => 'nullable|string|max:500',
+
             // Pregnancy Monitoring
             'gestational_age' => 'required|numeric|min:4|max:42',
             'fundic_height' => 'nullable|string|max:50',
             'fetal_heart_tone' => 'nullable|string|max:50',
             'fetal_movement' => 'nullable|string|max:50',
-            
+
             // Leopold's Maneuver
             'presenting_part' => 'nullable|string|max:100',
             'uterine_activity' => 'nullable|string|max:100',
-            
+
             // Pelvic Examination
             'cervical_dilation' => 'nullable|numeric|min:0|max:10',
             'bag_of_water' => 'nullable|string|max:50',
-            
+
             // Risk Factors
             'hypertension' => 'required|boolean',
             'diabetes' => 'required|boolean',
             'anemia' => 'required|boolean',
-            
+
             // Doctor Assessment
             'treatment_plan' => 'nullable|string',
             'next_visit_date' => 'nullable|date|after_or_equal:today',
@@ -89,13 +106,15 @@ class PrenatalVisitController extends Controller
             'cervical_dilation.max' => 'Cervical dilation cannot exceed 10 cm',
             'visit_date.before_or_equal' => 'Visit date cannot be in the future',
             'next_visit_date.after_or_equal' => 'Next visit date must be today or in the future',
-            'patient_id.exists' => 'Selected patient does not exist'
+            'patient_id.exists' => 'Selected patient does not exist',
+            'repeat_bp_sys.required_with' => 'Repeat BP systolic is required when repeat diastolic is provided',
+            'repeat_bp_dia.required_with' => 'Repeat BP diastolic is required when repeat systolic is provided',
         ]);
 
         // ======================
         // LOGICAL VALIDATIONS
         // ======================
-        
+
         // BP Logic: Systolic should be greater than Diastolic
         if ($request->bp_sys <= $request->bp_dia) {
             return back()->withErrors([
@@ -103,14 +122,29 @@ class PrenatalVisitController extends Controller
                 'bp_dia' => 'Systolic BP must be greater than Diastolic BP'
             ])->withInput();
         }
-        
+
+        // Repeat BP Logic: Systolic should be greater than Diastolic
+        if ($request->filled('repeat_bp_sys') && $request->filled('repeat_bp_dia') && $request->repeat_bp_sys <= $request->repeat_bp_dia) {
+            return back()->withErrors([
+                'repeat_bp_sys' => 'Repeat systolic BP must be greater than repeat diastolic BP',
+                'repeat_bp_dia' => 'Repeat systolic BP must be greater than repeat diastolic BP'
+            ])->withInput();
+        }
+
+        // UNABLE_TO_REPEAT requires a non-empty verification note
+        if ($request->bp_verification_status === 'UNABLE_TO_REPEAT' && trim((string) $request->bp_verification_note) === '') {
+            return back()->withErrors([
+                'bp_verification_note' => 'A verification note is required when the status is "Unable to Repeat".',
+            ])->withInput();
+        }
+
         // Gestational age vs LMP validation
         $patient = Patient::find($request->patient_id);
         if ($patient && $patient->lmp) {
             $lmpDate = Carbon::parse($patient->lmp);
             $visitDate = Carbon::parse($request->visit_date);
             $expectedWeeks = $lmpDate->diffInWeeks($visitDate);
-            
+
             if (abs($expectedWeeks - $request->gestational_age) > 3) {
                 return back()->withErrors([
                     'gestational_age' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks (±3 weeks allowed)."
@@ -118,42 +152,27 @@ class PrenatalVisitController extends Controller
             }
         }
 
-        // ======================
-        // CREATE VISIT (without risk fields first)
-        // ======================
-        $visit = PrenatalVisit::create([
-            'patient_id' => $request->patient_id,
-            'visit_date' => $request->visit_date,
-            'bp_sys' => $request->bp_sys,
-            'bp_dia' => $request->bp_dia,
-            'weight' => $request->weight,
-            'gestational_age' => $request->gestational_age,
-            'hypertension' => $request->hypertension,
-            'diabetes' => $request->diabetes,
-            'anemia' => $request->anemia,
-            'risk_level' => 'ASSESSMENT INCOMPLETE',
-            'risk_reasons' => [],
-            'assessment' => 'Pending',
-            'recommendation' => 'Pending',
-            'next_visit_date' => $request->next_visit_date,
-            'notes' => $request->notes,
-            'treatment_plan' => $request->treatment_plan,
-            'temperature' => $request->temperature,
-            'fundic_height' => $request->fundic_height,
-            'fetal_heart_tone' => $request->fetal_heart_tone,
-            'fetal_movement' => $request->fetal_movement,
-            'presenting_part' => $request->presenting_part,
-            'uterine_activity' => $request->uterine_activity,
-            'cervical_dilation' => $request->cervical_dilation,
-            'bag_of_water' => $request->bag_of_water,
-        ]);
+        // Build repeat BP inputs array
+        $repeatBpInputs = null;
+        if ($request->filled('repeat_bp_sys') && $request->filled('repeat_bp_dia')) {
+            $repeatBpInputs = [
+                'bp_sys' => (int) $request->repeat_bp_sys,
+                'bp_dia' => (int) $request->repeat_bp_dia,
+            ];
+        }
 
         // ======================
-        // ASSESS RISK
+        // ASSESS RISK (pure computation, before persistence)
         // ======================
-        $riskAssessment = $this->riskAssessmentService->assess($patient, $request->only([
-            'bp_sys', 'bp_dia', 'weight', 'gestational_age', 'hypertension', 'diabetes', 'anemia'
-        ]));
+        $riskAssessment = $this->riskAssessmentService->assess(
+            $patient,
+            $request->only([
+                'bp_sys', 'bp_dia', 'weight', 'gestational_age', 'hypertension', 'diabetes', 'anemia'
+            ]),
+            $repeatBpInputs,
+            $request->bp_verification_status,
+            $request->bp_verification_note
+        );
 
         $risk = $riskAssessment['risk_level'];
         $assessment = $riskAssessment['assessment'];
@@ -164,20 +183,86 @@ class PrenatalVisitController extends Controller
         $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
 
         // ======================
-        // UPDATE VISIT WITH RISK FIELDS
+        // CREATE VISIT + RISK FIELDS IN ONE TRANSACTION
         // ======================
-        $visit->update([
-            'risk_level' => $risk,
-            'risk_reasons' => $reasons,
-            'decision_source' => $riskAssessment['decision_source'] ?? null,
-            'missing_records' => $riskAssessment['missing_records'] ?? [],
-            'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
-            'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
-            'ml_valid' => $riskAssessment['ml_valid'] ?? false,
-            'assessment' => $assessment,
-            'recommendation' => $recommendation,
-            'next_visit_date' => $finalNextVisit,
-        ]);
+        $visit = DB::transaction(function () use ($request, $patient, $repeatBpInputs, $riskAssessment, $risk, $assessment, $recommendation, $reasons, $finalNextVisit) {
+            $visit = PrenatalVisit::create([
+                'patient_id' => $request->patient_id,
+                'visit_date' => $request->visit_date,
+                'bp_sys' => $request->bp_sys,
+                'bp_dia' => $request->bp_dia,
+                'weight' => $request->weight,
+                'gestational_age' => $request->gestational_age,
+                'hypertension' => $request->hypertension,
+                'diabetes' => $request->diabetes,
+                'anemia' => $request->anemia,
+                'risk_level' => 'ASSESSMENT INCOMPLETE',
+                'risk_reasons' => [],
+                'assessment' => 'Pending',
+                'recommendation' => 'Pending',
+                'next_visit_date' => $request->next_visit_date,
+                'notes' => $request->notes,
+                'treatment_plan' => $request->treatment_plan,
+                'temperature' => $request->temperature,
+                'fundic_height' => $request->fundic_height,
+                'fetal_heart_tone' => $request->fetal_heart_tone,
+                'fetal_movement' => $request->fetal_movement,
+                'presenting_part' => $request->presenting_part,
+                'uterine_activity' => $request->uterine_activity,
+                'cervical_dilation' => $request->cervical_dilation,
+                'bag_of_water' => $request->bag_of_water,
+                'repeat_bp_sys' => $repeatBpInputs['bp_sys'] ?? null,
+                'repeat_bp_dia' => $repeatBpInputs['bp_dia'] ?? null,
+                'repeat_bp_recorded_at' => $repeatBpInputs ? now() : null,
+                'repeat_bp_recorded_by' => $repeatBpInputs ? auth()->id() : null,
+                'bp_verification_status' => null,
+            ]);
+
+            $visit->update([
+                'risk_level' => $risk,
+                'risk_reasons' => $reasons,
+                'decision_source' => $riskAssessment['decision_source'] ?? null,
+                'missing_records' => $riskAssessment['missing_records'] ?? [],
+                'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
+                'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
+                'ml_valid' => $riskAssessment['ml_valid'] ?? false,
+                'assessment' => $assessment,
+                'recommendation' => $recommendation,
+                'next_visit_date' => $finalNextVisit,
+                'urgency' => $riskAssessment['urgency'] ?? null,
+                'bp_assessment' => $riskAssessment['bp_assessment'] ?? null,
+                'bp_verification_status' => $riskAssessment['bp_assessment']['verification_status'] ?? BloodPressureAssessmentService::VERIFICATION_NOT_REQUIRED,
+            ]);
+
+            // One-way sync of confirmed visit diabetes/anemia into Medical History.
+            // Runs only after the visit has been persisted. A false value never
+            // clears an existing true Medical History value.
+            $syncResult = $this->medicalHistorySyncService->syncConfirmedVisitConditions(
+                $patient,
+                (bool) $visit->diabetes,
+                (bool) $visit->anemia,
+                $visit
+            );
+
+            if ($syncResult['changed'] && !empty($syncResult['updated_fields'])) {
+                $this->logAction(
+                    'MEDICAL_HISTORY_SYNC',
+                    'MEDICAL_HISTORY',
+                    'Medical History ' . implode(', ', $syncResult['updated_fields']) . ' updated from prenatal visit ID: ' . $visit->id
+                );
+            }
+
+            return $visit;
+        });
+
+        // Log repeat BP recording only after the visit persisted successfully
+        if ($repeatBpInputs) {
+            $this->logAction(
+                'BP_REPEAT_RECORDED',
+                'PRENATAL_VISIT',
+                'Repeat BP recorded for patient: ' . $patient->first_name . ' ' . $patient->last_name
+            );
+        }
 
         if (!empty($patient->email) && $request->next_visit_date) {
     try {
@@ -228,6 +313,13 @@ class PrenatalVisitController extends Controller
             'bp_dia' => 'required|numeric|min:40|max:130',
             'weight' => 'required|numeric|min:30|max:150',
             'temperature' => 'nullable|numeric|min:35|max:40',
+
+            // Repeat BP (optional, both-or-neither)
+            'repeat_bp_sys' => 'nullable|required_with:repeat_bp_dia|numeric|min:60|max:200',
+            'repeat_bp_dia' => 'nullable|required_with:repeat_bp_sys|numeric|min:40|max:130',
+            'bp_verification_status' => 'nullable|string|in:UNABLE_TO_REPEAT',
+            'bp_verification_note' => 'nullable|string|max:500',
+
             'gestational_age' => 'required|numeric|min:4|max:42',
             'fundic_height' => 'nullable|string|max:50',
             'fetal_heart_tone' => 'nullable|string|max:50',
@@ -253,12 +345,14 @@ class PrenatalVisitController extends Controller
             'gestational_age.max' => 'Gestational age cannot exceed 42 weeks',
             'visit_date.before_or_equal' => 'Visit date cannot be in the future',
             'next_visit_date.after_or_equal' => 'Next visit date must be today or in the future',
+            'repeat_bp_sys.required_with' => 'Repeat BP systolic is required when repeat diastolic is provided',
+            'repeat_bp_dia.required_with' => 'Repeat BP diastolic is required when repeat systolic is provided',
         ]);
 
         // ======================
         // LOGICAL VALIDATIONS
         // ======================
-        
+
         // BP Logic
         if ($request->bp_sys <= $request->bp_dia) {
             return back()->withErrors([
@@ -266,14 +360,36 @@ class PrenatalVisitController extends Controller
                 'bp_dia' => 'Systolic BP must be greater than Diastolic BP'
             ])->withInput();
         }
-        
+
+        // Repeat BP Logic: Systolic should be greater than Diastolic
+        if ($request->filled('repeat_bp_sys') && $request->filled('repeat_bp_dia') && $request->repeat_bp_sys <= $request->repeat_bp_dia) {
+            return back()->withErrors([
+                'repeat_bp_sys' => 'Repeat systolic BP must be greater than repeat diastolic BP',
+                'repeat_bp_dia' => 'Repeat systolic BP must be greater than repeat diastolic BP'
+            ])->withInput();
+        }
+
+        // UNABLE_TO_REPEAT requires a non-empty verification note
+        if ($request->bp_verification_status === 'UNABLE_TO_REPEAT' && trim((string) $request->bp_verification_note) === '') {
+            return back()->withErrors([
+                'bp_verification_note' => 'A verification note is required when the status is "Unable to Repeat".',
+            ])->withInput();
+        }
+
+        // Prevent patient reassignment after a visit is recorded
+        if ((int) $request->patient_id !== (int) $visit->patient_id) {
+            return back()->withErrors([
+                'patient_id' => 'The patient cannot be changed after a prenatal visit is recorded.',
+            ])->withInput();
+        }
+
         // Gestational age vs LMP validation
-        $patient = Patient::find($request->patient_id);
+        $patient = $visit->patient;
         if ($patient && $patient->lmp) {
             $lmpDate = Carbon::parse($patient->lmp);
             $visitDate = Carbon::parse($request->visit_date);
             $expectedWeeks = $lmpDate->diffInWeeks($visitDate);
-            
+
             if (abs($expectedWeeks - $request->gestational_age) > 3) {
                 return back()->withErrors([
                     'gestational_age' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks (±3 weeks allowed)."
@@ -281,37 +397,93 @@ class PrenatalVisitController extends Controller
             }
         }
 
+        // Detect initial BP change and clear repeat pair if changed
+        $initialBpChanged = (
+            (int) $request->bp_sys !== (int) $visit->getOriginal('bp_sys') ||
+            (int) $request->bp_dia !== (int) $visit->getOriginal('bp_dia')
+        );
+
+        $initialBpEdited = $initialBpChanged;
+        $repeatBpRecorded = false;
+
         // ======================
-        // UPDATE CLINICAL FIELDS FIRST
+        // CALCULATE FINAL REPEAT-BP STATE FIRST
         // ======================
-        $visit->update([
-            'patient_id' => $request->patient_id,
-            'visit_date' => $request->visit_date,
-            'bp_sys' => $request->bp_sys,
-            'bp_dia' => $request->bp_dia,
-            'weight' => $request->weight,
-            'gestational_age' => $request->gestational_age,
-            'hypertension' => $request->hypertension,
-            'diabetes' => $request->diabetes,
-            'anemia' => $request->anemia,
-                        'notes' => $request->notes,
-            'treatment_plan' => $request->treatment_plan,
-            'temperature' => $request->temperature,
-            'fundic_height' => $request->fundic_height,
-            'fetal_heart_tone' => $request->fetal_heart_tone,
-            'fetal_movement' => $request->fetal_movement,
-            'presenting_part' => $request->presenting_part,
-            'uterine_activity' => $request->uterine_activity,
-            'cervical_dilation' => $request->cervical_dilation,
-            'bag_of_water' => $request->bag_of_water,
-        ]);
+        // When the initial BP changes, the old repeat pair is stale. Repeat
+        // fields submitted during that same request (including prefilled old
+        // values) must be ignored so the stale pair is never re-saved.
+        //
+        // When the initial BP is unchanged and no repeat fields are submitted,
+        // the stored repeat pair (if any) must still be fed into the risk
+        // assessment so a previously recorded severe repeat is preserved.
+        $repeatBpInputs = null;
+        if (!$initialBpChanged && $request->filled('repeat_bp_sys') && $request->filled('repeat_bp_dia')) {
+            $repeatBpInputs = [
+                'bp_sys' => (int) $request->repeat_bp_sys,
+                'bp_dia' => (int) $request->repeat_bp_dia,
+            ];
+        } elseif (!$initialBpChanged && $visit->getOriginal('repeat_bp_sys') !== null) {
+            $repeatBpInputs = [
+                'bp_sys' => (int) $visit->getOriginal('repeat_bp_sys'),
+                'bp_dia' => (int) $visit->getOriginal('repeat_bp_dia'),
+            ];
+        }
+
+        if ($initialBpChanged) {
+            $repeatFields = [
+                'repeat_bp_sys' => null,
+                'repeat_bp_dia' => null,
+                'repeat_bp_recorded_at' => null,
+                'repeat_bp_recorded_by' => null,
+            ];
+        } elseif ($repeatBpInputs) {
+            $storedRepeatSys = $visit->getOriginal('repeat_bp_sys');
+            $storedRepeatDia = $visit->getOriginal('repeat_bp_dia');
+
+            // Only treat the pair as newly recorded when it is first recorded
+            // or its values actually change. An unchanged pair must keep its
+            // original recorded_at/recorded_by metadata.
+            $repeatBpRecorded = (
+                $storedRepeatSys === null ||
+                (int) $storedRepeatSys !== $repeatBpInputs['bp_sys'] ||
+                (int) $storedRepeatDia !== $repeatBpInputs['bp_dia']
+            );
+
+            $repeatFields = $repeatBpRecorded ? [
+                'repeat_bp_sys' => $repeatBpInputs['bp_sys'],
+                'repeat_bp_dia' => $repeatBpInputs['bp_dia'],
+                'repeat_bp_recorded_at' => now(),
+                'repeat_bp_recorded_by' => auth()->id(),
+            ] : [
+                'repeat_bp_sys' => $storedRepeatSys,
+                'repeat_bp_dia' => $storedRepeatDia,
+                'repeat_bp_recorded_at' => $visit->getOriginal('repeat_bp_recorded_at'),
+                'repeat_bp_recorded_by' => $visit->getOriginal('repeat_bp_recorded_by'),
+            ];
+        } else {
+            $repeatFields = [
+                'repeat_bp_sys' => $visit->getOriginal('repeat_bp_sys'),
+                'repeat_bp_dia' => $visit->getOriginal('repeat_bp_dia'),
+                'repeat_bp_recorded_at' => $visit->getOriginal('repeat_bp_recorded_at'),
+                'repeat_bp_recorded_by' => $visit->getOriginal('repeat_bp_recorded_by'),
+            ];
+        }
 
         // ======================
         // ASSESS RISK
         // ======================
-        $riskAssessment = $this->riskAssessmentService->assess($patient, $request->only([
-            'bp_sys', 'bp_dia', 'weight', 'gestational_age', 'hypertension', 'diabetes', 'anemia'
-        ]));
+        $bpVerificationStatusInput = $initialBpChanged ? null : $request->bp_verification_status;
+        $bpVerificationNote = $initialBpChanged ? null : $request->bp_verification_note;
+
+        $riskAssessment = $this->riskAssessmentService->assess(
+            $patient,
+            $request->only([
+                'bp_sys', 'bp_dia', 'weight', 'gestational_age', 'hypertension', 'diabetes', 'anemia'
+            ]),
+            $repeatBpInputs,
+            $bpVerificationStatusInput,
+            $bpVerificationNote
+        );
 
         $risk = $riskAssessment['risk_level'];
         $assessment = $riskAssessment['assessment'];
@@ -321,34 +493,125 @@ class PrenatalVisitController extends Controller
 
         $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
 
-        // ======================
-        // UPDATE RISK FIELDS ONLY
-        // ======================
-        $visit->update([
-            'risk_level' => $risk,
-            'risk_reasons' => $reasons,
-            'decision_source' => $riskAssessment['decision_source'] ?? null,
-            'missing_records' => $riskAssessment['missing_records'] ?? [],
-            'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
-            'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
-            'ml_valid' => $riskAssessment['ml_valid'] ?? false,
-            'assessment' => $assessment,
-            'recommendation' => $recommendation,
-            'next_visit_date' => $finalNextVisit,
-        ]);
-        
-        // ======================
-        // NEXT VISIT DATE CHANGE DETECTION
-        // ======================
-        $nextVisitDateChanged = $visit->next_visit_date != $originalNextVisitDate;
+        $bpVerificationStatus = $riskAssessment['bp_assessment']['verification_status'] ?? BloodPressureAssessmentService::VERIFICATION_NOT_REQUIRED;
 
-        if ($nextVisitDateChanged) {
+        // ======================
+        // APPLY SINGLE COHERENT PERSISTENCE UPDATE
+        // ======================
+        $nextVisitDateChanged = false;
+
+        DB::transaction(function () use (
+            $visit,
+            $request,
+            $patient,
+            $repeatFields,
+            $bpVerificationStatus,
+            $riskAssessment,
+            $risk,
+            $assessment,
+            $recommendation,
+            $reasons,
+            $finalNextVisit,
+            $originalNextVisitDate,
+            &$nextVisitDateChanged
+        ) {
             $visit->update([
-                'reminder_tomorrow_sent_at' => null,
-                'reminder_today_sent_at' => null,
+                'visit_date' => $request->visit_date,
+                'bp_sys' => $request->bp_sys,
+                'bp_dia' => $request->bp_dia,
+                'weight' => $request->weight,
+                'gestational_age' => $request->gestational_age,
+                'hypertension' => $request->hypertension,
+                'diabetes' => $request->diabetes,
+                'anemia' => $request->anemia,
+                'notes' => $request->notes,
+                'treatment_plan' => $request->treatment_plan,
+                'temperature' => $request->temperature,
+                'fundic_height' => $request->fundic_height,
+                'fetal_heart_tone' => $request->fetal_heart_tone,
+                'fetal_movement' => $request->fetal_movement,
+                'presenting_part' => $request->presenting_part,
+                'uterine_activity' => $request->uterine_activity,
+                'cervical_dilation' => $request->cervical_dilation,
+                'bag_of_water' => $request->bag_of_water,
+                'repeat_bp_sys' => $repeatFields['repeat_bp_sys'],
+                'repeat_bp_dia' => $repeatFields['repeat_bp_dia'],
+                'repeat_bp_recorded_at' => $repeatFields['repeat_bp_recorded_at'],
+                'repeat_bp_recorded_by' => $repeatFields['repeat_bp_recorded_by'],
+                'bp_verification_status' => $bpVerificationStatus,
+                'risk_level' => $risk,
+                'risk_reasons' => $reasons,
+                'decision_source' => $riskAssessment['decision_source'] ?? null,
+                'missing_records' => $riskAssessment['missing_records'] ?? [],
+                'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
+                'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
+                'ml_valid' => $riskAssessment['ml_valid'] ?? false,
+                'assessment' => $assessment,
+                'recommendation' => $recommendation,
+                'next_visit_date' => $finalNextVisit,
+                'urgency' => $riskAssessment['urgency'] ?? null,
+                'bp_assessment' => $riskAssessment['bp_assessment'] ?? null,
             ]);
 
-            $patient = Patient::find($visit->patient_id);
+            // NEXT VISIT DATE CHANGE DETECTION (inside transaction, no email)
+            $nextVisitDateChanged = $visit->next_visit_date != $originalNextVisitDate;
+
+            if ($nextVisitDateChanged) {
+                $visit->update([
+                    'reminder_tomorrow_sent_at' => null,
+                    'reminder_today_sent_at' => null,
+                ]);
+            }
+
+            // One-way sync of confirmed visit diabetes/anemia into Medical History.
+            // Runs only after the visit update has persisted. A false value never
+            // clears an existing true Medical History value.
+            $syncResult = $this->medicalHistorySyncService->syncConfirmedVisitConditions(
+                $patient,
+                (bool) $visit->diabetes,
+                (bool) $visit->anemia,
+                $visit
+            );
+
+            if ($syncResult['changed'] && !empty($syncResult['updated_fields'])) {
+                $this->logAction(
+                    'MEDICAL_HISTORY_SYNC',
+                    'MEDICAL_HISTORY',
+                    'Medical History ' . implode(', ', $syncResult['updated_fields']) . ' updated from prenatal visit ID: ' . $visit->id
+                );
+            }
+        });
+
+        // ======================
+        // AUDIT LOGS (only after successful persistence)
+        // ======================
+        if ($initialBpEdited) {
+            $this->logAction(
+                'BP_INITIAL_EDITED',
+                'PRENATAL_VISIT',
+                'Initial BP edited for patient ID: ' . $visit->patient_id . ' — repeat pair cleared'
+            );
+        }
+
+        if ($repeatBpRecorded) {
+            $this->logAction(
+                'BP_REPEAT_RECORDED',
+                'PRENATAL_VISIT',
+                'Repeat BP recorded for patient ID: ' . $visit->patient_id
+            );
+        }
+
+        $this->logAction(
+            'UPDATE',
+            'PRENATAL_VISIT',
+            'Updated visit for patient ID: ' . $visit->patient_id
+        );
+
+        // ======================
+        // NEXT VISIT DATE EMAIL (after commit)
+        // ======================
+        if ($nextVisitDateChanged) {
+            $patient = $visit->patient;
 
             if ($patient && !empty($patient->email)) {
                 try {
@@ -367,13 +630,6 @@ class PrenatalVisitController extends Controller
             }
         }
 
-        // ✅ AUDIT LOG
-        $this->logAction(
-            'UPDATE',
-            'PRENATAL_VISIT',
-            'Updated visit for patient ID: ' . $visit->patient_id
-        );
-
         return redirect()->route('prenatal-visits.index')
             ->with('success', 'Prenatal visit updated with new risk assessment');
     }
@@ -388,50 +644,7 @@ class PrenatalVisitController extends Controller
      */
     public function recalculateIncompleteVisits($patientId)
     {
-        // Check if all required records exist
-        $hasMedicalHistory = \App\Models\MedicalHistory::where('patient_id', $patientId)->exists();
-        $hasUltrasound = \App\Models\Ultrasound::where('patient_id', $patientId)->exists();
-        $hasBirthPlan = \App\Models\BirthPlan::where('patient_id', $patientId)->exists();
-
-        // Only recalculate if all required records are now complete
-        if (!$hasMedicalHistory || !$hasUltrasound || !$hasBirthPlan) {
-            return;
-        }
-
-        $patient = Patient::find($patientId);
-        if (!$patient) {
-            return;
-        }
-
-        // Find all visits for this patient (not just incomplete ones)
-        $visits = PrenatalVisit::where('patient_id', $patientId)->get();
-
-        foreach ($visits as $visit) {
-            $riskAssessment = $this->riskAssessmentService->assess($patient, [
-                'bp_sys' => $visit->bp_sys,
-                'bp_dia' => $visit->bp_dia,
-                'weight' => $visit->weight,
-                'gestational_age' => $visit->gestational_age,
-                'hypertension' => $visit->hypertension,
-                'diabetes' => $visit->diabetes,
-                'anemia' => $visit->anemia,
-            ]);
-
-            $visit->update([
-                'risk_level' => $riskAssessment['risk_level'],
-                'assessment' => $riskAssessment['assessment'],
-                'recommendation' => $riskAssessment['recommendation'],
-                'risk_reasons' => $riskAssessment['reasons'],
-                'decision_source' => $riskAssessment['decision_source'] ?? null,
-                'missing_records' => $riskAssessment['missing_records'] ?? [],
-                'rule_reasons' => $riskAssessment['rule_reasons'] ?? [],
-                'ml_prediction' => $riskAssessment['ml_prediction'] ?? null,
-                'ml_valid' => $riskAssessment['ml_valid'] ?? false,
-                'next_visit_date' => $visit->next_visit_date ?: $riskAssessment['nextVisit']->toDateString(),
-            ]);
-
-            Log::info('Auto-recalculated risk assessment for patient ID: ' . $patientId . ', visit ID: ' . $visit->id);
-        }
+        $this->recalculationService->recalculateIncompleteVisits($patientId);
     }
 
     public function destroy($id)
