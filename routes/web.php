@@ -83,6 +83,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/referrals', [ReferralController::class, 'index'])
         ->name('referrals.index');
 
+    Route::get('/referrals/analytics', [ReferralController::class, 'analytics'])
+        ->name('referrals.analytics');
+
     Route::get('/referrals/{id}/print', [ReferralController::class, 'print'])
         ->name('referrals.print');
 
@@ -94,6 +97,9 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/risk-monitoring', [RiskMonitoringController::class, 'index'])
         ->name('risk.monitoring');
+
+    Route::get('/risk-monitoring/analytics', [RiskMonitoringController::class, 'analytics'])
+        ->name('risk.monitoring.analytics');
 
     Route::get('/audit-logs', [AuditLogController::class, 'index'])
         ->name('audit-logs.index');

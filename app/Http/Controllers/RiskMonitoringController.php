@@ -4,11 +4,36 @@ namespace App\Http\Controllers;
 
 use App\Models\PrenatalVisit;
 use App\Models\Patient;
+use App\Services\RiskAnalyticsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class RiskMonitoringController extends Controller
 {
+    public function __construct(private RiskAnalyticsService $riskAnalytics)
+    {
+    }
+
+    /**
+     * Normalize the month filter: 'all' or a missing/invalid value becomes
+     * null (All Months); integers 1–12 are kept. Anything else defaults to
+     * All Months so invalid input never reaches the analytics queries.
+     */
+    private function monthFilter($value): ?int
+    {
+        if ($value === 'all' || $value === null || $value === '') {
+            return null;
+        }
+
+        $month = (int) $value;
+
+        if ($month < 1 || $month > 12) {
+            return null;
+        }
+
+        return $month;
+    }
+
     private function latestVisitSubquery(): \Illuminate\Database\Query\Builder
     {
         return DB::table('prenatal_visits')
@@ -75,6 +100,8 @@ class RiskMonitoringController extends Controller
         $pendingRepeatCount = (clone $baseLatest)->where('bp_verification_status', 'PENDING_REPEAT')->count();
         $totalPatients = Patient::count();
 
+        $analytics = $this->riskAnalytics->get($this->monthFilter($request->month));
+
         return view('risk.monitoring', compact(
             'visits',
             'highRiskCount',
@@ -82,7 +109,16 @@ class RiskMonitoringController extends Controller
             'incompleteCount',
             'urgentBpCount',
             'pendingRepeatCount',
-            'totalPatients'
+            'totalPatients',
+            'analytics'
         ));
+    }
+
+    /**
+     * JSON analytics payload for the month filter (aggregated totals only).
+     */
+    public function analytics(Request $request)
+    {
+        return response()->json($this->riskAnalytics->get($this->monthFilter($request->month)));
     }
 }

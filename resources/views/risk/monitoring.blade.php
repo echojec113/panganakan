@@ -230,6 +230,87 @@
 </div>
         </div>
 
+        <!-- Risk Analytics -->
+        <div class="mb-6 sm:mb-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-gray-50 to-white">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-800">Risk Analytics</h3>
+                        <p id="riskAnalyticsSubtitle" class="text-xs sm:text-sm text-gray-500">Showing risk analytics for {{ $analytics['year'] ?? now()->year }}</p>
+                    </div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <label for="riskAnalyticsMonth" class="text-xs sm:text-sm text-gray-600 font-medium">Month</label>
+                        <select id="riskAnalyticsMonth" class="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                            <option value="">All Months</option>
+                            @for($m = 1; $m <= 12; $m++)
+                                <option value="{{ $m }}" {{ ($analytics['month'] ?? null) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::create(null, $m, 1)->format('F') }}</option>
+                            @endfor
+                        </select>
+                        <span id="riskAnalyticsLoading" class="text-xs text-gray-400" style="display:none;">Loading&hellip;</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4 sm:p-6 space-y-6">
+                <!-- High-Risk Trend (full width) -->
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm font-semibold text-gray-700">High-Risk Patients by Month</p>
+                        <span id="riskTrendEmpty" class="text-xs text-gray-400" style="display:none;">No risk assessment data available.</span>
+                    </div>
+                    <div class="chart-wrap" style="height:260px;">
+                        <canvas id="riskHighRiskTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p id="riskSummaryHighestTitle" class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Highest High-Risk Month</p>
+                        <p id="riskSummaryHighest" class="text-xl font-bold text-gray-800 mt-1">—</p>
+                        <p id="riskSummaryHighestSub" class="text-xs font-medium text-slate-500 mt-1" style="display:none;">—</p>
+                    </div>
+                    <div class="rounded-xl border border-gray-100 bg-gray-50 p-4">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Most Common Condition</p>
+                        <p id="riskSummaryCondition" class="text-xl font-bold text-gray-800 mt-1">—</p>
+                    </div>
+                </div>
+
+                <!-- Bar Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                    <div class="rounded-xl border border-gray-100 p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-semibold text-gray-700">Risk Distribution by Month</p>
+                            <span id="riskDistributionEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
+                        </div>
+                        <div class="chart-wrap" style="height:260px;">
+                            <canvas id="riskDistributionChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-gray-100 p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-semibold text-gray-700">Maternal Conditions by Month</p>
+                            <span id="riskConditionsEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
+                        </div>
+                        <div class="chart-wrap" style="height:260px;">
+                            <canvas id="riskConditionsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BP Follow-Up (full width) -->
+                <div class="rounded-xl border border-gray-100 p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="text-sm font-semibold text-gray-700">BP Follow-Up by Month</p>
+                        <span id="riskBpFollowUpEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
+                    </div>
+                    <div class="chart-wrap" style="height:260px;">
+                        <canvas id="riskBpFollowUpChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Patients List - Show all risk levels with decision source and evidence -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-gray-50 to-white">
@@ -585,4 +666,284 @@
             transition: transform 0.2s ease;
         }
     </style>
+
+    {{-- Risk Analytics Charts --}}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const initialAnalytics = {!! json_encode($analytics ?? []) !!};
+
+        const palette = {
+            blue: '#2563eb', emerald: '#059669', amber: '#d97706',
+            violet: '#7c3aed', red: '#dc2626', slate: '#64748b',
+            gridLine: 'rgba(0,0,0,0.04)',
+        };
+
+        const baseFont = { family: "'DM Sans', sans-serif", size: 12 };
+
+        const sharedTooltip = {
+            backgroundColor: '#0f172a',
+            titleFont: { ...baseFont, size: 12, weight: '600' },
+            bodyFont: { ...baseFont, size: 12 },
+            padding: 10,
+            cornerRadius: 8,
+            displayColors: true,
+            boxWidth: 10, boxHeight: 10, boxPadding: 4,
+        };
+
+        const charts = {};
+
+        function destroyChart(id) {
+            if (charts[id]) {
+                charts[id].destroy();
+                delete charts[id];
+            }
+        }
+
+        function makeChart(id, config) {
+            destroyChart(id);
+            const canvas = document.getElementById(id);
+            if (!canvas) return;
+            charts[id] = new Chart(canvas.getContext('2d'), config);
+        }
+
+        function toggleEmpty(canvasId, emptyId, hasData) {
+            const canvas = document.getElementById(canvasId);
+            const empty = document.getElementById(emptyId);
+            if (canvas) canvas.style.display = hasData ? 'block' : 'none';
+            if (empty) empty.style.display = hasData ? 'none' : 'block';
+        }
+
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value || '—';
+        }
+
+        function renderAnalytics(analytics) {
+            const summary = analytics.summary || {};
+            const isSingleMonth = !!analytics.month;
+            const subtitleEl = document.getElementById('riskAnalyticsSubtitle');
+
+            if (subtitleEl) {
+                subtitleEl.textContent = isSingleMonth
+                    ? 'Showing risk analytics for ' + ((analytics.labels || [])[0] || 'the selected month')
+                    : 'Showing risk analytics for ' + (analytics.year || '');
+            }
+
+            const noDataMessage = isSingleMonth
+                ? 'No risk analytics data for the selected month.'
+                : 'No risk assessment data available.';
+
+            ['riskTrendEmpty', 'riskDistributionEmpty', 'riskConditionsEmpty', 'riskBpFollowUpEmpty'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = noDataMessage;
+            });
+
+            const highestTitleEl = document.getElementById('riskSummaryHighestTitle');
+            const highestEl = document.getElementById('riskSummaryHighest');
+            const highestSubEl = document.getElementById('riskSummaryHighestSub');
+
+            if (isSingleMonth) {
+                const monthLabel = (analytics.labels || [])[0] || '—';
+                const monthCount = (analytics.highRiskTrend || [])[0] || 0;
+                if (highestTitleEl) highestTitleEl.textContent = 'Selected Month';
+                setText('riskSummaryHighest', monthLabel);
+                if (highestSubEl) {
+                    highestSubEl.style.display = 'block';
+                    highestSubEl.textContent = monthCount + (monthCount === 1 ? ' High-Risk Assessment' : ' High-Risk Assessments');
+                }
+            } else {
+                if (highestTitleEl) highestTitleEl.textContent = 'Highest High-Risk Month';
+                if (highestSubEl) highestSubEl.style.display = 'none';
+                setText('riskSummaryHighest', summary.highestHighRiskPeriod ? summary.highestHighRiskPeriod.label + ' · ' + summary.highestHighRiskPeriod.count : null);
+            }
+
+            setText('riskSummaryCondition', summary.mostCommonCondition ? summary.mostCommonCondition.name : null);
+
+            const trendTotal = (analytics.highRiskTrend || []).reduce((a, b) => a + b, 0);
+            const hasTrend = isSingleMonth ? trendTotal > 0 : (analytics.labels || []).length > 0;
+            toggleEmpty('riskHighRiskTrendChart', 'riskTrendEmpty', hasTrend);
+            if (hasTrend) {
+                makeChart('riskHighRiskTrendChart', {
+                    type: 'line',
+                    data: {
+                        labels: analytics.labels,
+                        datasets: [{
+                            label: 'High Risk',
+                            data: analytics.highRiskTrend,
+                            borderColor: palette.red,
+                            backgroundColor: (c) => {
+                                const g = c.chart.ctx.createLinearGradient(0, 0, 0, 260);
+                                g.addColorStop(0, 'rgba(220,38,38,0.14)');
+                                g.addColorStop(1, 'rgba(220,38,38,0)');
+                                return g;
+                            },
+                            borderWidth: 2.5,
+                            tension: 0.45,
+                            fill: true,
+                            pointBackgroundColor: palette.red,
+                            pointBorderColor: '#ffffff',
+                            pointBorderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: sharedTooltip },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: palette.gridLine },
+                                ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
+                                border: { display: false },
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: baseFont, color: '#94a3b8' },
+                                border: { display: false },
+                            }
+                        }
+                    }
+                });
+            }
+
+            const dist = analytics.riskDistribution || { high: [], low: [], incomplete: [] };
+            const distSeries = [dist.high || [], dist.low || [], dist.incomplete || []];
+            const distTotal = distSeries.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0);
+            const hasDist = (analytics.labels || []).length > 0 && distTotal > 0;
+            toggleEmpty('riskDistributionChart', 'riskDistributionEmpty', hasDist);
+            if (hasDist) {
+                makeChart('riskDistributionChart', {
+                    type: 'bar',
+                    data: {
+                        labels: analytics.labels,
+                        datasets: [
+                            { label: 'High', data: dist.high, backgroundColor: palette.red, borderRadius: 4, borderSkipped: false },
+                            { label: 'Low', data: dist.low, backgroundColor: palette.emerald, borderRadius: 4, borderSkipped: false },
+                            { label: 'Incomplete', data: dist.incomplete, backgroundColor: palette.amber, borderRadius: 4, borderSkipped: false },
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } },
+                            tooltip: sharedTooltip,
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: palette.gridLine },
+                                ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
+                                border: { display: false },
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: baseFont, color: '#94a3b8' },
+                                border: { display: false },
+                            }
+                        }
+                    }
+                });
+            }
+
+            const conds = analytics.conditions || { Hypertension: [], Diabetes: [], Anemia: [] };
+            const condSeries = [conds.Hypertension || [], conds.Diabetes || [], conds.Anemia || []];
+            const condTotal = condSeries.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0);
+            const hasConds = (analytics.labels || []).length > 0 && condTotal > 0;
+            toggleEmpty('riskConditionsChart', 'riskConditionsEmpty', hasConds);
+            if (hasConds) {
+                makeChart('riskConditionsChart', {
+                    type: 'bar',
+                    data: {
+                        labels: analytics.labels,
+                        datasets: [
+                            { label: 'Hypertension', data: conds.Hypertension, backgroundColor: palette.blue, borderRadius: 4, borderSkipped: false },
+                            { label: 'Diabetes', data: conds.Diabetes, backgroundColor: palette.amber, borderRadius: 4, borderSkipped: false },
+                            { label: 'Anemia', data: conds.Anemia, backgroundColor: palette.violet, borderRadius: 4, borderSkipped: false },
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } },
+                            tooltip: sharedTooltip,
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: palette.gridLine },
+                                ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
+                                border: { display: false },
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: baseFont, color: '#94a3b8' },
+                                border: { display: false },
+                            }
+                        }
+                    }
+                });
+            }
+
+            const bp = analytics.bpFollowUp || { urgent: [], pendingRepeat: [], cleared: [] };
+            const bpSeries = [bp.urgent || [], bp.pendingRepeat || [], bp.cleared || []];
+            const bpTotal = bpSeries.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0);
+            const hasBp = (analytics.labels || []).length > 0 && bpTotal > 0;
+            toggleEmpty('riskBpFollowUpChart', 'riskBpFollowUpEmpty', hasBp);
+            if (hasBp) {
+                makeChart('riskBpFollowUpChart', {
+                    type: 'bar',
+                    data: {
+                        labels: analytics.labels,
+                        datasets: [
+                            { label: 'Urgent', data: bp.urgent, backgroundColor: palette.red, borderRadius: 4, borderSkipped: false },
+                            { label: 'Pending Repeat', data: bp.pendingRepeat, backgroundColor: palette.amber, borderRadius: 4, borderSkipped: false },
+                            { label: 'Cleared', data: bp.cleared, backgroundColor: palette.emerald, borderRadius: 4, borderSkipped: false },
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } },
+                            tooltip: sharedTooltip,
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                grid: { color: palette.gridLine },
+                                ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
+                                border: { display: false },
+                            },
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: baseFont, color: '#94a3b8' },
+                                border: { display: false },
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        renderAnalytics(initialAnalytics);
+
+        const monthSelect = document.getElementById('riskAnalyticsMonth');
+        const loading = document.getElementById('riskAnalyticsLoading');
+
+        function loadAnalytics() {
+            if (!monthSelect) return;
+            const month = monthSelect.value;
+            if (loading) loading.style.display = 'inline';
+
+            fetch('{{ route('risk.monitoring.analytics') }}?month=' + encodeURIComponent(month))
+                .then((r) => r.json())
+                .then(renderAnalytics)
+                .catch(() => { /* keep previous charts on failure */ })
+                .finally(() => { if (loading) loading.style.display = 'none'; });
+        }
+
+        if (monthSelect) monthSelect.addEventListener('change', loadAnalytics);
+    });
+    </script>
 </x-app-layout>

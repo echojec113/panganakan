@@ -216,7 +216,7 @@ it('soft-deleted newest visit — latest non-deleted visit remains current', fun
 
 // ============ STAFF SCOPE TESTS ============
 
-it('staff dashboard shows only assigned patients — exact count', function () {
+it('staff dashboard shows clinic-wide counts matching admin', function () {
     $assigned = Patient::create([
         'first_name' => 'Assigned',
         'last_name' => 'Staff',
@@ -261,13 +261,19 @@ it('staff dashboard shows only assigned patients — exact count', function () {
         'assessment' => 'Other high',
     ]);
 
-    $response = actingAs($this->staff)->get(route('dashboard'));
-    $response->assertOk();
+    $staffResponse = actingAs($this->staff)->get(route('dashboard'));
+    $staffResponse->assertOk();
+    $adminResponse = actingAs($this->admin)->get(route('dashboard'));
+    $adminResponse->assertOk();
 
-    assertTestIdCount($response, 'staff-high-count', 1);
-    $response->assertSeeText('Assigned Staff');
-    $response->assertDontSee('Other Staff');
-    $response->assertDontSee('Other hypertension');
+    // Dashboard statistics are clinic-wide: staff sees the same HIGH count as admin.
+    assertTestIdCount($staffResponse, 'staff-high-count', 2);
+    assertTestIdCount($adminResponse, 'admin-high-count', 2);
+
+    // Both patients appear in the priority alerts, regardless of assignment.
+    $staffResponse->assertSeeText('Assigned Staff');
+    $staffResponse->assertSeeText('Other Staff');
+    $staffResponse->assertSeeText('Other hypertension');
 });
 
 it('admin dashboard shows patients regardless of staff assignment', function () {
@@ -318,6 +324,58 @@ it('admin dashboard shows patients regardless of staff assignment', function () 
     $response = actingAs($this->admin)->get(route('dashboard'));
     $response->assertOk();
     assertTestIdCount($response, 'admin-high-count', 2);
+});
+
+it('My Patients filter still shows only the logged-in staff assigned patients', function () {
+    $assigned = Patient::create([
+        'first_name' => 'Mine',
+        'last_name' => 'Patient',
+        'age' => 25,
+        'address' => 'Test',
+        'contact_number' => '09171234567',
+        'email' => 'mine@example.com',
+        'gravida' => 1,
+        'para' => 0,
+        'status' => 'ONGOING',
+        'assigned_staff_id' => $this->staff->id,
+    ]);
+
+    Patient::create([
+        'first_name' => 'Theirs',
+        'last_name' => 'Patient',
+        'age' => 30,
+        'address' => 'Test',
+        'contact_number' => '09171234567',
+        'email' => 'theirs@example.com',
+        'gravida' => 2,
+        'para' => 1,
+        'status' => 'ONGOING',
+        'assigned_staff_id' => $this->otherStaff->id,
+    ]);
+
+    $response = actingAs($this->staff)->get(route('patients.index', ['filter' => 'my']));
+    $response->assertOk();
+    $response->assertSeeText('Mine Patient');
+    $response->assertDontSeeText('Theirs Patient');
+});
+
+it('patient records still display the assigned staff owner', function () {
+    $patient = Patient::create([
+        'first_name' => 'Owner',
+        'last_name' => 'Check',
+        'age' => 25,
+        'address' => 'Test',
+        'contact_number' => '09171234567',
+        'email' => 'owner@example.com',
+        'gravida' => 1,
+        'para' => 0,
+        'status' => 'ONGOING',
+        'assigned_staff_id' => $this->staff->id,
+    ]);
+
+    $response = actingAs($this->staff)->get(route('patients.show', $patient->id));
+    $response->assertOk();
+    $response->assertSeeText($this->staff->name);
 });
 
 // ============ RISK MONITORING EXPLAINABILITY TESTS ============

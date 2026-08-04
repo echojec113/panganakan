@@ -1,6 +1,6 @@
 <x-app-layout>
 
-<div style="margin-left: var(--sidebar-width); background: var(--bg-base); min-height: 100vh; padding: 28px 30px;">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
 
     {{-- Header --}}
     <div style="margin-bottom: 24px;">
@@ -16,7 +16,7 @@
     @endif
 
     {{-- Stats Cards --}}
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+    <div class="ra-grid-3">
         {{-- Total --}}
         <div style="background: white; border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(30,70,140,0.06);">
             <p style="font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px;">Total Referrals</p>
@@ -33,6 +33,85 @@
         <div style="background: white; border: 1px solid var(--border); border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(30,70,140,0.06);">
             <p style="font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px;">Completed</p>
             <p style="font-size: 28px; font-weight: 700; color: #10b981;">{{ $completed }}</p>
+        </div>
+    </div>
+
+    {{-- Analytics Section --}}
+    <div class="ra-card" style="margin-bottom: 24px; overflow: hidden;">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;">
+            <div>
+                <p style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 2px;">Referral Analytics</p>
+                <p id="referralAnalyticsSubtitle" style="font-size: 12px; color: var(--text-muted);">Showing referral analytics for {{ $analytics['year'] ?? now()->year }}</p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <label for="referralAnalyticsMonth" style="font-size: 12px; color: var(--text-muted);">Month</label>
+                <select id="referralAnalyticsMonth" style="padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: white;">
+                    <option value="">All Months</option>
+                    @for($m = 1; $m <= 12; $m++)
+                        <option value="{{ $m }}" {{ ($analytics['month'] ?? null) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::create(null, $m, 1)->format('F') }}</option>
+                    @endfor
+                </select>
+                <span id="referralAnalyticsLoading" style="font-size: 12px; color: var(--text-muted); display: none;">Loading&hellip;</span>
+            </div>
+        </div>
+
+        <div style="padding: 20px;">
+            {{-- Summary Cards --}}
+            <div class="ra-grid-4">
+                <div class="ra-box">
+                    <p class="ra-title">Most Referred Hospital</p>
+                    <p id="referralSummaryHospital" class="ra-value">—</p>
+                </div>
+                <div class="ra-box">
+                    <p class="ra-title">Completion Rate</p>
+                    <p id="referralSummaryRate" class="ra-value">—</p>
+                </div>
+                <div class="ra-box">
+                    <p class="ra-title" id="referralSummaryBusiestTitle">Busiest Month</p>
+                    <p id="referralSummaryBusiest" class="ra-value">—</p>
+                    <p id="referralSummaryBusiestSub" class="ra-value-sub" style="display:none;">—</p>
+                </div>
+                <div class="ra-box">
+                    <p class="ra-title">Most Common Reason</p>
+                    <p id="referralSummaryReason" class="ra-value">—</p>
+                </div>
+            </div>
+
+            {{-- 2-col charts: trend + status --}}
+            <div class="ra-grid-2">
+                <div class="ra-chart-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <p class="ra-label" style="margin-bottom: 0;">Referrals by Month</p>
+                        <span id="referralTrendEmpty" class="ra-empty">No referral data available.</span>
+                    </div>
+                    <div class="ra-chart" style="margin-top: 10px;"><canvas id="referralTrendChart"></canvas></div>
+                </div>
+                <div class="ra-chart-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <p class="ra-label" style="margin-bottom: 0;">Pending vs Completed</p>
+                        <span id="referralStatusEmpty" class="ra-empty">No data available.</span>
+                    </div>
+                    <div class="ra-chart" style="margin-top: 10px;"><canvas id="referralStatusChart"></canvas></div>
+                </div>
+            </div>
+
+            {{-- 2-col charts: destinations + reasons --}}
+            <div class="ra-grid-2">
+                <div class="ra-chart-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <p class="ra-label" style="margin-bottom: 0;">Top Destinations</p>
+                        <span id="referralDestinationsEmpty" class="ra-empty">No data available.</span>
+                    </div>
+                    <div class="ra-chart" style="margin-top: 10px;"><canvas id="referralDestinationsChart"></canvas></div>
+                </div>
+                <div class="ra-chart-card">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <p class="ra-label" style="margin-bottom: 0;">Referral Reasons</p>
+                        <span id="referralReasonsEmpty" class="ra-empty">No data available.</span>
+                    </div>
+                    <div class="ra-chart" style="margin-top: 10px;"><canvas id="referralReasonsChart"></canvas></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -162,5 +241,313 @@
     </div>
 
 </div>
+
+<style>
+    .ra-card { background: white; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 3px rgba(30,70,140,0.06); }
+    .ra-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+    .ra-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .ra-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .ra-box {
+        background: var(--bg-base);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 92px;
+        height: 100%;
+    }
+    .ra-title { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 6px; }
+    .ra-value { font-size: 14px; font-weight: 600; color: var(--text-primary); word-break: break-word; }
+    .ra-value-sub { font-size: 12px; font-weight: 500; color: var(--text-muted); margin-top: 2px; }
+    .ra-label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
+    .ra-empty { font-size: 12px; color: var(--text-muted); display: none; text-align: right; }
+    .ra-chart { position: relative; height: 260px; }
+    .ra-chart-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    .ra-chart-card .ra-label { line-height: 1.3; }
+
+    @media (max-width: 1100px) {
+        .ra-grid-3 { grid-template-columns: repeat(2, 1fr); }
+        .ra-grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+        .ra-grid-3 { grid-template-columns: 1fr; }
+        .ra-grid-4 { grid-template-columns: 1fr; }
+        .ra-grid-2 { grid-template-columns: 1fr; }
+    }
+</style>
+
+{{-- Referral Analytics Charts --}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const initialAnalytics = {!! json_encode($analytics ?? []) !!};
+
+    const palette = {
+        blue: '#2563eb', emerald: '#059669', amber: '#d97706',
+        violet: '#7c3aed', red: '#dc2626', slate: '#64748b',
+        gridLine: 'rgba(0,0,0,0.04)',
+    };
+
+    const baseFont = { family: "'DM Sans', sans-serif", size: 12 };
+
+    const sharedTooltip = {
+        backgroundColor: '#0f172a',
+        titleFont: { ...baseFont, size: 12, weight: '600' },
+        bodyFont: { ...baseFont, size: 12 },
+        padding: 10,
+        cornerRadius: 8,
+        displayColors: true,
+        boxWidth: 10, boxHeight: 10, boxPadding: 4,
+    };
+
+    const charts = {};
+
+    function destroyChart(id) {
+        if (charts[id]) {
+            charts[id].destroy();
+            delete charts[id];
+        }
+    }
+
+    function makeChart(id, config) {
+        destroyChart(id);
+        const canvas = document.getElementById(id);
+        if (!canvas) return;
+        charts[id] = new Chart(canvas.getContext('2d'), config);
+    }
+
+    function toggleEmpty(canvasId, emptyId, hasData) {
+        const canvas = document.getElementById(canvasId);
+        const empty = document.getElementById(emptyId);
+        if (canvas) canvas.style.display = hasData ? 'block' : 'none';
+        if (empty) empty.style.display = hasData ? 'none' : 'block';
+    }
+
+    function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value || '—';
+    }
+
+    function renderAnalytics(analytics) {
+        const summary = analytics.summary || {};
+        const isSingleMonth = !!analytics.month;
+        const subtitleEl = document.getElementById('referralAnalyticsSubtitle');
+
+        if (subtitleEl) {
+            subtitleEl.textContent = isSingleMonth
+                ? 'Showing referral analytics for ' + ((analytics.labels || [])[0] || 'the selected month')
+                : 'Showing referral analytics for ' + (analytics.year || '');
+        }
+
+        const noDataMessage = isSingleMonth
+            ? 'No referral data for the selected month.'
+            : 'No referral data available.';
+
+        ['referralTrendEmpty', 'referralStatusEmpty', 'referralDestinationsEmpty', 'referralReasonsEmpty'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = noDataMessage;
+        });
+
+        setText('referralSummaryHospital', summary.mostReferredHospital ? summary.mostReferredHospital.label : null);
+        setText('referralSummaryRate', typeof summary.completionRate === 'number' ? summary.completionRate.toFixed(1) + '%' : null);
+        setText('referralSummaryReason', summary.mostCommonReason ? summary.mostCommonReason.label : null);
+
+        const busiestTitleEl = document.getElementById('referralSummaryBusiestTitle');
+        const busiestSubEl = document.getElementById('referralSummaryBusiestSub');
+        if (isSingleMonth) {
+            const monthLabel = (analytics.labels || [])[0] || '—';
+            const monthCount = (analytics.referralTrend || [])[0] || 0;
+            if (busiestTitleEl) busiestTitleEl.textContent = 'Selected Month Referrals';
+            setText('referralSummaryBusiest', monthLabel);
+            if (busiestSubEl) {
+                busiestSubEl.style.display = 'block';
+                busiestSubEl.textContent = monthCount + (monthCount === 1 ? ' Referral' : ' Referrals');
+            }
+        } else {
+            if (busiestTitleEl) busiestTitleEl.textContent = 'Busiest Month';
+            if (busiestSubEl) busiestSubEl.style.display = 'none';
+            setText('referralSummaryBusiest', summary.busiestPeriod ? summary.busiestPeriod.label + ' · ' + summary.busiestPeriod.count : null);
+        }
+
+        const trendTotal = (analytics.referralTrend || []).reduce((a, b) => a + b, 0);
+        const hasTrend = isSingleMonth ? trendTotal > 0 : (analytics.labels || []).length > 0;
+        toggleEmpty('referralTrendChart', 'referralTrendEmpty', hasTrend);
+        if (hasTrend) {
+            makeChart('referralTrendChart', {
+                type: 'line',
+                data: {
+                    labels: analytics.labels,
+                    datasets: [{
+                        label: 'Referrals',
+                        data: analytics.referralTrend,
+                        borderColor: palette.blue,
+                        backgroundColor: (c) => {
+                            const g = c.chart.ctx.createLinearGradient(0, 0, 0, 260);
+                            g.addColorStop(0, 'rgba(37,99,235,0.15)');
+                            g.addColorStop(1, 'rgba(37,99,235,0)');
+                            return g;
+                        },
+                        borderWidth: 2.5,
+                        tension: 0.45,
+                        fill: true,
+                        pointBackgroundColor: palette.blue,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, tooltip: sharedTooltip },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: palette.gridLine },
+                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
+                            border: { display: false },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: baseFont, color: '#94a3b8' },
+                            border: { display: false },
+                        }
+                    }
+                }
+            });
+        }
+
+        const status = analytics.statusTrend || { pending: [], completed: [] };
+        const hasStatus = hasTrend && (status.pending.concat(status.completed).reduce((a, b) => a + b, 0) > 0);
+        toggleEmpty('referralStatusChart', 'referralStatusEmpty', hasStatus);
+        if (hasStatus) {
+            makeChart('referralStatusChart', {
+                type: 'bar',
+                data: {
+                    labels: analytics.labels,
+                    datasets: [
+                        { label: 'Pending', data: status.pending, backgroundColor: palette.amber, borderRadius: 6, borderSkipped: false },
+                        { label: 'Completed', data: status.completed, backgroundColor: palette.emerald, borderRadius: 6, borderSkipped: false },
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } }, tooltip: sharedTooltip },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: palette.gridLine },
+                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
+                            border: { display: false },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: baseFont, color: '#94a3b8' },
+                            border: { display: false },
+                        }
+                    }
+                }
+            });
+        }
+
+        const dests = analytics.destinations || [];
+        toggleEmpty('referralDestinationsChart', 'referralDestinationsEmpty', dests.length > 0);
+        if (dests.length > 0) {
+            makeChart('referralDestinationsChart', {
+                type: 'bar',
+                data: {
+                    labels: dests.map((d) => d.label),
+                    datasets: [{
+                        label: 'Referrals',
+                        data: dests.map((d) => d.count),
+                        backgroundColor: palette.emerald,
+                        borderRadius: 6, borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                    plugins: { legend: { display: false }, tooltip: sharedTooltip },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: { color: palette.gridLine },
+                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 4 },
+                            border: { display: false },
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { font: baseFont, color: '#64748b' },
+                            border: { display: false },
+                        }
+                    }
+                }
+            });
+        }
+
+        const reasons = analytics.reasons || [];
+        toggleEmpty('referralReasonsChart', 'referralReasonsEmpty', reasons.length > 0);
+        if (reasons.length > 0) {
+            makeChart('referralReasonsChart', {
+                type: 'bar',
+                data: {
+                    labels: reasons.map((d) => d.label),
+                    datasets: [{
+                        label: 'Referrals',
+                        data: reasons.map((d) => d.count),
+                        backgroundColor: palette.violet,
+                        borderRadius: 6, borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                    plugins: { legend: { display: false }, tooltip: sharedTooltip },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: { color: palette.gridLine },
+                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 4 },
+                            border: { display: false },
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { font: baseFont, color: '#64748b' },
+                            border: { display: false },
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    renderAnalytics(initialAnalytics);
+
+    const monthSelect = document.getElementById('referralAnalyticsMonth');
+    const loading = document.getElementById('referralAnalyticsLoading');
+
+    function loadAnalytics() {
+        if (!monthSelect) return;
+
+        const month = monthSelect.value;
+        if (loading) loading.style.display = 'inline';
+
+        fetch('{{ route('referrals.analytics') }}?month=' + encodeURIComponent(month))
+            .then((r) => r.json())
+            .then(renderAnalytics)
+            .catch(() => { /* keep previous charts on failure */ })
+            .finally(() => { if (loading) loading.style.display = 'none'; });
+    }
+
+    if (monthSelect) monthSelect.addEventListener('change', loadAnalytics);
+});
+</script>
 
 </x-app-layout>

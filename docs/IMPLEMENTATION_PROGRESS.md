@@ -358,6 +358,8 @@ Correct Sprint 7 implementation issues without changing clinical assessment beha
 
 Admin dashboard remains clinic-wide and unchanged.
 
+> **Superseded by Sprint 13 (dashboard scope decision).** Patch 2's dashboard filtering was reverted by explicit product decision: `assigned_staff_id` remains for patient ownership, assigned-staff display, the My Patients filter, and accountability, but Staff dashboard statistics are now clinic-wide and match Admin. See the Sprint 13 entry below.
+
 **Files:** `app/Http/Controllers/DashboardController.php`
 
 ### Patch 3 — Soft-Delete Safety
@@ -1130,8 +1132,199 @@ Focused suites all green. Full suite: **233 passed, 3 failed** — the three fai
 
 Keeping the sync monotonic and one-way prevents a negative visit from silently erasing a staff-confirmed background condition, which would corrupt the pregnancy record and the patient's perceived continuity of care. Running the sync inside the visit's own transaction guarantees either the visit and its background update persist together or neither does. Restricting recalculation to ASSESSMENT INCOMPLETE visits protects the historical explainability of already-finalized HIGH/LOW assessments while still completing interrupted assessments once all required records exist.
 
+## Schema Reconciliation — Execute Pending BP Verification Migrations
+
+Status: Complete
+
+### Objective
+
+Execute the two authored-but-pending migrations on the dev MySQL database so the live `prenatal_visits` schema matches the code that has been writing and querying the BP verification fields since Sprint 10.
+
+### Background (verified)
+
+The codebase (model `$fillable`/`$casts`, `PrenatalVisitController::store()/update()`, `PatientAssessmentRecalculationService`, `DashboardController`, `RiskMonitoringController`, and the Blade views) has consistently read/written `urgency`, `bp_verification_status`, `bp_assessment`, and `repeat_bp_*` since Sprint 10. Those columns existed only in the in-memory SQLite test database (where all migration files run) and did NOT exist in the live MySQL `prenatal_visits` table. Consequences confirmed before this change:
+
+- `DashboardController` and `RiskMonitoringController` queries using `WHERE urgency = 'URGENT_CLINICAL_REVIEW'` or `WHERE bp_verification_status = 'PENDING_REPEAT'` threw `SQLSTATE[42S22]: Column not found`.
+- Saving or updating a prenatal visit (which persists these fields) failed on the live DB.
+- The two `2026_08_01_*` migration files were present but absent from the `migrations` table (unlike `notes`/`recommendation`, which had been reconciled manually).
+
+### Changes
+
+Executed via `php artisan migrate` (batch 17):
+
+- `2026_08_01_000001_add_bp_verification_to_prenatal_visits` — adds `repeat_bp_sys`, `repeat_bp_dia`, `repeat_bp_recorded_at`, `repeat_bp_recorded_by` (FK → users, nullOnDelete), `bp_verification_status` (varchar 30), `urgency` (varchar 30), `bp_assessment` (json). All nullable.
+- `2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table` — `hasColumn`-guarded reconciliation; no-op on this DB because `notes`/`recommendation` already exist (live `notes` remains `varchar(255)`, not `text`, and is left untouched).
+
+### Verification
+
+- `SHOW COLUMNS` confirms all seven BP columns now exist on the live `prenatal_visits` table.
+- Both migrations recorded in the `migrations` table (batch 17).
+- Dashboard queries (`urgency` / `bp_verification_status`) now execute without error, returning 0 for all historical rows — correct, since no BP-URG/PENDING_REPEAT data was ever persisted before.
+- All 32 existing prenatal visits are untouched; no backfill performed (correctly, historical rows are non-urgent).
+
+### Test Results
+
+Full suite: **231 passed, 5 failed** (744 assertions).
+
+- 3 pre-existing, unrelated failures: ExampleTest guest redirect (302), ProfileTest soft-delete, RiskMonitoringStatusTest referral 403. Unchanged.
+- 2 `MachineLearningServiceTest` integration failures (`predict` with real low-risk/high-risk profiles → `valid` false): **environment issue, not a schema regression.** `.env` `PYTHON_PATH=C:\Users\BJ\maternity-system\venv\Scripts\python.exe` does not exist on this machine (no `C:\Users\BJ` directory), so `MachineLearningService::resolvePython()` falls back to the system Python (3.14.6), which lacks `joblib`/`pandas`/`scikit-learn`; `predict.py` emits a `ModuleNotFoundError` traceback and the structured result is invalid. This is unrelated to the migration and was failing on this machine before execution. Fix requires a working Python env with the ML packages and a correct `PYTHON_PATH` in `.env` — not modified in this sprint.
+
+### Design Notes
+
+- This was a pure schema reconciliation: no code, clinical logic, thresholds, decision hierarchy, or UI were modified.
+- The `urgency` column is the canonical source for urgent-clinical-review identification; no replacement field or string-matching fallback was introduced.
+- Historical rows intentionally remain non-urgent; the Urgent BP / Pending Repeat dashboards populate for new visits only.
+
+### Files Modified
+
+- `docs/IMPLEMENTATION_PROGRESS.md` — this entry
+
+### Records NOT Modified
+
+- No code (services, controllers, models, routes, views) modified.
+- No clinical thresholds or decision hierarchy changed.
+- No `.env` changes.
+- No Python files changed.
+
+## Sprint 12 — Risk & Referral Analytics (Chart.js, DB-Driven)
+
+### Objective
+
+Add a professional, database-driven analytics section to the existing Risk Monitoring (`/risk-monitoring`) and Referral Management (`/referrals`) pages using the same Chart.js 4.4.0 CDN pattern already established on the Admin Dashboard. Charts render only real DB data (no hardcoded values) and live **only** on their respective pages. Admin/Staff dashboards, tables, filters, search, Print, and Complete actions are untouched.
+
+### Approved Decisions
+
+1. **Cleared BP follow-up**: `bp_verification_status = 'REPEAT_COMPLETED'` AND `repeat_bp_sys < 140` AND `repeat_bp_dia < 90`. `NOT_REQUIRED` is deliberately excluded.
+2. **Aggregation approach**: PHP bucketing over the bounded latest-visit row set (portable across MySQL and the SQLite test suite). The latest-visit-per-patient selection stays in SQL (`MAX(id) ... GROUP BY patient_id ... deleted_at IS NULL`), identical to the page's KPI counts.
+3. **Monthly-only, rolling 12 months**: every chart and summary uses a single monthly dataset — the latest 12 calendar months ending at the most recent data point. Gaps are zero-filled so the trend stays continuous; if data spans fewer than 12 months, only the available months are shown in chronological order. The dataset is the same for all charts on a page, so every number reconciles.
+
+### New Files
+
+- `app/Services/AnalyticsService.php` — abstract base: `monthlySeries()` (rolling 12-month zero-filled monthly buckets, used by Risk only), `monthsInYear()` (Jan–Dec keys/labels for a year), `maxPeriod` (ties → earliest), `normalizeLabel`/`groupedTop` (trim + collapse whitespace + case-insensitive grouping, first-seen display label, top-N cap), `mostCommon`.
+- `app/Services/RiskAnalyticsService.php` — `get()` returns `labels`, `highRiskTrend`, and per-month keyed arrays `riskDistribution{high[],low[],incomplete[]}`, `conditions{Hypertension[],Diabetes[],Anemia[]}` (unique patients per condition per month, no double count), `bpFollowUp{urgent[],pendingRepeat[],cleared[]}` (one value per month), plus `summary{highestHighRiskPeriod, mostCommonCondition}`. `highestHighRiskPeriod` is the busiest month in the trend (via `maxPeriod`); `mostCommonCondition` is computed from the totals of the same monthly arrays. Canonical constants mirror `BloodPressureAssessmentService` (`URGENT_CLINICAL_REVIEW`, `PENDING_REPEAT`, `REPEAT_COMPLETED`).
+- `app/Services/ReferralAnalyticsService.php` — `get(?int $year = null, ?int $month = null)` returns `year`, `month`, `availableYears`/`availableMonths` (real DB values), `labels`, `referralTrend`, `statusTrend{pending,completed}`, `destinations[]` (top 8), `reasons[]` (top 8), `summary{mostReferredHospital, completionRate, busiestPeriod, mostCommonReason}` — all scoped to the filtered year/month window, so "Most Referred Hospital", "Completion Rate", "Most Common Reason", and the Top Destinations/Reasons rankings all reflect the filtered period. Completion rate = `completed/(pending+completed)×100` (0-divide guard; `Cancelled` excluded from the denominator, consistent with the page's Pending/Completed KPI cards). `referrals` has no `deleted_at`, so no soft-delete filter is applied.
+- `tests/Feature/RiskAnalyticsTest.php` (13 tests) and `tests/Feature/ReferralAnalyticsTest.php` (14 tests).
+
+### Modified Files
+
+- `app/Http/Controllers/RiskMonitoringController.php` — constructor-injected `RiskAnalyticsService`; `index()` passes the monthly analytics array (no period parameter, no JSON endpoint).
+- `app/Http/Controllers/ReferralController.php` — constructor-injected `ReferralAnalyticsService`; `index()` passes the default (latest-year, All Months) analytics array; `analytics()` returns the JSON payload for the month/year filter.
+- `resources/views/risk/monitoring.blade.php` — analytics section inserted between the KPI grid and the Patient Assessments table: full-width High-Risk trend line chart → 2 summary cards (Highest High-Risk Month, Most Common Condition (Last 12 months)) → 2-col pair (Risk Distribution by Month + Maternal Conditions by Month, grouped bar charts) → full-width BP Follow-Up by Month grouped bar. No period selector. Uses the page's Tailwind design system; all canvases 260px, equal card heights, stacks below `lg`.
+- `resources/views/referrals/index.blade.php` — analytics section between the 3 KPI cards and the table card, using the page's CSS-variable design system: centered page wrapper (no duplicate sidebar margin), compact Month/Year filter in the section header, 4 equal-height summary cards → two 2-col chart rows (Referrals by Month line + Pending vs Completed grouped bar; Top Destinations + Referral Reasons horizontal bars). Responsive classes collapse 4→2→1 summary cards and 2→1 chart columns via media queries. Selected-month mode swaps the Busiest Month card to "Selected Month Referrals".
+
+### Chart.js Lifecycle
+
+Both pages include `<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js">` (same 4.4.0 CDN as the Admin Dashboard) plus an inline script that registers chart instances per canvas. The Risk Monitoring page renders the server-passed analytics on load only. The Referral page also renders server-passed analytics on load and additionally fetches `referrals.analytics` when the Month/Year selects change, re-rendering charts and summary cards with a loading indicator (table search/status forms are unaffected). Both pages show empty-state messages (canvas hidden) when a dataset is empty — no NaN/undefined, no divide-by-zero, no console errors. Palette/tooltip/fonts mirror the dashboard (`#2563eb`, `#059669`, `#d97706`, `#7c3aed`, `#dc2626`, DM Sans 12px, tooltip `#0f172a`).
+
+### Counting Rules Enforced
+
+- Latest assessment per patient only (matches `highRiskCount`/`lowRiskCount`/`incompleteCount` KPI counts).
+- Soft-deleted visits excluded (`deleted_at IS NULL`), matching the page.
+- Structured fields only — no text matching (risk level, urgency, BP status, visit boolean columns).
+- Garbage legacy risk strings (e.g., the historical Python-path error saved as a risk level) match no canonical level and are excluded from the distribution, same treatment the page table already gives them.
+- Destinations/reasons normalized in PHP only (trim, collapse internal spaces, case-insensitive) for analytics; stored DB values are never modified (verified by test).
+
+### Refinement (approved): Monthly-Only, Rolling 12 Months
+
+- The Quarterly/Yearly aggregation, the period selector, and the `/analytics` JSON endpoints were removed from both pages and controllers. All aggregation is now **monthly only**.
+- Every chart on a page uses the **same monthly dataset** (latest 12 calendar months ending at the most recent data point, zero-filled, chronological), so all charts and summaries stay consistent with one another.
+- Referral destinations, reasons, most-referred hospital, and completion rate are now scoped to the same rolling 12-month window (previously all-time aggregates); the labels read "(Last 12 months)".
+
+### Refinement (approved): Referral Month/Year Filter, Centering, and Alignment
+
+**Scope:** Referral Management page only. Risk Monitoring analytics are untouched.
+
+- **Month/Year filter.** The referral analytics header now has a compact Month dropdown (All Months + real months with data) and a Year dropdown (distinct years descending, from real `referral_date` values — no hardcoded lists). A JSON endpoint `GET /referrals/analytics?year=&month=` (restored at `routes/web.php`, auth group) serves the filtered dataset via `ReferralController::analytics()`; the page fetches it on select change (with a `Loading&hellip;` indicator) and re-renders charts without reloading. No value is selected → `null`, which falls back to the latest year with data (or `now()->year` when there is no data) and All Months. The referral table's search/status forms are separate GET requests and remain unaffected.
+- **`ReferralAnalyticsService::get(?int $year = null, ?int $month = null)`** is now year-scoped: All Months returns a zero-filled 12-month series for the year (Jan–Dec via the new `AnalyticsService::monthsInYear()`); a selected month returns a single `M Y` bucket. `availableYears`/`availableMonths` (ascending, from real dates) drive the dropdowns. Destinations, reasons, completion rate, and the busiest period are all computed over the filtered year/month window. `monthlySeries()` is now used only by `RiskAnalyticsService`.
+- **Centering fix.** The page wrapper previously stacked its own `margin-left: var(--sidebar-width)` on top of the app layout's existing sidebar offset, pushing content too far right. It now uses a centered container (`max-width: 1200px; margin-inline: auto`) matching the Risk Monitoring page's centering.
+- **Balanced layout.** The analytics section now reads: 4 summary cards in one row (Most Referred Hospital, Completion Rate, Busiest Month, Most Common Reason) → two 2-col chart rows (Referrals by Month + Pending vs Completed, then Top Destinations + Referral Reasons). All cards are equal-height/equal-width via CSS (`ra-box` flex column, `.ra-chart-card`), canvases stay 260px, titles wrap cleanly, and the existing media queries collapse 4→2→1 summary cards and 2→1 chart columns (1100px/768px). "(Last 12 months)" suffixes were removed from all labels.
+- **Selected-month summary card.** With a month selected, the "Busiest Month" card becomes "Selected Month Referrals" showing the month and its referral count (`referralSummaryBusiestSub`). With All Months it reverts to "Busiest Month".
+- **Empty states.** A month with no data renders a single zero-filled bucket with no chart, "—" summary values, and a 0.0% completion rate — no NaN/undefined, no console errors.
+
+### Refinement (approved): Single Month Filter — Current Calendar Year (both pages)
+
+**Scope:** Risk Monitoring and Referral Management analytics. Admin/Staff dashboards untouched.
+
+- **One Month dropdown only.** Both analytics headers now have a single compact Month dropdown: **All Months** + **January…December** (always all 12, rendered statically in Blade — never derived from the database). The **Year dropdown was removed entirely** from both pages (UI, JS state, query params, controller/service year handling, and `availableYears`/`availableMonths`). No unused or hidden year field remains.
+- **Current calendar year is automatic.** Each service resolves `$year = (int) Carbon::now()->year` server-side; no year is hardcoded, no year parameter flows anywhere. The scope rolls to the new year automatically on January 1.
+- **All Months** → the calendar axis `Jan…Dec` for the current year (always 12 labels in order, zero-filled; empty months are kept). **Specific month** → a single `M Y` bucket (`Jul 2026`) filtered to `referral_date` / `visit_date` in that month **and** the current year. The DB remains the source of truth; no dummy records are created.
+- **JSON endpoints (no full reload):** `GET /risk-monitoring/analytics?month=all|1..12` (new) and `GET /referrals/analytics?month=all|1..12` (updated). Month input is validated on the server: `all`, empty/missing, or anything outside 1–12 safely defaults to All Months — invalid strings never reach the queries. `index()` also reads the validated `month` so a reload keeps the selection.
+- **No-data behavior.** A month with no records stays selectable. Charts hide/clear (canvases destroyed before re-render — no stale values), summaries show "—", Completion Rate shows 0%, and the empty-state text reads **"No risk analytics data for the selected month."** / **"No referral data for the selected month."** (All Months keeps the neutral messages). No NaN/undefined, no errors.
+- **Selected-month summary labels.** Risk: "Highest High-Risk Month" → **"Selected Month"** (+ HIGH-count sub-line). Referral: "Busiest Month" → **"Selected Month Referrals"** (month + referral count). All Months restores the original labels. Risk "Most Common Condition (Last 12 months)" → **"Most Common Condition"**.
+- **New helper:** `AnalyticsService::monthBuckets(int $year, ?int $month)` returns the 12-key short-label axis (`Jan`…`Dec`) or a single `Y-m`/`M Y` bucket. `RiskAnalyticsService::get(?int $month = null)` and `ReferralAnalyticsService::get(?int $month = null)` both use it; `latestAssessments()` is year/month-filtered; `monthlySeries()`/`monthsInYear()` are no longer used by either service.
+- **Referral page design.** The extra light-blue panel (`background: var(--bg-base)` on the page wrapper, painted inside the app's white `page-shell`) was removed. The wrapper now uses the same centered container as the other tabs (`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8`) — no duplicated sidebar margin, no second colored background. Visual order: title → 3 KPI cards → analytics header (Month dropdown beside the title) → 4 summary cards → 2-col chart rows → search/status → table, all sharing one centered width with equal side margins and left-aligned labels. KPI grid is now responsive (`ra-grid-3`: 3 → 2 → 1); summary cards `ra-grid-4` (4 → 2 → 1) and charts `ra-grid-2` (2 → 1) retain their media queries; the month dropdown wraps below the heading on mobile.
+
+### Test Results
+
+- New suites: `RiskAnalyticsTest` 16 passed, `ReferralAnalyticsTest` 14 passed (30 tests, 141 assertions).
+- Full suite: **261 passed, 5 failed** (885 assertions). The 5 failures are the documented pre-existing ones: 2 `MachineLearningServiceTest` integration failures (machine lacks the `C:\Users\BJ\...\venv` Python from `.env`; `joblib` `ModuleNotFoundError`) and 3 doc-linked failures (ExampleTest guest redirect 302, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403). **Zero new regressions.**
+
+### Known Pre-Existing Note (not introduced here)
+
+`RiskMonitoringController::index()` search uses `orWhereRaw("CONCAT(first_name, ' ', last_name) like ?")`, which is MySQL-compatible but not SQLite-compatible (`no such function: CONCAT`). It works in MySQL production; it only errors when the SQLite test DB is queried with a `search` term. No existing test exercised that path. Left unchanged this sprint per the "never rewrite working code" rule; the new test suite verifies filter behavior without the search parameter.
+
+### Design Defense
+
+- PHP bucketing over one-row-per-patient (bounded by patient count) keeps a single portable code path that passes the SQLite test suite and runs in production MySQL, and is well within clinic-scale volumes (32 visits, 2 referrals). SQL-side bucketing would branch by driver for no practical gain at this size.
+- Monthly is the primary clinic trend granularity (matches how the clinic reviews workload month to month); a rolling 12-month window shows a full year of trend without growing unbounded. One shared dataset per page keeps every chart and summary reconcilable and removes client-side period state entirely (no selectors, no fetch, no destroy/recreate).
+- Analytics scope mirrors the page's KPI counts (all latest assessments, unaffected by `search`/`risk_filter`), so chart totals reconcile with the KPI cards — the same inconsistency the page already documents (KPI counts are filter-free).
+- Charts are additive; the existing tables, filters, search, Print, Complete, and navigation render unchanged and are regression-tested.
+
+### Files NOT Modified
+
+- Admin Dashboard, Staff Dashboard, models, migrations, clinical thresholds, decision hierarchy, `.env`, Python files, and the `referrals` table are untouched.
+
+## Sprint 13 — Staff Dashboard Clinic-Wide Statistics (Dashboard Scope Decision)
+
+Status: Complete
+
+### Objective
+
+Make Staff dashboard KPIs and alert counts clinic-wide, exactly matching the Admin dashboard calculations. `assigned_staff_id` remains in the system for patient ownership, assigned-staff display, the My Patients filter, printing/export, and accountability — it is only removed from dashboard statistics.
+
+### Change — `app/Http/Controllers/DashboardController.php`
+
+`staffDashboard()` previously scoped every query with `whereHas('patient', fn($q) => $q->where('assigned_staff_id', $staffId))` (and `Patient::where('assigned_staff_id', $staffId)` for the quick stats). All of that scoping was removed:
+
+- `$staffId` and the `$assignedPatient` closure were deleted.
+- **Patients Today / Appointments Today / Pending Checkups** — no longer staff-scoped.
+- **HIGH / LOW / ASSESSMENT INCOMPLETE risk counts** (`$staffHighRiskCount`, `$staffLowRiskCount`, `$staffIncompleteCount`) — now identical to Admin's `countLatestByRisk()` (same latest-visit-per-patient subquery, same `risk_level` filter, no assignment constraint).
+- **HIGH priority alerts list** (`$highRiskAlerts`) — clinic-wide (still latest-per-patient, `take(5)`).
+- **Upcoming Appointments / Follow-up Tasks / Recent Visits** — no longer staff-scoped.
+- **Total Patients / Active Patients** — now `Patient::count()` and `Patient::where('status', 'ONGOING')->count()`, matching Admin.
+- **Urgent BP / Pending Repeat counts** (`$staffUrgentBpCount`, `$staffPendingRepeatCount`) — clinic-wide, matching Admin.
+
+View variable names were preserved so `resources/views/dashboards/staff.blade.php` renders unchanged. Admin dashboard code was not touched.
+
+### What Was NOT Changed (kept intact)
+
+- `assigned_staff_id` column, migration, `Patient`/`User` relations and `fillable`.
+- `PatientController::store()` still assigns `assigned_staff_id = auth()->id()` on creation.
+- `PatientController::index()` "My Patients" filter (`?filter=my`) still scopes by the logged-in staff.
+- Assigned-staff display on `patients/index.blade.php` and `patients/show.blade.php`.
+- Risk Monitoring, Referrals, Patient Records, printing/export — untouched.
+
+### Tests — `tests/Feature/ExplainabilitySprint7Test.php`
+
+- Rewrote "staff dashboard shows only assigned patients" → **"staff dashboard shows clinic-wide counts matching admin"**: a HIGH patient assigned to the logged-in staff and a HIGH patient assigned to another staff now both count; asserts `staff-high-count = 2` AND `admin-high-count = 2`, and both patient names appear in the priority alerts.
+- Added **"My Patients filter still shows only the logged-in staff assigned patients"** — verifies the preserved `?filter=my` scoping.
+- Added **"patient records still display the assigned staff owner"** — verifies assigned-staff display on the patient profile still works.
+
+### Test Results
+
+- Full suite: **263 passed, 5 failed** (892 assertions). The 5 failures are the documented pre-existing ones (2 `MachineLearningServiceTest` venv/joblib, ExampleTest guest redirect 302, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403). **Zero new regressions.**
+
+### Design Defense
+
+- Dashboard KPI cards, alert lists, and quick stats are operational roll-ups for the clinic, not per-worker task lists; the staff's personal queue remains available via the Patients page "My Patients" tab, which still uses `assigned_staff_id`. This keeps ownership data authoritative without distorting clinic-wide statistics.
+- Staff and Admin now share one query path (`countLatestByRisk()` / `latestVisitSubquery()`), removing the previous fork where the same concept (e.g., HIGH risk) displayed two different numbers depending on role.
+
+### Files NOT Modified
+
+- Risk Monitoring, Referrals, Patient Records, models, migrations, clinical thresholds, `.env`, Python files.
+
 ## Next Planned Work
 
 1. MAT-WARN evaluation and referral integration remains **deferred and requires clinical approval** (symptom → action-level mapping is NOT implemented; Sprint 11 deliberately confirmed the fields are record-only). This is a decision for a future, separately approved sprint.
-2. Execute migrations `2026_08_01_000001_add_bp_verification_to_prenatal_visits.php` and `2026_08_01_000002_add_notes_and_recommendation_to_prenatal_visits_table.php` after manual inspection.
+2. Resolve the machine-specific ML environment: create/point `PYTHON_PATH` to a Python environment with `joblib`, `pandas`, and `scikit-learn` so the two `MachineLearningServiceTest` integration tests pass and the live ML path works.
 3. Keep EDD outcome monitoring for a later dedicated sprint.

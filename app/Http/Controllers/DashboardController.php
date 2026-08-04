@@ -215,23 +215,15 @@ class DashboardController extends Controller
      */
     private function staffDashboard()
     {
-        $staffId = auth()->id();
-
-        $assignedPatient = function ($q) use ($staffId) {
-            $q->where('assigned_staff_id', $staffId);
-        };
-
         // ======================
         // TODAY'S SUMMARY
         // ======================
 
         $today = Carbon::today();
         $patientsToday = PrenatalVisit::whereDate('visit_date', $today)
-            ->whereHas('patient', $assignedPatient)
             ->count();
         $appointmentsToday = $patientsToday;
         $pendingCheckups = PrenatalVisit::whereNull('next_visit_date')
-            ->whereHas('patient', $assignedPatient)
             ->count();
 
         // ======================
@@ -240,7 +232,6 @@ class DashboardController extends Controller
 
         $highRiskAlerts = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
-            ->whereHas('patient', $assignedPatient)
             ->whereIn('id', $this->latestVisitSubquery())
             ->latest()
             ->take(5)
@@ -252,15 +243,12 @@ class DashboardController extends Controller
 
         $staffHighRiskCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
             ->where('risk_level', 'HIGH')
-            ->whereHas('patient', $assignedPatient)
             ->count();
         $staffLowRiskCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
             ->where('risk_level', 'LOW')
-            ->whereHas('patient', $assignedPatient)
             ->count();
         $staffIncompleteCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
             ->where('risk_level', 'ASSESSMENT INCOMPLETE')
-            ->whereHas('patient', $assignedPatient)
             ->count();
 
         // ======================
@@ -268,7 +256,6 @@ class DashboardController extends Controller
         // ======================
 
         $upcomingAppointments = PrenatalVisit::with('patient')
-            ->whereHas('patient', $assignedPatient)
             ->whereBetween('visit_date', [Carbon::today(), Carbon::today()->addDays(7)])
             ->orderBy('visit_date')
             ->get();
@@ -278,7 +265,6 @@ class DashboardController extends Controller
         // ======================
 
         $followUpTasks = PrenatalVisit::with('patient')
-            ->whereHas('patient', $assignedPatient)
             ->whereNotNull('next_visit_date')
             ->where('next_visit_date', '>', Carbon::today())
             ->orderBy('next_visit_date')
@@ -289,31 +275,28 @@ class DashboardController extends Controller
         // TODAY'S QUICK STATS
         // ======================
 
-        $totalPatients = Patient::where('assigned_staff_id', $staffId)->count();
-        $activePatients = Patient::where('status', 'ONGOING')->where('assigned_staff_id', $staffId)->count();
+        $totalPatients = Patient::count();
+        $activePatients = Patient::where('status', 'ONGOING')->count();
 
         // ======================
         // RECENT VISITS (TODAY & YESTERDAY)
         // ======================
 
         $recentVisits = PrenatalVisit::with('patient')
-            ->whereHas('patient', $assignedPatient)
             ->whereBetween('visit_date', [Carbon::today()->subDay(), Carbon::today()])
             ->latest()
             ->take(10)
             ->get();
 
         // ======================
-        // URGENT BP & PENDING REPEAT COUNTS (STAFF-FILTERED)
+        // URGENT BP & PENDING REPEAT COUNTS (CLINIC-WIDE)
         // ======================
 
         $staffUrgentBpCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
             ->where('urgency', 'URGENT_CLINICAL_REVIEW')
-            ->whereHas('patient', $assignedPatient)
             ->count();
         $staffPendingRepeatCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
             ->where('bp_verification_status', 'PENDING_REPEAT')
-            ->whereHas('patient', $assignedPatient)
             ->count();
 
         return view('dashboards.staff', compact(

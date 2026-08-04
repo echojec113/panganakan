@@ -4,10 +4,35 @@ namespace App\Http\Controllers;
 
 use App\Models\Referral;
 use App\Models\Patient;
+use App\Services\ReferralAnalyticsService;
 use Illuminate\Http\Request;
 
 class ReferralController extends Controller
 {
+    public function __construct(private ReferralAnalyticsService $referralAnalytics)
+    {
+    }
+
+    /**
+     * Normalize the month filter: 'all' or a missing/invalid value becomes
+     * null (All Months); integers 1–12 are kept. Anything else defaults to
+     * All Months so invalid input never reaches the analytics queries.
+     */
+    private function monthFilter($value): ?int
+    {
+        if ($value === 'all' || $value === null || $value === '') {
+            return null;
+        }
+
+        $month = (int) $value;
+
+        if ($month < 1 || $month > 12) {
+            return null;
+        }
+
+        return $month;
+    }
+
     /**
      * Show all referrals
      */
@@ -36,7 +61,17 @@ class ReferralController extends Controller
         $pending = Referral::where('status', 'Pending')->count();
         $completed = Referral::where('status', 'Completed')->count();
 
-        return view('referrals.index', compact('referrals', 'total', 'pending', 'completed'));
+        $analytics = $this->referralAnalytics->get($this->monthFilter(request('month')));
+
+        return view('referrals.index', compact('referrals', 'total', 'pending', 'completed', 'analytics'));
+    }
+
+    /**
+     * JSON analytics payload (aggregated totals only) for the month filter.
+     */
+    public function analytics(Request $request)
+    {
+        return response()->json($this->referralAnalytics->get($this->monthFilter($request->month)));
     }
 
     /**
