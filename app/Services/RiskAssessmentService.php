@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Patient;
 use App\Models\Ultrasound;
 use App\ValueObjects\AssessmentResult;
+use App\ValueObjects\ClinicalFactorEvidence;
 
 class RiskAssessmentService
 {
@@ -13,19 +14,22 @@ class RiskAssessmentService
     private MachineLearningService $machineLearningService;
     private DecisionIntegrationService $decisionIntegrationService;
     private BloodPressureAssessmentService $bloodPressureAssessmentService;
+    private BloodPressureFactorEvidenceMapper $bloodPressureFactorEvidenceMapper;
 
     public function __construct(
         CompletenessValidator $completenessValidator,
         ClinicalRuleEngine $clinicalRuleEngine,
         MachineLearningService $machineLearningService,
         DecisionIntegrationService $decisionIntegrationService,
-        BloodPressureAssessmentService $bloodPressureAssessmentService
+        BloodPressureAssessmentService $bloodPressureAssessmentService,
+        BloodPressureFactorEvidenceMapper $bloodPressureFactorEvidenceMapper
     ) {
         $this->completenessValidator = $completenessValidator;
         $this->clinicalRuleEngine = $clinicalRuleEngine;
         $this->machineLearningService = $machineLearningService;
         $this->decisionIntegrationService = $decisionIntegrationService;
         $this->bloodPressureAssessmentService = $bloodPressureAssessmentService;
+        $this->bloodPressureFactorEvidenceMapper = $bloodPressureFactorEvidenceMapper;
     }
 
     public function assess(
@@ -51,10 +55,15 @@ class RiskAssessmentService
             $missingRecords = $this->completenessValidator
                 ->missingRequiredRecords($patient);
 
+            $bpEvidence = $this->serializeEvidence(
+                $this->bloodPressureFactorEvidenceMapper->toEvidence($bpResult)
+            );
+
             return $this->decisionIntegrationService->decideUrgentBp(
                 $missingRecords,
                 [$bpResult['label']],
-                $bpResult
+                $bpResult,
+                $bpEvidence
             );
         }
 
@@ -66,12 +75,20 @@ class RiskAssessmentService
 
         if (!empty($missingRecords)) {
             $bpAlert = $bpResult['triggered'] ? $bpResult : null;
+
+            // Only BP evidence may accompany a completeness result; no non-BP
+            // deterministic evaluation happens before completeness passes.
+            $bpEvidence = $this->serializeEvidence(
+                $this->bloodPressureFactorEvidenceMapper->toEvidence($bpResult)
+            );
+
             return $this->decisionIntegrationService->decide(
                 $missingRecords,
                 [],
                 null,
                 $bpResult['triggered'] ? $bpResult['urgency'] : null,
-                $bpAlert
+                $bpAlert,
+                $bpEvidence
             );
         }
 
@@ -82,14 +99,24 @@ class RiskAssessmentService
             ->latest()
             ->first();
 
-        $reasons = $this->clinicalRuleEngine->evaluate(
+        // Evaluate structured factors ONCE. The legacy reason strings are
+        // derived from the same evidence so the two can never drift apart.
+        $evidence = $this->clinicalRuleEngine->evaluateDetailed(
             $patient,
             $inputs,
             $ultrasound
         );
+        $reasons = array_map(
+            static fn (ClinicalFactorEvidence $factor) => $factor->label,
+            $evidence
+        );
 
         if ($bpResult['triggered']) {
+            $bpFactor = $this->bloodPressureFactorEvidenceMapper->toEvidence($bpResult);
             $reasons[] = $bpResult['label'];
+            if ($bpFactor !== null) {
+                $evidence[] = $bpFactor;
+            }
         }
 
         if (!empty($reasons)) {
@@ -98,7 +125,8 @@ class RiskAssessmentService
                 $reasons,
                 null,
                 $bpResult['urgency'] ?? null,
-                $bpResult['triggered'] ? $bpResult : null
+                $bpResult['triggered'] ? $bpResult : null,
+                $this->serializeEvidence($evidence)
             );
         }
 
@@ -115,7 +143,34 @@ class RiskAssessmentService
             [],
             $mlResult,
             null,
-            null
+            null,
+            []
         );
+    }
+
+    /**
+     * Serialize evidence objects (and already-serialized arrays) into the
+     * plain array-of-arrays contract expected by AssessmentResult persistence.
+     *
+     * @param ClinicalFactorEvidence|ClinicalFactorEvidence[]|array|null $evidence
+     * @return array<int, array<string, mixed>>
+     */
+    private function serializeEvidence(mixed $evidence): array
+    {
+        if ($evidence instanceof ClinicalFactorEvidence) {
+            return [$evidence->toArray()];
+        }
+        if (is_array($evidence)) {
+            $serialized = [];
+            foreach ($evidence as $item) {
+                if ($item instanceof ClinicalFactorEvidence) {
+                    $serialized[] = $item->toArray();
+                } elseif (is_array($item)) {
+                    $serialized[] = $item;
+                }
+            }
+            return $serialized;
+        }
+        return [];
     }
 }

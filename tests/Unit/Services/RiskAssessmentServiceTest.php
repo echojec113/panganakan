@@ -2,6 +2,7 @@
 
 use App\Models\Patient;
 use App\Services\BloodPressureAssessmentService;
+use App\Services\BloodPressureFactorEvidenceMapper;
 use App\Services\ClinicalRuleEngine;
 use App\Services\CompletenessValidator;
 use App\Services\DecisionIntegrationService;
@@ -28,7 +29,7 @@ function makeRiskAssessmentService(
         ->shouldReceive('missingRequiredRecords')->andReturn([])->getMock();
 
     $ruleEngine = $ruleEngine ?? Mockery::mock(ClinicalRuleEngine::class)
-        ->shouldReceive('evaluate')->andReturn([])->getMock();
+        ->shouldReceive('evaluateDetailed')->andReturn([])->getMock();
 
     $ml = $ml ?? Mockery::mock(MachineLearningService::class)
         ->shouldReceive('predict')->andReturn([
@@ -40,7 +41,8 @@ function makeRiskAssessmentService(
         $ruleEngine,
         $ml,
         new DecisionIntegrationService,
-        new BloodPressureAssessmentService
+        new BloodPressureAssessmentService,
+        new BloodPressureFactorEvidenceMapper
     );
 }
 
@@ -165,7 +167,7 @@ test('ml is never invoked on the complete bp-h path', function () {
     $ml->shouldReceive('predict')->never();
 
     $ruleEngine = Mockery::mock(ClinicalRuleEngine::class)
-        ->shouldReceive('evaluate')->andReturn([])->getMock();
+        ->shouldReceive('evaluateDetailed')->andReturn([])->getMock();
 
     $completeness = Mockery::mock(CompletenessValidator::class)
         ->shouldReceive('missingRequiredRecords')->andReturn([])->getMock();

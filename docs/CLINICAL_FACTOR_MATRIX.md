@@ -1857,3 +1857,22 @@ The CDSS provides advisory information to trained maternity staff. It does not:
 - Decide delivery mode or timing
 - Replace clinical judgment
 This positioning aligns with FDA 2026 CDS guidance, WHO AI ethics principles, and NICE evidence standards for digital health technologies. The system's primary clinical value is standardized risk flagging, referral support, documentation, and explainability — not autonomous decision-making.
+
+## Sprint 14 Addendum — Structured Clinical Factor Evidence
+
+### Purpose
+
+Each triggered deterministic factor now has a structured, immutable evidence record in addition to its legacy reason string. The clinical rules, thresholds, decision hierarchy, and BP behavior are unchanged; this addendum only documents how the explainability layer maps to code.
+
+### Evidence Object Model
+
+- **Registry** — `app/Support/ClinicalFactorRegistry.php` (metadata only, 11 codes: `AGE-Y`, `AGE-A`, `BP-H`, `BP-URG`, `DM-01`, `AN-01`, `CS-01`, `RM-03`, `US-P01`, `US-AF01`, `US-FH01`). Unknown codes return `null` and never receive invented metadata.
+- **Value Object** — `app/ValueObjects/ClinicalFactorEvidence.php` (immutable; eleven approved keys: code, label, category, source_type, source_fields, observed_value, threshold_or_rule, decision_effect, urgency, explanation, suggested_action).
+- **Rule engine** — `ClinicalRuleEngine::evaluateDetailed()` returns evidence in rule order; `evaluate()` remains a compatible label wrapper so legacy reason strings stay byte-identical.
+- **BP adapter** — `BloodPressureFactorEvidenceMapper` maps the Sprint 10 `bp_assessment` array to `BP-H`/`BP-URG` evidence only; unknown/not-triggered → no evidence.
+- **Decision integration** — `DecisionIntegrationService::decide()` / `decideUrgentBp()` carry `factor_evidence` through COMPLETENESS (BP alert only), RULE_BASED, and BP-URG paths; ML and ML_INVALID paths store `[]`.
+- **Persistence** — `PrenatalVisit.factor_evidence` (nullable JSON, array cast). Legacy records with `NULL` continue rendering via `rule_reasons`/`risk_reasons` fallbacks; no historical record is backfilled or rewritten.
+
+### Factor Metadata Reference
+
+Each registry entry carries: staff-friendly label, category (MATERNAL_DEMOGRAPHICS / VITAL_SIGNS / CURRENT_CONDITION / OBSTETRIC_HISTORY / ULTRASOUND), source type and fields, threshold-or-rule text, decision effect (HIGH), urgency, explanation, and suggested action. Placeholder labels (`{count}`, `{value}`) are always overridden by the rule engine at runtime (e.g., `History of 3 miscarriage(s)`, `Abnormal fetal presentation (BREECH)`).

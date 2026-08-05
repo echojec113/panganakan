@@ -147,6 +147,14 @@
                     } elseif ($ds === null) {
                         $decisionPath = 'This assessment predates structured explanation metadata. Detailed decision reconstruction is unavailable.';
                     }
+                    $structuredFactors = \App\ValueObjects\ClinicalFactorEvidence::normalizeList($latestVisit->factor_evidence);
+                    $factorSourceLabels = [
+                        'MATERNAL_DEMOGRAPHICS' => 'Maternal demographics',
+                        'VITAL_SIGNS' => 'Vital signs',
+                        'CURRENT_CONDITION' => 'Current condition',
+                        'OBSTETRIC_HISTORY' => 'Obstetric history',
+                        'ULTRASOUND' => 'Ultrasound finding',
+                    ];
                 @endphp
 
                 <div class="row"><div class="label">Final Risk Assessment</div><div class="value">{{ $riskLabel }}</div></div>
@@ -175,7 +183,36 @@
                 </div>
                 @endif
 
-                @if($ds === 'RULE_BASED' && !empty($latestVisit->rule_reasons))
+                @if(!empty($structuredFactors))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Structured Clinical Factors:</div>
+                    <table style="width:100%;border-collapse:collapse;margin:6px 0 10px 0;font-size:12px;">
+                        <thead>
+                            <tr style="background:#f9fafb;">
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Factor</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Code</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Source</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Observed</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Rule / Threshold</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Explanation / Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($structuredFactors as $factor)
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">{{ $factor['label'] ?? '' }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-family:monospace;">{{ $factor['code'] ?? '' }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ $factorSourceLabels[$factor['category'] ?? ''] ?? ($factor['category'] ?? '') }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ \App\ValueObjects\ClinicalFactorEvidence::displayObserved($factor['observed_value'] ?? null) }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ $factor['threshold_or_rule'] ?? '' }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">
+                                    {{ $factor['explanation'] ?? '' }}
+                                    @if(!empty($factor['suggested_action']))<br><em>Action: {{ $factor['suggested_action'] }}</em>@endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @elseif($ds === 'RULE_BASED' && !empty($latestVisit->rule_reasons))
                     <div style="margin-top:8px;font-weight:600;color:#374151;">Triggered Clinical Rules:</div>
                     <ul style="margin:4px 0 10px 20px;font-size:13px;color:#555;">
                         @foreach($latestVisit->rule_reasons as $rule)

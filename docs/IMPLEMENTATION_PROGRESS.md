@@ -1323,6 +1323,54 @@ View variable names were preserved so `resources/views/dashboards/staff.blade.ph
 
 - Risk Monitoring, Referrals, Patient Records, models, migrations, clinical thresholds, `.env`, Python files.
 
+## Sprint 14 — Structured Clinical Factor Evidence
+
+Status: Complete
+
+### Objective
+
+Convert the deterministic CDSS rule outputs (currently plain reason strings) into a structured, immutable, staff-safe clinical-factor evidence model. Every existing rule, threshold, BP behavior, reason string, and decision hierarchy is preserved exactly; the change only adds an explainability layer on top. No clinical thresholds, decision-source hierarchy, BP thresholds, or ML/Python behavior were changed.
+
+### New Files
+
+- `app/Support/ClinicalFactorRegistry.php` — metadata-only registry of the eleven allowed factor codes (`AGE-Y`, `AGE-A`, `BP-H`, `BP-URG`, `DM-01`, `AN-01`, `CS-01`, `RM-03`, `US-P01`, `US-AF01`, `US-FH01`). Each entry carries label, category, source type/fields, rule/threshold text, decision effect, urgency, explanation, and suggested action. The registry never evaluates rules; unknown codes return `null` so callers fail safely.
+- `app/ValueObjects/ClinicalFactorEvidence.php` — immutable value object with readonly properties and exactly eleven approved keys. `forCode()` builds evidence from registry metadata, overlaying runtime observed value and any label/urgency/explanation/action overrides; unknown codes throw `OutOfBoundsException`. `normalizeList()` sanitizes stored arrays (drops unknown keys so views never render raw model data), and `displayObserved()` renders observed values safely for staff-facing output.
+- `app/Services/BloodPressureFactorEvidenceMapper.php` — narrow adapter mapping the existing `bp_assessment` array to `ClinicalFactorEvidence` for `BP-H`/`BP-URG` only. Unknown reason codes or non-triggered assessments return `null` (no invented evidence). `BloodPressureAssessmentService` is untouched.
+
+### Modified Files
+
+- `app/Services/ClinicalRuleEngine.php` — `evaluateDetailed()` is now the single source of truth, returning `ClinicalFactorEvidence[]` in rule order. `evaluate()` remains a thin compatibility wrapper (labels, unique, order preserved) so legacy callers and tests still pass.
+- `app/ValueObjects/AssessmentResult.php` — added `factor_evidence` property, constructor param (default `[]`), approved key, and `toArray()` entry.
+- `app/Services/DecisionIntegrationService.php` — `decide()` and `decideUrgentBp()` accept `$factorEvidence = []` and pass it through all five result paths (COMPLETENESS with optional BP alert, RULE_BASED, BP-URG, ML HIGH/LOW, ML_INVALID). ML paths keep `[]`.
+- `app/Services/RiskAssessmentService.php` — `assess()` evaluates structured factors once via `evaluateDetailed()`, appends BP evidence via the mapper, derives legacy reason strings from the same evidence (single source of truth), and forwards evidence into `decide()`/`decideUrgentBp()`. BP-URG path passes evidence; completeness path may carry only BP alert evidence; ML/ML_INVALID paths pass `[]`.
+- `app/Models/PrenatalVisit.php` — `factor_evidence` added to `$fillable` and cast to `array`.
+- `app/Http/Controllers/PrenatalVisitController.php` — `store()` and `update()` persist `factor_evidence` from the assessment.
+- `app/Services/PatientAssessmentRecalculationService.php` — preserves `factor_evidence` on recalculation alongside `bp_assessment`.
+- `database/migrations/2026_08_05_000001_add_factor_evidence_to_prenatal_visits_table.php` — additive nullable JSON column after `bp_assessment`; safe `down()`. Not executed; applied on next `migrate`.
+
+### Views
+
+- `resources/views/patients/show.blade.php` — "Clinical Factors Identified" section groups evidence by category with staff-friendly label, code, observed value, rule/threshold, explanation, and suggested action inside collapsible `<details>` cards (progressive disclosure). Legacy fallback renders the previous Triggered Rules chips when `factor_evidence` is empty/null.
+- `resources/views/risk/monitoring.blade.php` — mobile card and desktop table prefer structured factor labels (up to 2 chips + "+ N more") and show a red BP-alert chip when `BP-H`/`BP-URG` evidence is present; legacy `rule_reasons`/`missing_records` fallbacks preserved.
+- `resources/views/prenatal_visits/create.blade.php` and `edit.blade.php` — collapsible "CDSS Input Guide" summarising which inputs trigger which factors.
+- `resources/views/exports/patient-record.blade.php` — "Structured Clinical Factors" table (Factor, Code, Source, Observed, Rule/Threshold, Explanation/Action) with friendly source labels; falls back to the legacy Triggered Clinical Rules list.
+
+### Tests
+
+- New: `tests/Unit/Support/ClinicalFactorRegistryTest.php` (5), `tests/Unit/ValueObjects/ClinicalFactorEvidenceTest.php` (7), `tests/Unit/Services/BloodPressureFactorEvidenceMapperTest.php` (6), plus `evaluateDetailed` consistency tests added to `ClinicalRuleEngineTest`.
+- Updated: `RiskAssessmentServiceTest` mocks now use `evaluateDetailed` and the constructor includes the BP mapper; `AssessmentResultTest` covers the new `factor_evidence` key (13 approved keys).
+
+### Test Results
+
+- Full suite: **285 passed, 3 failed** (1102 assertions). The 3 failures are pre-existing and unrelated (ExampleTest guest redirect 302, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403). The two `MachineLearningServiceTest` integration tests now pass in this environment. **Zero new regressions.**
+
+### Design Defense
+
+- The registry + immutable VO keeps explainability metadata out of the rule engine's control flow: rules evaluate once, and labels are derived from the same evidence, so legacy reason strings and structured evidence can never drift apart.
+- A whitelist of eleven codes plus fail-safe `null`/throw behavior guarantees unknown or future codes cannot silently receive invented clinical metadata.
+- Serialization is a plain array-of-arrays with approved keys only, so stored `factor_evidence` contains no model objects, patient-identifying fields, or technical internals.
+- Legacy visits (null `factor_evidence`) render through the existing `rule_reasons`/`risk_reasons` fallbacks, so no historical record is rewritten or backfilled.
+
 ## Next Planned Work
 
 1. MAT-WARN evaluation and referral integration remains **deferred and requires clinical approval** (symptom → action-level mapping is NOT implemented; Sprint 11 deliberately confirmed the fields are record-only). This is a decision for a future, separately approved sprint.
