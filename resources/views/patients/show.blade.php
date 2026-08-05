@@ -892,6 +892,20 @@
                     $verificationDisplay = $verificationKey ? ($verificationLabels[$verificationKey] ?? $verificationKey) : 'Not Required';
                     $repeatDisplay = !empty($bp['repeat_interpretation']) ? ($repeatLabels[$bp['repeat_interpretation']] ?? $bp['repeat_interpretation']) : 'Not Recorded';
                     $urgencyDisplay = $urgency ? ($urgencyLabels[$urgency] ?? $urgency) : 'None';
+
+                    $structuredFactors = \App\ValueObjects\ClinicalFactorEvidence::normalizeList($latestAssessment->factor_evidence);
+                    $factorCategoryLabels = [
+                        'MATERNAL_DEMOGRAPHICS' => 'Maternal Demographics',
+                        'VITAL_SIGNS' => 'Vital Signs',
+                        'CURRENT_CONDITION' => 'Current Conditions',
+                        'OBSTETRIC_HISTORY' => 'Obstetric History',
+                        'ULTRASOUND' => 'Ultrasound Findings',
+                    ];
+                    $groupedFactors = [];
+                    foreach ($structuredFactors as $factor) {
+                        $cat = $factor['category'] ?? 'OTHER';
+                        $groupedFactors[$cat][] = $factor;
+                    }
                 @endphp
                 <div class="rounded-2xl shadow-md border overflow-hidden
                     @if($rl === 'HIGH') border-red-300
@@ -1010,8 +1024,61 @@
                             </div>
                             @endif
 
-                            {{-- E. TRIGGERED FACTORS --}}
-                            @if($rl === 'HIGH')
+                            {{-- E. CLINICAL FACTORS IDENTIFIED --}}
+                            @if($rl === 'HIGH' && !empty($structuredFactors))
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Clinical Factors Identified</span>
+                                <div class="mt-3 space-y-3">
+                                    @foreach($factorCategoryLabels as $cat => $catLabel)
+                                        @if(!empty($groupedFactors[$cat]))
+                                        <div>
+                                            <p class="text-xs font-semibold text-gray-600">{{ $catLabel }}</p>
+                                            <div class="mt-2 space-y-2">
+                                                @foreach($groupedFactors[$cat] as $factor)
+                                                <details class="group/factor rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                                    <summary class="flex items-center justify-between gap-2 cursor-pointer list-none">
+                                                        <span class="flex flex-wrap items-center gap-x-2 min-w-0">
+                                                            <span class="text-sm font-medium text-gray-800">{{ $factor['label'] ?? 'Clinical factor' }}</span>
+                                                            <span class="text-xs text-gray-400 font-mono">{{ $factor['code'] ?? '' }}</span>
+                                                            @if(($factor['category'] ?? null) === 'VITAL_SIGNS' && $bp)
+                                                            <span class="text-xs text-gray-400">— see Blood Pressure details above</span>
+                                                            @endif
+                                                        </span>
+                                                        <svg class="w-4 h-4 text-gray-400 flex-shrink-0 group-open/factor:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                        </svg>
+                                                    </summary>
+                                                    <dl class="mt-2 pt-2 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                                        <div>
+                                                            <dt class="text-gray-500 text-xs">Observed value</dt>
+                                                            <dd class="font-medium text-gray-800">{{ \App\ValueObjects\ClinicalFactorEvidence::displayObserved($factor['observed_value'] ?? null) }}</dd>
+                                                        </div>
+                                                        <div>
+                                                            <dt class="text-gray-500 text-xs">Rule / threshold</dt>
+                                                            <dd class="text-gray-700">{{ $factor['threshold_or_rule'] ?? '—' }}</dd>
+                                                        </div>
+                                                        @if(!empty($factor['explanation']))
+                                                        <div class="sm:col-span-2">
+                                                            <dt class="text-gray-500 text-xs">Explanation</dt>
+                                                            <dd class="text-gray-700">{{ $factor['explanation'] }}</dd>
+                                                        </div>
+                                                        @endif
+                                                        @if(!empty($factor['suggested_action']))
+                                                        <div class="sm:col-span-2">
+                                                            <dt class="text-gray-500 text-xs">Suggested action</dt>
+                                                            <dd class="text-gray-700">{{ $factor['suggested_action'] }}</dd>
+                                                        </div>
+                                                        @endif
+                                                    </dl>
+                                                </details>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
+                            @elseif($rl === 'HIGH')
                             <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
                                 <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Triggered Clinical Rules</span>
                                 @if(!empty($triggeredFactors))

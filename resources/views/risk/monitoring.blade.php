@@ -350,8 +350,24 @@
                         null => 'Legacy Assessment',
                         default => $ds,
                     };
+                    $structuredFactors = \App\ValueObjects\ClinicalFactorEvidence::normalizeList($visit->factor_evidence);
+                    $bpAlertFactor = null;
+                    foreach ($structuredFactors as $factor) {
+                        if (in_array($factor['code'] ?? null, ['BP-H', 'BP-URG'], true)) {
+                            $bpAlertFactor = $factor;
+                            break;
+                        }
+                    }
                     $evidenceLines = collect();
-                    if ($ds === 'RULE_BASED' && !empty($visit->rule_reasons)) {
+                    $extraCount = 0;
+                    if (!empty($structuredFactors)) {
+                        $labels = array_map(
+                            static fn($factor) => $factor['label'] ?? ($factor['code'] ?? 'Clinical factor'),
+                            $structuredFactors
+                        );
+                        $evidenceLines = collect(array_slice($labels, 0, 2));
+                        $extraCount = max(0, count($labels) - 2);
+                    } elseif ($ds === 'RULE_BASED' && !empty($visit->rule_reasons)) {
                         $evidenceLines = collect($visit->rule_reasons)->take(2);
                         $extraCount = count($visit->rule_reasons) - 2;
                     } elseif ($ds === 'COMPLETENESS' && !empty($visit->missing_records)) {
@@ -412,6 +428,11 @@
                         @endforeach
                         @if(isset($extraCount) && $extraCount > 0)
                             <div class="text-xs text-gray-400 ml-3">+ {{ $extraCount }} more</div>
+                        @endif
+                        @if($bpAlertFactor)
+                            <div class="mt-1">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-800">{{ $bpAlertFactor['label'] ?? 'BP alert' }}</span>
+                            </div>
                         @endif
                         @if($mlOrNote)
                             <div class="flex items-start text-xs text-gray-500 mt-1">
@@ -488,9 +509,24 @@
                                 null => 'text-gray-500 bg-gray-50',
                                 default => 'text-gray-600 bg-gray-50',
                             };
+                            $structuredFactors = \App\ValueObjects\ClinicalFactorEvidence::normalizeList($visit->factor_evidence);
+                            $bpAlertFactor = null;
+                            foreach ($structuredFactors as $factor) {
+                                if (in_array($factor['code'] ?? null, ['BP-H', 'BP-URG'], true)) {
+                                    $bpAlertFactor = $factor;
+                                    break;
+                                }
+                            }
                             $evidenceLines = collect();
                             $extraCount = 0;
-                            if ($ds === 'RULE_BASED' && !empty($visit->rule_reasons)) {
+                            if (!empty($structuredFactors)) {
+                                $labels = array_map(
+                                    static fn($factor) => $factor['label'] ?? ($factor['code'] ?? 'Clinical factor'),
+                                    $structuredFactors
+                                );
+                                $evidenceLines = collect(array_slice($labels, 0, 2));
+                                $extraCount = max(0, count($labels) - 2);
+                            } elseif ($ds === 'RULE_BASED' && !empty($visit->rule_reasons)) {
                                 $evidenceLines = collect($visit->rule_reasons)->take(2);
                                 $extraCount = max(0, count($visit->rule_reasons) - 2);
                             } elseif ($ds === 'COMPLETENESS' && !empty($visit->missing_records)) {
@@ -570,6 +606,11 @@
                                     @endforeach
                                     @if($extraCount > 0)
                                         <div class="text-xs text-gray-400 ml-3">+ {{ $extraCount }} more</div>
+                                    @endif
+                                    @if($bpAlertFactor)
+                                        <div class="mt-0.5">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-800">{{ $bpAlertFactor['label'] ?? 'BP alert' }}</span>
+                                        </div>
                                     @endif
                                     @if($mlOrNote)
                                         <div class="flex items-start text-xs text-gray-500 mt-0.5">

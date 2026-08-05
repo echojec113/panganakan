@@ -22,6 +22,7 @@ class AssessmentResult implements ArrayAccess
         'ml_valid',
         'urgency',
         'bp_assessment',
+        'factor_evidence',
     ];
 
     public readonly string $risk_level;
@@ -36,6 +37,7 @@ class AssessmentResult implements ArrayAccess
     public readonly bool $ml_valid;
     public readonly ?string $urgency;
     public readonly ?array $bp_assessment;
+    public readonly array $factor_evidence;
 
     public function __construct(
         string $risk_level,
@@ -50,6 +52,7 @@ class AssessmentResult implements ArrayAccess
         bool $ml_valid,
         ?string $urgency = null,
         ?array $bp_assessment = null,
+        array $factor_evidence = [],
     ) {
         $this->risk_level = $risk_level;
         $this->assessment = $assessment;
@@ -63,6 +66,7 @@ class AssessmentResult implements ArrayAccess
         $this->ml_valid = $ml_valid;
         $this->urgency = $urgency;
         $this->bp_assessment = $bp_assessment;
+        $this->factor_evidence = ClinicalFactorEvidence::normalizeList($factor_evidence);
     }
 
     public function toArray(): array
@@ -80,6 +84,7 @@ class AssessmentResult implements ArrayAccess
             'ml_valid' => $this->ml_valid,
             'urgency' => $this->urgency,
             'bp_assessment' => $this->bp_assessment,
+            'factor_evidence' => $this->factor_evidence,
         ];
     }
 

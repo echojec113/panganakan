@@ -40,6 +40,29 @@
                     </div>
                 @endif
 
+                <!-- CDSS Input Guide -->
+                <details class="mb-6 rounded-lg border border-blue-100 bg-blue-50/50 overflow-hidden">
+                    <summary class="px-4 py-3 flex items-center justify-between cursor-pointer list-none select-none">
+                        <span class="flex items-center gap-2 text-sm font-semibold text-blue-800">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            CDSS Input Guide
+                        </span>
+                        <span class="text-xs text-blue-600">What triggers each risk factor</span>
+                    </summary>
+                    <div class="px-4 pb-4 pt-1">
+                        <ul class="space-y-1.5 text-xs text-blue-900/80">
+                            <li><span class="font-semibold">Maternal age</span> — under 19 flags a teenage-pregnancy factor; 35 or older with a first pregnancy (gravida 1, para 0) flags an advanced maternal age factor.</li>
+                            <li><span class="font-semibold">Blood Pressure</span> — confirms elevated readings; a severe reading (<span class="font-mono">≥160/110</span>) triggers an urgent clinical review and a repeat reading.</li>
+                            <li><span class="font-semibold">Diabetes (confirmed)</span> — flagged during this visit is treated as a current-condition factor.</li>
+                            <li><span class="font-semibold">Anemia (confirmed)</span> — flagged during this visit is treated as a current-condition factor.</li>
+                            <li><span class="font-semibold">Obstetric history</span> — previous Cesarean section and prior recurrent miscarriage contribute to the rule-based assessment.</li>
+                            <li><span class="font-semibold">Ultrasound findings</span> — abnormal presentation (breech, transverse, oblique), low/high amniotic fluid, or a weak/abnormal/absent fetal heartbeat contribute to the rule-based assessment.</li>
+                        </ul>
+                    </div>
+                </details>
+
                 <!-- Patient Selection (Disabled on Edit) -->
                 <div class="mb-5 sm:mb-6">
                     <label class="block text-sm font-semibold text-gray-700 mb-2">

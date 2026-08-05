@@ -101,6 +101,7 @@ class PatientAssessmentRecalculationService
                 'next_visit_date' => $visit->next_visit_date ?: $riskAssessment['nextVisit']->toDateString(),
                 'urgency' => $riskAssessment['urgency'] ?? null,
                 'bp_assessment' => $riskAssessment['bp_assessment'] ?? null,
+                'factor_evidence' => $riskAssessment['factor_evidence'] ?? [],
                 'bp_verification_status' => $riskAssessment['bp_assessment']['verification_status'] ?? BloodPressureAssessmentService::VERIFICATION_NOT_REQUIRED,
             ]);
 

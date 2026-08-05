@@ -16,7 +16,8 @@ class DecisionIntegrationService
     public function decideUrgentBp(
         array $missingRecords,
         array $ruleReasons,
-        ?array $bpAssessment
+        ?array $bpAssessment,
+        array $factorEvidence = []
     ): AssessmentResult {
         // The severe-range BP finding is a safety reason that must always be
         // surfaced, even if the caller supplied no other rule reasons.
@@ -44,6 +45,7 @@ class DecisionIntegrationService
             ml_valid: false,
             urgency: 'URGENT_CLINICAL_REVIEW',
             bp_assessment: $bpAssessment,
+            factor_evidence: $factorEvidence,
         );
     }
 
@@ -52,10 +54,11 @@ class DecisionIntegrationService
         array $ruleReasons,
         ?array $mlResult = null,
         ?string $urgency = null,
-        ?array $bpAssessment = null
+        ?array $bpAssessment = null,
+        array $factorEvidence = []
     ): AssessmentResult {
         if ($bpAssessment !== null && ($bpAssessment['reason_code'] ?? null) === 'BP-URG') {
-            return $this->decideUrgentBp($missingRecords, $ruleReasons, $bpAssessment);
+            return $this->decideUrgentBp($missingRecords, $ruleReasons, $bpAssessment, $factorEvidence);
         }
 
         if (!empty($missingRecords)) {
@@ -73,6 +76,7 @@ class DecisionIntegrationService
                 ml_valid: false,
                 urgency: $urgency,
                 bp_assessment: $bpAssessment,
+                factor_evidence: $factorEvidence,
             );
         }
 
@@ -96,6 +100,7 @@ class DecisionIntegrationService
                 ml_valid: false,
                 urgency: $urgency,
                 bp_assessment: $bpAssessment,
+                factor_evidence: $factorEvidence,
             );
         }
 

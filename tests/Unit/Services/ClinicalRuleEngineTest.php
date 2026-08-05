@@ -3,6 +3,54 @@
 use App\Models\Patient;
 use App\Models\Ultrasound;
 use App\Services\ClinicalRuleEngine;
+use App\ValueObjects\ClinicalFactorEvidence;
+
+test('evaluateDetailed returns structured evidence objects in rule order', function () {
+    $patient = new Patient([
+        'age' => 32, 'gravida' => 5, 'para' => 2,
+        'previous_cs' => 1, 'miscarriage' => 3,
+    ]);
+
+    $ultrasound = new Ultrasound([
+        'presentation' => 'BREECH',
+        'amniotic_fluid' => 'LOW',
+        'fetal_heartbeat' => 'ABSENT',
+    ]);
+
+    $engine = new ClinicalRuleEngine;
+    $evidence = $engine->evaluateDetailed($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 1, 'anemia' => 1,
+    ], $ultrasound);
+
+    $codes = array_map(
+        static fn (ClinicalFactorEvidence $factor) => $factor->code,
+        $evidence
+    );
+
+    expect($codes)->toBe(['DM-01', 'AN-01', 'CS-01', 'RM-03', 'US-P01', 'US-AF01', 'US-FH01']);
+});
+
+test('evaluate and evaluateDetailed stay consistent for the same input', function () {
+    $patient = new Patient(['age' => 18, 'gravida' => 1, 'para' => 0]);
+    $ultrasound = new Ultrasound(['presentation' => 'BREECH']);
+
+    $engine = new ClinicalRuleEngine;
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+    $evidence = $engine->evaluateDetailed($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+    $labels = array_map(
+        static fn (ClinicalFactorEvidence $factor) => $factor->label,
+        $evidence
+    );
+
+    expect($reasons)->toBe($labels);
+});
 
 test('age 18 returns teenage pregnancy reason', function () {
     $patient = new Patient(['age' => 18, 'gravida' => 1, 'para' => 0]);
