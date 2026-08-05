@@ -12,10 +12,14 @@ use Illuminate\Support\Facades\Log;
 class PatientAssessmentRecalculationService
 {
     private RiskAssessmentService $riskAssessmentService;
+    private AssessmentMetadataSerializer $metadataSerializer;
 
-    public function __construct(RiskAssessmentService $riskAssessmentService)
-    {
+    public function __construct(
+        RiskAssessmentService $riskAssessmentService,
+        AssessmentMetadataSerializer $metadataSerializer
+    ) {
         $this->riskAssessmentService = $riskAssessmentService;
+        $this->metadataSerializer = $metadataSerializer;
     }
 
     /**
@@ -85,7 +89,9 @@ class PatientAssessmentRecalculationService
                 ],
                 $repeatBpInputs,
                 $visit->bp_verification_status,
-                $storedVerificationNote
+                $storedVerificationNote,
+                $visit->visit_date?->toDateString(),
+                $visit
             );
 
             $visit->update([
@@ -102,6 +108,7 @@ class PatientAssessmentRecalculationService
                 'urgency' => $riskAssessment['urgency'] ?? null,
                 'bp_assessment' => $riskAssessment['bp_assessment'] ?? null,
                 'factor_evidence' => $riskAssessment['factor_evidence'] ?? [],
+                'assessment_metadata' => $this->metadataSerializer->fromResult($riskAssessment, $visit),
                 'bp_verification_status' => $riskAssessment['bp_assessment']['verification_status'] ?? BloodPressureAssessmentService::VERIFICATION_NOT_REQUIRED,
             ]);
 

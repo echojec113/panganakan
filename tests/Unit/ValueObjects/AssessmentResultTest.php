@@ -23,7 +23,7 @@ function makeFullResult(): AssessmentResult
     );
 }
 
-test('exposes all twelve typed properties', function () {
+test('exposes all nineteen typed properties', function () {
     $result = makeFullResult();
 
     expect($result->risk_level)->toBeString();
@@ -39,21 +39,28 @@ test('exposes all twelve typed properties', function () {
     expect($result->urgency)->toBeNull();
     expect($result->bp_assessment)->toBeNull();
     expect($result->factor_evidence)->toBeArray();
+    expect($result->context)->toBeNull();
+    expect($result->interaction_evidence)->toBeArray();
+    expect($result->data_quality_flags)->toBeArray();
+    expect($result->decision_trace)->toBeArray();
+    expect($result->versions)->toBeArray();
+    expect($result->assessed_at)->toBeNull();
 });
 
-test('toArray contains exactly thirteen approved keys', function () {
+test('toArray contains exactly nineteen approved keys', function () {
     $result = makeFullResult();
     $array = $result->toArray();
 
     $approved = ['risk_level', 'assessment', 'recommendation', 'reasons', 'nextVisit',
         'decision_source', 'missing_records', 'rule_reasons', 'ml_prediction', 'ml_valid',
-        'urgency', 'bp_assessment', 'factor_evidence'];
+        'urgency', 'bp_assessment', 'factor_evidence', 'context', 'interaction_evidence',
+        'data_quality_flags', 'decision_trace', 'versions', 'assessed_at'];
 
     foreach ($approved as $key) {
         expect($array)->toHaveKey($key);
     }
 
-    expect($array)->toHaveCount(13);
+    expect($array)->toHaveCount(19);
 });
 
 test('property access and array access return identical values', function () {
@@ -130,6 +137,17 @@ test('serialization does not expose raw fields', function () {
 
     expect($array)->not->toHaveKey('raw_output');
     expect($array)->not->toHaveKey('parsed_output');
+});
+
+test('versions always reflect the current AssessmentVersion with no injection point', function () {
+    $result = makeFullResult();
+
+    expect($result->versions)->toBe(\App\Support\AssessmentVersion::versions());
+
+    // A caller cannot forge a historical version map through the constructor.
+    $reflection = new ReflectionMethod(AssessmentResult::class, '__construct');
+    $params = array_map(static fn (ReflectionParameter $p) => $p->getName(), $reflection->getParameters());
+    expect($params)->not->toContain('versions');
 });
 
 test('assessment result removes unknown keys from factor evidence', function () {

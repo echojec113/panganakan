@@ -1,9 +1,20 @@
 <?php
 
 use App\Models\Patient;
-use App\Models\Ultrasound;
 use App\Services\ClinicalRuleEngine;
 use App\ValueObjects\ClinicalFactorEvidence;
+use App\ValueObjects\UltrasoundSnapshot;
+
+function usSnapshot(array $values): UltrasoundSnapshot
+{
+    return new UltrasoundSnapshot(
+        id: null,
+        date: null,
+        presentation: (string) ($values['presentation'] ?? ''),
+        amniotic_fluid: (string) ($values['amniotic_fluid'] ?? ''),
+        fetal_heartbeat: (string) ($values['fetal_heartbeat'] ?? ''),
+    );
+}
 
 test('evaluateDetailed returns structured evidence objects in rule order', function () {
     $patient = new Patient([
@@ -11,11 +22,7 @@ test('evaluateDetailed returns structured evidence objects in rule order', funct
         'previous_cs' => 1, 'miscarriage' => 3,
     ]);
 
-    $ultrasound = new Ultrasound([
-        'presentation' => 'BREECH',
-        'amniotic_fluid' => 'LOW',
-        'fetal_heartbeat' => 'ABSENT',
-    ]);
+    $ultrasound = usSnapshot(['presentation' => 'BREECH', 'amniotic_fluid' => 'LOW', 'fetal_heartbeat' => 'ABSENT']);
 
     $engine = new ClinicalRuleEngine;
     $evidence = $engine->evaluateDetailed($patient, [
@@ -33,7 +40,7 @@ test('evaluateDetailed returns structured evidence objects in rule order', funct
 
 test('evaluate and evaluateDetailed stay consistent for the same input', function () {
     $patient = new Patient(['age' => 18, 'gravida' => 1, 'para' => 0]);
-    $ultrasound = new Ultrasound(['presentation' => 'BREECH']);
+    $ultrasound = usSnapshot(['presentation' => 'BREECH']);
 
     $engine = new ClinicalRuleEngine;
     $reasons = $engine->evaluate($patient, [
@@ -159,7 +166,7 @@ test('miscarriage 3 returns miscarriage reason', function () {
 test('breech presentation returns abnormal presentation reason', function () {
     $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
 
-    $ultrasound = new Ultrasound(['presentation' => 'BREECH']);
+    $ultrasound = usSnapshot(['presentation' => 'BREECH']);
 
     $engine = new ClinicalRuleEngine;
 
@@ -174,7 +181,7 @@ test('breech presentation returns abnormal presentation reason', function () {
 test('low amniotic fluid returns fluid abnormality reason', function () {
     $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
 
-    $ultrasound = new Ultrasound(['amniotic_fluid' => 'LOW']);
+    $ultrasound = usSnapshot(['amniotic_fluid' => 'LOW']);
 
     $engine = new ClinicalRuleEngine;
 
@@ -189,7 +196,7 @@ test('low amniotic fluid returns fluid abnormality reason', function () {
 test('absent fetal heartbeat returns heartbeat abnormality reason', function () {
     $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
 
-    $ultrasound = new Ultrasound(['fetal_heartbeat' => 'ABSENT']);
+    $ultrasound = usSnapshot(['fetal_heartbeat' => 'ABSENT']);
 
     $engine = new ClinicalRuleEngine;
 
@@ -220,7 +227,7 @@ test('normal case returns empty array', function () {
 test('duplicate reasons are removed', function () {
     $patient = new Patient(['age' => 18, 'gravida' => 1, 'para' => 0]);
 
-    $ultrasound = new Ultrasound(['presentation' => 'BREECH']);
+    $ultrasound = usSnapshot(['presentation' => 'BREECH']);
 
     $engine = new ClinicalRuleEngine;
 

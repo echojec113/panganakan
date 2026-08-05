@@ -84,6 +84,14 @@
                         @endforeach
                     </select>
                     <p class="text-xs text-gray-500 mt-1">Select the patient for this prenatal visit</p>
+                    @if($sourcePreview ?? null)
+                    <div id="source-preview" class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900"
+                        data-preselected-patient="{{ $selectedPatient ?? '' }}">
+                        <p class="font-semibold text-blue-900">Source preview (preselected patient)</p>
+                        {{ $sourcePreview }}
+                        <p class="mt-1 text-[11px] text-blue-700/80">This preview reflects the patient selected before the form opened. Changing the patient on this page re-runs the preview when the form is loaded again; the assessment itself is always computed from the submitted patient.</p>
+                    </div>
+                    @endif
                 </div>
 
                 <!-- Visit Date -->
@@ -699,6 +707,26 @@
 
             document.getElementById('repeat_bp_sys')?.addEventListener('input', validateRepeatBP);
             document.getElementById('repeat_bp_dia')?.addEventListener('input', validateRepeatBP);
+
+            // UI-only guard: the source preview is server-generated for the
+            // preselected patient only. If the user changes the patient in this
+            // form, hide the preview rather than show a stale one. No client-side
+            // risk calculation is performed.
+            (function () {
+                const preview = document.getElementById('source-preview');
+                const select = document.getElementById('patient_id');
+                if (!preview || !select) {
+                    return;
+                }
+                const preselected = String(preview.dataset.preselectedPatient || '');
+                select.addEventListener('change', function () {
+                    if (String(this.value) !== preselected) {
+                        preview.style.display = 'none';
+                    } else {
+                        preview.style.display = '';
+                    }
+                });
+            })();
         });
     </script>
 </x-app-layout>

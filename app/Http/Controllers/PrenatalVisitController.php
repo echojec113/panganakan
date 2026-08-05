@@ -12,24 +12,33 @@ use Illuminate\Support\Facades\DB;
 use App\Mail\PrenatalVisitReminderMail;
 use App\Mail\PrenatalVisitScheduleUpdatedMail;
 use App\Services\BloodPressureAssessmentService;
+use App\Services\AssessmentContextBuilder;
+use App\Services\AssessmentMetadataSerializer;
 use App\Services\MedicalHistoryConditionSyncService;
 use App\Services\PatientAssessmentRecalculationService;
 use App\Services\RiskAssessmentService;
+use App\ValueObjects\AssessmentContext;
 
 class PrenatalVisitController extends Controller
 {
     private RiskAssessmentService $riskAssessmentService;
     private PatientAssessmentRecalculationService $recalculationService;
     private MedicalHistoryConditionSyncService $medicalHistorySyncService;
+    private AssessmentMetadataSerializer $metadataSerializer;
+    private AssessmentContextBuilder $contextBuilder;
 
     public function __construct(
         RiskAssessmentService $riskAssessmentService,
         PatientAssessmentRecalculationService $recalculationService,
-        MedicalHistoryConditionSyncService $medicalHistorySyncService
+        MedicalHistoryConditionSyncService $medicalHistorySyncService,
+        AssessmentMetadataSerializer $metadataSerializer,
+        AssessmentContextBuilder $contextBuilder
     ) {
         $this->riskAssessmentService = $riskAssessmentService;
         $this->recalculationService = $recalculationService;
         $this->medicalHistorySyncService = $medicalHistorySyncService;
+        $this->metadataSerializer = $metadataSerializer;
+        $this->contextBuilder = $contextBuilder;
     }
 
 
@@ -43,7 +52,16 @@ class PrenatalVisitController extends Controller
     {
         $patients = Patient::all();
         $selectedPatient = $request->patient_id;
-        return view('prenatal_visits.create', compact('patients','selectedPatient'));
+
+        $sourcePreview = null;
+        if ($selectedPatient) {
+            $patient = Patient::find($selectedPatient);
+            if ($patient) {
+                $sourcePreview = $this->sourcePreview($this->contextBuilder->buildForPatient($patient, null, []));
+            }
+        }
+
+        return view('prenatal_visits.create', compact('patients', 'selectedPatient', 'sourcePreview'));
     }
 
     public function store(Request $request)
@@ -171,7 +189,8 @@ class PrenatalVisitController extends Controller
             ]),
             $repeatBpInputs,
             $request->bp_verification_status,
-            $request->bp_verification_note
+            $request->bp_verification_note,
+            $request->visit_date
         );
 
         $risk = $riskAssessment['risk_level'];
@@ -232,6 +251,7 @@ class PrenatalVisitController extends Controller
                 'urgency' => $riskAssessment['urgency'] ?? null,
                 'bp_assessment' => $riskAssessment['bp_assessment'] ?? null,
                 'factor_evidence' => $riskAssessment['factor_evidence'] ?? [],
+                'assessment_metadata' => $this->metadataSerializer->fromResult($riskAssessment, $visit),
                 'bp_verification_status' => $riskAssessment['bp_assessment']['verification_status'] ?? BloodPressureAssessmentService::VERIFICATION_NOT_REQUIRED,
             ]);
 
@@ -296,7 +316,42 @@ class PrenatalVisitController extends Controller
     {
         $visit = PrenatalVisit::findOrFail($id);
         $patients = Patient::all();
-        return view('prenatal_visits.edit', compact('visit','patients'));
+
+        $sourcePreview = $this->sourcePreview(
+            $this->contextBuilder->buildForPatient(
+                $visit->patient,
+                $visit,
+                [],
+                $visit->visit_date?->toDateString()
+            )
+        );
+
+        return view('prenatal_visits.edit', compact('visit', 'patients', 'sourcePreview'));
+    }
+
+    /**
+     * One-sentence, human-readable summary of which source records will inform
+     * the assessment. Read-only; never used for clinical decisions.
+     */
+    private function sourcePreview(AssessmentContext $context): string
+    {
+        $ultrasound = $context->ultrasound_date
+            ? 'the last ultrasound (dated ' . \Carbon\Carbon::parse($context->ultrasound_date)->format('M d, Y') . ')'
+            : 'no ultrasound record';
+
+        $parts = [];
+        if ($context->medical_history_exists) {
+            $parts[] = 'an active Medical History';
+        }
+        if ($context->birth_plan_exists) {
+            $parts[] = 'an active Birth Plan';
+        }
+
+        if (empty($parts)) {
+            return "This assessment will use {$ultrasound}, with no active Medical History or Birth Plan on record.";
+        }
+
+        return "This assessment will use {$ultrasound} together with " . implode(' and ', $parts) . '.';
     }
 
     public function update(Request $request, $id)
@@ -483,7 +538,9 @@ class PrenatalVisitController extends Controller
             ]),
             $repeatBpInputs,
             $bpVerificationStatusInput,
-            $bpVerificationNote
+            $bpVerificationNote,
+            $visit->visit_date?->toDateString(),
+            $visit
         );
 
         $risk = $riskAssessment['risk_level'];
@@ -553,6 +610,7 @@ class PrenatalVisitController extends Controller
                 'urgency' => $riskAssessment['urgency'] ?? null,
                 'bp_assessment' => $riskAssessment['bp_assessment'] ?? null,
                 'factor_evidence' => $riskAssessment['factor_evidence'] ?? [],
+                'assessment_metadata' => $this->metadataSerializer->fromResult($riskAssessment, $visit),
             ]);
 
             // NEXT VISIT DATE CHANGE DETECTION (inside transaction, no email)

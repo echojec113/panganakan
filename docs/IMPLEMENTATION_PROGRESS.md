@@ -1376,3 +1376,151 @@ Convert the deterministic CDSS rule outputs (currently plain reason strings) int
 1. MAT-WARN evaluation and referral integration remains **deferred and requires clinical approval** (symptom → action-level mapping is NOT implemented; Sprint 11 deliberately confirmed the fields are record-only). This is a decision for a future, separately approved sprint.
 2. Resolve the machine-specific ML environment: create/point `PYTHON_PATH` to a Python environment with `joblib`, `pandas`, and `scikit-learn` so the two `MachineLearningServiceTest` integration tests pass and the live ML path works.
 3. Keep EDD outcome monitoring for a later dedicated sprint.
+
+## Sprint 13 Checkpoint B — Context-Aware Assessment Architecture and Rule Governance
+
+Status: Complete
+
+### Objective
+
+Make every assessment reproducible and governed: the system now snapshots the exact clinical context that produced a result, records a human-readable decision trace, evaluates active data-quality verification flags, and carries interaction evidence — all persisted as `prenatal_visits.assessment_metadata` JSON. Sprint 13 introduces **NO new clinical rules, scores, factors, or thresholds**. `ClinicalInteractionRegistry::activeCodes()` returns an empty set; data-quality flags never enter `factor_evidence`, never classify HIGH, and never drive urgency or count escalation.
+
+### New Files
+
+- `app/Support/AssessmentVersion.php` — engine/rule/context version constants and `versions()`.
+- `app/ValueObjects/AssessmentContext.php` + `app/Services/AssessmentContextBuilder.php` — immutable context snapshot (assessment date, patient id/status, GA, LMP/EDD, selected ultrasound id/date, active medical-history/birth-plan presence + duplicate counts, visit); deterministic ultrasound selection (`scan_date DESC, created_at DESC, id DESC`).
+- `app/Support/ClinicalInteractionRegistry.php` + `app/ValueObjects/ClinicalInteractionEvidence.php` + `app/Services/ClinicalInteractionEngine.php` — candidate interactions (`CLIN-INTER-*`, all DRAFT/DEFERRED); `activeCodes()` empty; engine always returns `[]` with no DB/ML/scoring.
+- `app/Support/DataQualityFlagRegistry.php` + `app/ValueObjects/DataQualityFlag.php` + `app/Services/AssessmentDataQualityService.php` — ACTIVE flags `DQ-SOURCE-FUTURE-DATED`, `DQ-ULTRASOUND-MISSING-FIELDS`, `DQ-DUP-MEDICAL-HISTORY`, `DQ-DUP-BIRTH-PLAN`; DEFERRED `DQ-LMP-MISSING`, `DQ-EDD-MISSING`, `DQ-GA-DATE-MISMATCH`, `DQ-ULTRASOUND-STALE`; severities INFO/VERIFY/IMPORTANT.
+- `app/ValueObjects/DecisionTraceStep.php` + `app/Services/DecisionTraceBuilder.php` — PRIORITY-0 (BP-URG), STEP-1 (completeness), STEP-2 (rules), STEP-3 (ML) derived only from the final result (no re-evaluation).
+- `app/Services/AssessmentMetadataSerializer.php` — scoped metadata document with optional post-persistence visit patching.
+- `database/migrations/2026_08_05_000002_add_assessment_metadata_to_prenatal_visits_table.php` — nullable JSON after `factor_evidence`. **NOT EXECUTED.**
+
+### Modified Files
+
+- `app/ValueObjects/AssessmentResult.php` — extended to 19 approved keys (`context`, `interaction_evidence`, `data_quality_flags`, `decision_trace`, `versions`, `assessed_at`); additive defaults preserve legacy callers.
+- `app/Models/PrenatalVisit.php` — `assessment_metadata` fillable + array cast.
+- `app/Services/RiskAssessmentService.php` — context built once via `AssessmentContextBuilder`; reuses the context-selected ultrasound; DQ flags evaluated once; metadata attached in `finalize()`.
+- `app/Services/PatientAssessmentRecalculationService.php` — injects `AssessmentMetadataSerializer`; persists metadata on recalculation.
+- `app/Http/Controllers/PrenatalVisitController.php` — store/update pass visit date as assessment date, persist `assessment_metadata`; create/edit build a "Source Preview" panel.
+
+### Views
+
+- `resources/views/patients/show.blade.php` — "Assessment Context Used", "Data Requiring Verification", "Assessment Decision Path" cards (null-safe for legacy metadata).
+- `resources/views/risk/monitoring.blade.php` — "Verify N" badges on mobile card and desktop table.
+- `resources/views/prenatal_visits/create.blade.php` + `edit.blade.php` — Source Preview panels.
+- `resources/views/exports/patient-record.blade.php` — printable context / verification / decision-trace tables.
+
+### Tests
+
+- New: `AssessmentContextTest`, `AssessmentContextBuilderTest`, `ClinicalInteractionRegistryTest`, `ClinicalInteractionEngineTest`, `ClinicalInteractionEvidenceTest`, `DataQualityFlagRegistryTest`, `DataQualityFlagTest`, `AssessmentDataQualityServiceTest`, `DecisionTraceStepTest`, `DecisionTraceBuilderTest`, `AssessmentMetadataSerializerTest`, `Feature/AssessmentMetadataPersistenceTest`.
+- Updated (passing): `RiskAssessmentServiceTest` (11), `PatientAssessmentRecalculationServiceTest`, `AssessmentResultTest` (19 keys).
+
+### Test Results
+
+- Full suite: **347 passed, 3 failed** (1305 assertions). The 3 failures are pre-existing and unrelated (ExampleTest guest redirect 302, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403). **Zero new regressions.**
+
+### Design Defense
+
+- Context is captured **once** at the start of assessment and threaded through, so the metadata always describes the same records the engine actually evaluated — including the exact ultrasound selected by the deterministic ordering rule.
+- The decision trace is **derived**, not re-evaluated, guaranteeing it can never contradict the final result.
+- Data-quality flags are a separate, non-clinical channel: they can ask staff to verify a source without ever influencing risk level, urgency, or counts.
+- Interaction evidence is governed by an explicit active-code allowlist; Sprint 13 ships zero active interactions, so clinical behavior is byte-for-byte unchanged.
+- Null-safe views and additive VO defaults mean legacy visits render through existing fallbacks and no historical record is rewritten or backfilled.
+
+### Files NOT Modified
+
+- Clinical thresholds, decision hierarchy, BP behavior/verification, ML/Python, referral, sync, completeness ordering.
+- Migration `2026_08_05_000002_...` created but NOT executed; no other database commands run.
+
+## Sprint 13 Correctness Patch — Reproducible Assessment Context and Approved Decision Trace
+
+Status: Complete
+
+### Objective
+
+Correct Sprint 13 Checkpoint B issues without changing clinical rules, BP behavior/verification, ML/Python, sync, referrals, or the decision hierarchy. No migrations were run; `2026_08_05_000002_add_assessment_metadata_to_prenatal_visits_table.php` remains file-only (nullable JSON, no backfill).
+
+### FIX 1 — BP-URG trace no longer contradicts the result
+
+- **Before:** the completeness trace step claimed the assessment "stopped because required records are missing" even when a BP-URG result already overrode completeness (the same step text appeared on both the INCOMPLETE and the urgent-HIGH paths).
+- **After:** when BP-URG overrides completeness, `COMPLETENESS_CHECK` is `COMPLETED` with **"Required records were checked; missing records were preserved but did not block the urgent result."** The "assessment stopped" wording appears only on the genuine ASSESSMENT INCOMPLETE path.
+- Covered by `tests/Unit/Services/DecisionTraceBuilderTest.php` (scenarios A and B) and the feature persistence test.
+
+### FIX 2 — Approved 7-step decision-trace pipeline
+
+`app/ValueObjects/DecisionTraceStep.php` was rewritten around the approved contract:
+
+- Step codes in exact order: `CONTEXT_BUILT → URGENT_BP_CHECK → COMPLETENESS_CHECK → STANDALONE_RULE_EVALUATION → INTERACTION_RULE_EVALUATION → ML_EVALUATION → FINAL_DECISION`.
+- Statuses: `COMPLETED`, `TRIGGERED`, `SKIPPED`, `BLOCKED`.
+- Immutable keys only: `step_code`, `status`, `summary`, `related_factor_codes`, `related_interaction_codes`, `missing_records`, `assessed_at`. No stack traces, raw Python output, or technical exceptions.
+- `normalizeList()` null-safe on missing list keys (fixed a ternary bug that read an undefined array key).
+
+`app/Services/DecisionTraceBuilder.php` builds the full 7-step pipeline for every result path (previously it emitted only the relevant 1–2 steps):
+
+- **A — BP-URG, complete:** URGENT_BP_CHECK TRIGGERED (BP-URG) → COMPLETENESS COMPLETED → rules/interaction/ML SKIPPED → FINAL HIGH (urgent BP safety override).
+- **B — BP-URG, missing:** same, with `missing_records` preserved and the "did not block" summary.
+- **C — BP-H, missing:** COMPLETENESS BLOCKED with the elevated-BP alert preserved alongside missing records.
+- **D — rule HIGH:** COMPLETENESS COMPLETED → STANDALONE_RULE_EVALUATION TRIGGERED (with factor codes) → FINAL HIGH.
+- **E — ML HIGH:** rules COMPLETED (no trigger) → ML COMPLETED (valid HIGH) → FINAL HIGH.
+- **F — ML LOW:** ML COMPLETED (valid LOW) → FINAL LOW.
+- **G — invalid ML:** ML BLOCKED → FINAL ASSESSMENT INCOMPLETE.
+
+### FIX 3 — Ultrasound inputs are reproducible (controlled snapshot)
+
+- **`app/ValueObjects/UltrasoundSnapshot.php`** (new) — immutable input to `ClinicalRuleEngine`: `ultrasound_id`, `ultrasound_date`, and exactly three findings `presentation`, `amniotic_fluid`, `fetal_heartbeat`. Values are trimmed; nothing else leaks.
+- **`app/ValueObjects/AssessmentContext.php`** — added `ultrasound_inputs` (allowed key + sanitized constructor/`toArray`/`fromArray`); `sanitizeUltrasoundInputs()` drops every key outside the three findings, so the context can never store PII or model internals.
+- **`app/Services/AssessmentContextBuilder.php`** — `buildForPatient()` accepts the already-selected `Ultrasound` record, builds the snapshot, and persists `ultrasound_inputs` in the context. The deterministic ultrasound selection happens **once** in `RiskAssessmentService::assess()`; no downstream re-selection of "latest".
+- **`app/Services/AssessmentDataQualityService.php`** — `missingUltrasoundFieldsFlag()` reads only `$context->ultrasound_inputs` (no `Ultrasound::find()`, no re-query).
+- **`app/Services/ClinicalRuleEngine.php`** — `evaluate()`/`evaluateDetailed()` now accept `?UltrasoundSnapshot` instead of `?Ultrasound`. No Eloquent model is ever serialized into metadata.
+
+### FIX 4 — AssessmentResult versions contract
+
+Removed the ignored `$versions` constructor parameter. `AssessmentResult` always derives versions from `AssessmentVersion::versions()` (a fresh result can never forge historical versions).
+
+### FIX 5 — Date/time contract clarified
+
+- `context.assessment_date` = clinical/date anchor for source-date checks (e.g., a future-dated ultrasound is flagged against this anchor). It is **not** the engine execution time.
+- `assessed_at` = exact engine execution timestamp. `RiskAssessmentService::finalize()` computes `$assessedAt = now()->toDateTimeString()` and passes it to `DecisionTraceBuilder::build($result, $assessedAt)`; every trace step carries the same timestamp. Builder falls back to `$result->assessed_at`.
+
+### FIX 6 — Source preview accuracy
+
+`resources/views/prenatal_visits/create.blade.php` now labels the panel **"Source preview (preselected patient)"** with an explanatory note; JS hides the preview whenever `#patient_id` changes (UI-only, no client-side risk calculation, no new routes).
+
+### Views
+
+- `resources/views/patients/show.blade.php` — decision-path card renders the 7 trace steps with status pills (emerald/red/gray/amber) + summary + related factor/interaction codes + missing records; context card shows the `ultrasound_inputs` line.
+- `resources/views/exports/patient-record.blade.php` — trace table uses the new keys; context table shows `ultrasound_inputs`.
+
+### Tests
+
+- Rewritten/updated: `DecisionTraceStepTest` (approved keys, invalid code/status throws, null-safe normalize, 7-step order), `DecisionTraceBuilderTest` (pipeline order + scenarios A–G + BP-URG no-stop claim + assessed_at passthrough + no technical output), `UltrasoundSnapshotTest` (new), `AssessmentContextBuilderTest` (ultrasound id/date/values captured, normal values preserved, later model edits do not mutate the context, pre-selected ultrasound accepted), `AssessmentDataQualityServiceTest` (DQ reads context values, future-dated uses `assessment_date` anchor, `assessment_date` distinct from `now`), `AssessmentContextTest` (ultrasound_inputs sanitization), `AssessmentResultTest` (versions reflect `AssessmentVersion::versions()`, no `versions` ctor param), `AssessmentMetadataSerializerTest` (new trace keys), `ClinicalRuleEngineTest` (passes `UltrasoundSnapshot`), `Feature/AssessmentMetadataPersistenceTest` (trace step_codes + ultrasound_inputs + assessment_date vs assessed_at).
+- Regression suites green: Sprint 10 BP (BloodPressureAssessment, DecisionIntegration, RiskAssessment), Sprint 11 (MedicalHistoryConditionSync, PatientAssessmentRecalculation), Sprint 12 evidence (ClinicalFactorEvidence, ClinicalFactorRegistry, BloodPressureFactorEvidenceMapper, ClinicalInteraction*), plus the Sprint 13 unit/feature set.
+
+### Test Results
+
+- Full suite: **374 passed, 3 failed** (1412 assertions). The 3 failures are the documented pre-existing, unrelated ones (ExampleTest guest redirect 302, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403). **Zero new regressions.**
+- `php -l` clean on all changed PHP files; `php artisan view:cache` clean; `git diff --check` clean.
+- `php artisan migrate:status` confirms `2026_08_05_000002_...` still **Pending** — no migration was run.
+
+### Records Modified
+
+- `app/ValueObjects/DecisionTraceStep.php` (rewritten), `app/Services/DecisionTraceBuilder.php` (rewritten)
+- `app/ValueObjects/UltrasoundSnapshot.php` (new), `app/ValueObjects/AssessmentContext.php`, `app/Services/AssessmentContextBuilder.php`
+- `app/Services/AssessmentDataQualityService.php`, `app/Services/ClinicalRuleEngine.php`, `app/Services/RiskAssessmentService.php`, `app/ValueObjects/AssessmentResult.php`
+- `resources/views/patients/show.blade.php`, `resources/views/exports/patient-record.blade.php`, `resources/views/prenatal_visits/create.blade.php`
+- Tests listed above.
+
+### Records NOT Modified
+
+- No clinical thresholds, BP thresholds/verification behavior, decision hierarchy, ML/Python, referrals, or sync logic changed.
+- No new active clinical rules, scores, or outcomes. Interaction registry active set remains empty.
+- Migration `2026_08_05_000002_...` not executed; no database commands run.
+
+## Next Planned Work (updated)
+
+1. Manually inspect and execute the pending additive migrations (BP verification, notes/recommendation, factor_evidence, assessment_metadata) after review.
+2. Promote a candidate interaction (`CLIN-INTER-*`) from DRAFT to ACTIVE only with clinical approval — the engine and registry are ready.
+3. Activate deferred DQ flags (e.g., `DQ-ULTRASOUND-STALE`, `DQ-GA-DATE-MISMATCH`) only with clinical approval.
+4. MAT-WARN evaluation and referral integration remains **deferred and requires clinical approval**.
+5. Resolve the machine-specific ML environment (`PYTHON_PATH` with `joblib`/`pandas`/`scikit-learn`).
+6. Keep EDD outcome monitoring for a later dedicated sprint.

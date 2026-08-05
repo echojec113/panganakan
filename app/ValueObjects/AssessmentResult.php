@@ -3,6 +3,7 @@
 namespace App\ValueObjects;
 
 use ArrayAccess;
+use App\Support\AssessmentVersion;
 use Carbon\CarbonImmutable;
 use LogicException;
 use OutOfBoundsException;
@@ -23,6 +24,12 @@ class AssessmentResult implements ArrayAccess
         'urgency',
         'bp_assessment',
         'factor_evidence',
+        'context',
+        'interaction_evidence',
+        'data_quality_flags',
+        'decision_trace',
+        'versions',
+        'assessed_at',
     ];
 
     public readonly string $risk_level;
@@ -38,7 +45,20 @@ class AssessmentResult implements ArrayAccess
     public readonly ?string $urgency;
     public readonly ?array $bp_assessment;
     public readonly array $factor_evidence;
+    public readonly ?array $context;
+    public readonly array $interaction_evidence;
+    public readonly array $data_quality_flags;
+    public readonly array $decision_trace;
+    public readonly array $versions;
+    public readonly ?string $assessed_at;
 
+    /**
+     * An AssessmentResult always represents a freshly generated assessment, so
+     * its version map is always the current value of AssessmentVersion::versions().
+     * There is intentionally no way to inject a custom version map here: an
+     * historical row must be read back from persistence, never forged in a
+     * runtime value object.
+     */
     public function __construct(
         string $risk_level,
         string $assessment,
@@ -53,6 +73,11 @@ class AssessmentResult implements ArrayAccess
         ?string $urgency = null,
         ?array $bp_assessment = null,
         array $factor_evidence = [],
+        ?array $context = null,
+        array $interaction_evidence = [],
+        array $data_quality_flags = [],
+        array $decision_trace = [],
+        ?string $assessed_at = null,
     ) {
         $this->risk_level = $risk_level;
         $this->assessment = $assessment;
@@ -67,6 +92,12 @@ class AssessmentResult implements ArrayAccess
         $this->urgency = $urgency;
         $this->bp_assessment = $bp_assessment;
         $this->factor_evidence = ClinicalFactorEvidence::normalizeList($factor_evidence);
+        $this->context = $context !== null ? AssessmentContext::normalize($context) : null;
+        $this->interaction_evidence = ClinicalInteractionEvidence::normalizeList($interaction_evidence);
+        $this->data_quality_flags = DataQualityFlag::normalizeList($data_quality_flags);
+        $this->decision_trace = DecisionTraceStep::normalizeList($decision_trace);
+        $this->versions = AssessmentVersion::versions();
+        $this->assessed_at = $assessed_at;
     }
 
     public function toArray(): array
@@ -85,6 +116,12 @@ class AssessmentResult implements ArrayAccess
             'urgency' => $this->urgency,
             'bp_assessment' => $this->bp_assessment,
             'factor_evidence' => $this->factor_evidence,
+            'context' => $this->context,
+            'interaction_evidence' => $this->interaction_evidence,
+            'data_quality_flags' => $this->data_quality_flags,
+            'decision_trace' => $this->decision_trace,
+            'versions' => $this->versions,
+            'assessed_at' => $this->assessed_at,
         ];
     }
 

@@ -155,6 +155,10 @@
                         'OBSTETRIC_HISTORY' => 'Obstetric history',
                         'ULTRASOUND' => 'Ultrasound finding',
                     ];
+                    $assessmentMetadata = is_array($latestVisit->assessment_metadata) ? $latestVisit->assessment_metadata : [];
+                    $metadataContext = is_array($assessmentMetadata['context'] ?? null) ? $assessmentMetadata['context'] : [];
+                    $metadataFlags = is_array($assessmentMetadata['data_quality_flags'] ?? null) ? $assessmentMetadata['data_quality_flags'] : [];
+                    $metadataTrace = is_array($assessmentMetadata['decision_trace'] ?? null) ? $assessmentMetadata['decision_trace'] : [];
                 @endphp
 
                 <div class="row"><div class="label">Final Risk Assessment</div><div class="value">{{ $riskLabel }}</div></div>
@@ -235,6 +239,71 @@
                     <div style="margin:4px 0 10px 20px;font-size:13px;color:#555;">
                         Prediction: {{ $latestVisit->ml_prediction }} (Valid)
                     </div>
+                @endif
+
+                @if(!empty($metadataContext))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Assessment Context Used:</div>
+                    <table style="width:100%;border-collapse:collapse;margin:6px 0 10px 0;font-size:12px;">
+                        <tbody>
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">Ultrasound</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ !empty($metadataContext['ultrasound_date']) ? \Carbon\Carbon::parse($metadataContext['ultrasound_date'])->format('M d, Y') : 'No ultrasound record' }}
+                                    @if(!empty($metadataContext['ultrasound_inputs']))
+                                        <br><span style="color:#6b7280;">presentation: {{ $metadataContext['ultrasound_inputs']['presentation'] ?? '—' }} · fluid: {{ $metadataContext['ultrasound_inputs']['amniotic_fluid'] ?? '—' }} · heartbeat: {{ $metadataContext['ultrasound_inputs']['fetal_heartbeat'] ?? '—' }}</span>
+                                    @endif
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">Medical History</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ !empty($metadataContext['medical_history_exists']) ? 'Active record present' : 'No active record' }}</td>
+                            </tr>
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">Birth Plan</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ !empty($metadataContext['birth_plan_exists']) ? 'Active record present' : 'No active record' }}</td>
+                            </tr>
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">Assessment Date</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ $metadataContext['assessment_date'] ?? '—' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                @endif
+
+                @if(!empty($metadataFlags))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Data Requiring Verification:</div>
+                    <table style="width:100%;border-collapse:collapse;margin:6px 0 10px 0;font-size:12px;">
+                        <tbody>
+                            @foreach($metadataFlags as $flag)
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">{{ $flag['label'] ?? '' }} ({{ $flag['severity'] ?? 'INFO' }})</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">
+                                    {{ $flag['explanation'] ?? '' }}
+                                    @if(!empty($flag['suggested_verification']))<br><em>Suggested verification: {{ $flag['suggested_verification'] }}</em>@endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+
+                @if(!empty($metadataTrace))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Assessment Decision Path:</div>
+                    <table style="width:100%;border-collapse:collapse;margin:6px 0 10px 0;font-size:12px;">
+                        <tbody>
+                            @foreach($metadataTrace as $step)
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-family:monospace;font-weight:500;">{{ $step['step_code'] ?? '' }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">
+                                    <strong>{{ $step['status'] ?? '' }}</strong>
+                                    @if(!empty($step['summary']))<br><em>{{ $step['summary'] }}</em>@endif
+                                    @if(!empty($step['related_factor_codes']))<br><span style="font-family:monospace;color:#555;">Factors: {{ implode(', ', $step['related_factor_codes']) }}</span>@endif
+                                    @if(!empty($step['related_interaction_codes']))<br><span style="font-family:monospace;color:#6d28d9;">Interactions: {{ implode(', ', $step['related_interaction_codes']) }}</span>@endif
+                                    @if(!empty($step['missing_records']))<br><span style="color:#b45309;">Missing: {{ implode(', ', $step['missing_records']) }}</span>@endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
                 @endif
 
                 <div style="margin-top:8px;font-weight:600;color:#374151;">Decision Path:</div>

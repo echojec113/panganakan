@@ -61,6 +61,7 @@ class PrenatalVisit extends Model
         'urgency',
         'bp_assessment',
         'factor_evidence',
+        'assessment_metadata',
     ];
     protected $casts = [
     'visit_date' => 'date',
@@ -80,6 +81,7 @@ class PrenatalVisit extends Model
     'repeat_bp_recorded_at' => 'datetime',
     'bp_assessment' => 'array',
     'factor_evidence' => 'array',
+    'assessment_metadata' => 'array',
 ];
 
     public function patient()

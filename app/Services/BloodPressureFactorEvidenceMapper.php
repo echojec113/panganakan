@@ -36,6 +36,10 @@ class BloodPressureFactorEvidenceMapper
             return null;
         }
 
+        if (!ClinicalFactorRegistry::isActive($reasonCode)) {
+            return null;
+        }
+
         $initial = $bpAssessment['initial_bp'] ?? null;
         $repeat = $bpAssessment['repeat_bp'] ?? null;
 
