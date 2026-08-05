@@ -78,6 +78,11 @@
                     </select>
                     <input type="hidden" name="patient_id" value="{{ $visit->patient_id }}">
                     <p class="text-xs text-gray-500 mt-1">Patient cannot be changed after creation</p>
+                    @if($sourcePreview ?? null)
+                    <div class="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
+                        {{ $sourcePreview }}
+                    </div>
+                    @endif
                 </div>
 
                 <!-- Visit Date -->

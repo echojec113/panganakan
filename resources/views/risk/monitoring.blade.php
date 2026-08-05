@@ -388,6 +388,7 @@
                     }
                     $nextLabel = $visit->getMonitoringNextVisitLabel();
                     $isOverdue = $visit->isMonitoringOverdue();
+                    $verificationCount = count(is_array($visit->assessment_metadata['data_quality_flags'] ?? null) ? $visit->assessment_metadata['data_quality_flags'] : []);
                 @endphp
                 <div class="p-4 border-b border-gray-100 hover:bg-gray-50">
                     <div class="flex items-start justify-between mb-2">
@@ -407,6 +408,9 @@
                         </span>
                         @if($visit->urgency === 'URGENT_CLINICAL_REVIEW')
                         <span class="ml-1 px-2 py-1 rounded-full text-xs font-medium bg-red-700 text-white flex-shrink-0">URGENT</span>
+                        @endif
+                        @if($verificationCount > 0)
+                        <span class="ml-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700 flex-shrink-0" title="Data requiring verification">Verify {{ $verificationCount }}</span>
                         @endif
                     </div>
 
@@ -547,6 +551,7 @@
                             }
                             $nextLabel = $visit->getMonitoringNextVisitLabel();
                             $isOverdue = $visit->isMonitoringOverdue();
+                            $verificationCount = count(is_array($visit->assessment_metadata['data_quality_flags'] ?? null) ? $visit->assessment_metadata['data_quality_flags'] : []);
                         @endphp
                         <tr class="hover:bg-gray-50 transition">
                             <td class="px-6 py-4">
@@ -616,6 +621,11 @@
                                         <div class="flex items-start text-xs text-gray-500 mt-0.5">
                                             <span class="w-1 h-1 mt-1.5 bg-blue-300 rounded-full flex-shrink-0 mr-1.5"></span>
                                             <span class="leading-tight">{{ $mlOrNote }}</span>
+                                        </div>
+                                    @endif
+                                    @if($verificationCount > 0)
+                                        <div class="mt-0.5">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200 text-slate-700">Verify {{ $verificationCount }}</span>
                                         </div>
                                     @endif
                                 </div>

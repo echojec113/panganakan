@@ -906,6 +906,23 @@
                         $cat = $factor['category'] ?? 'OTHER';
                         $groupedFactors[$cat][] = $factor;
                     }
+
+                    $assessmentMetadata = is_array($latestAssessment->assessment_metadata) ? $latestAssessment->assessment_metadata : [];
+                    $metadataContext = is_array($assessmentMetadata['context'] ?? null) ? $assessmentMetadata['context'] : [];
+                    $metadataFlags = is_array($assessmentMetadata['data_quality_flags'] ?? null) ? $assessmentMetadata['data_quality_flags'] : [];
+                    $metadataTrace = is_array($assessmentMetadata['decision_trace'] ?? null) ? $assessmentMetadata['decision_trace'] : [];
+                    $metadataVersions = is_array($assessmentMetadata['versions'] ?? null) ? $assessmentMetadata['versions'] : [];
+                    $flagSeverityStyles = [
+                        'INFO' => 'bg-blue-100 text-blue-800',
+                        'VERIFY' => 'bg-amber-100 text-amber-800',
+                        'IMPORTANT' => 'bg-orange-100 text-orange-800',
+                    ];
+                    $traceStatusStyles = [
+                        'COMPLETED' => 'bg-emerald-100 text-emerald-800',
+                        'TRIGGERED' => 'bg-red-100 text-red-700',
+                        'SKIPPED' => 'bg-gray-100 text-gray-500',
+                        'BLOCKED' => 'bg-amber-100 text-amber-800',
+                    ];
                 @endphp
                 <div class="rounded-2xl shadow-md border overflow-hidden
                     @if($rl === 'HIGH') border-red-300
@@ -1224,6 +1241,110 @@
                                     @endif
                                 </dl>
                             </div>
+
+                            {{-- I. ASSESSMENT CONTEXT USED --}}
+                            @if(!empty($metadataContext))
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Assessment Context Used</span>
+                                <dl class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                    <div>
+                                        <dt class="text-gray-500">Ultrasound</dt>
+                                        <dd class="font-medium text-gray-800">
+                                            @if(!empty($metadataContext['ultrasound_date']))
+                                                {{ \Carbon\Carbon::parse($metadataContext['ultrasound_date'])->format('M d, Y') }} <span class="text-xs text-gray-400">(record #{{ $metadataContext['ultrasound_id'] ?? '—' }})</span>
+                                                @if(!empty($metadataContext['ultrasound_inputs']))
+                                                <span class="mt-1 block text-[11px] text-gray-500">presentation: {{ $metadataContext['ultrasound_inputs']['presentation'] ?? '—' }} · fluid: {{ $metadataContext['ultrasound_inputs']['amniotic_fluid'] ?? '—' }} · heartbeat: {{ $metadataContext['ultrasound_inputs']['fetal_heartbeat'] ?? '—' }}</span>
+                                                @endif
+                                            @else
+                                                <span class="text-gray-600">No ultrasound record</span>
+                                            @endif
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Medical History</dt>
+                                        <dd class="font-medium text-gray-800">{{ !empty($metadataContext['medical_history_exists']) ? 'Active record present' : 'No active record' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Birth Plan</dt>
+                                        <dd class="font-medium text-gray-800">{{ !empty($metadataContext['birth_plan_exists']) ? 'Active record present' : 'No active record' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Assessment Date</dt>
+                                        <dd class="font-medium text-gray-800">{{ $metadataContext['assessment_date'] ?? '—' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Patient Status</dt>
+                                        <dd class="font-medium text-gray-800">{{ $metadataContext['patient_status'] ?? '—' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-gray-500">Rules / Engine Versions</dt>
+                                        <dd class="text-gray-700">rules v{{ $metadataVersions['clinical_rules'] ?? '—' }} · engine v{{ $metadataVersions['assessment_engine'] ?? '—' }} · ctx v{{ $metadataVersions['context'] ?? '—' }}</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                            @endif
+
+                            {{-- J. DATA REQUIRING VERIFICATION --}}
+                            @if(!empty($metadataFlags))
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Data Requiring Verification</span>
+                                <p class="mt-1 text-xs text-gray-500">Documentation items to verify. These do not change the clinical risk classification.</p>
+                                <div class="mt-3 space-y-2">
+                                    @foreach($metadataFlags as $flag)
+                                    <details class="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                        <summary class="flex items-center justify-between gap-2 cursor-pointer list-none">
+                                            <span class="text-sm font-medium text-gray-800">{{ $flag['label'] ?? 'Verification item' }}</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold {{ $flagSeverityStyles[$flag['severity'] ?? 'INFO'] ?? 'bg-gray-100 text-gray-700' }}">{{ $flag['severity'] ?? 'INFO' }}</span>
+                                        </summary>
+                                        <p class="mt-2 text-sm text-gray-700">{{ $flag['explanation'] ?? '' }}</p>
+                                        @if(!empty($flag['suggested_verification']))
+                                        <p class="mt-1 text-xs text-gray-600"><span class="font-semibold">Suggested verification:</span> {{ $flag['suggested_verification'] }}</p>
+                                        @endif
+                                        @if(!empty($flag['expected_condition']))
+                                        <p class="mt-1 text-xs text-gray-500"><span class="font-semibold">Expected:</span> {{ $flag['expected_condition'] }}</p>
+                                        @endif
+                                    </details>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @endif
+
+                            {{-- K. ASSESSMENT DECISION PATH --}}
+                            @if(!empty($metadataTrace))
+                            <div class="rounded-xl border border-gray-200 bg-white p-4">
+                                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Assessment Decision Path</span>
+                                <ol class="mt-3 space-y-2">
+                                    @foreach($metadataTrace as $step)
+                                    <li class="flex items-start gap-3">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 shrink-0">{{ $step['step_code'] ?? 'STEP' }}</span>
+                                        <div class="min-w-0">
+                                            <p class="text-sm font-medium text-gray-800">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold {{ $traceStatusStyles[$step['status'] ?? ''] ?? 'bg-gray-100 text-gray-600' }}">{{ $step['status'] ?? '' }}</span>
+                                            </p>
+                                            <p class="mt-0.5 text-xs text-gray-600">{{ $step['summary'] ?? '' }}</p>
+                                            @if(!empty($step['related_factor_codes']))
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                @foreach($step['related_factor_codes'] as $code)
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-gray-100 text-gray-600">{{ $code }}</span>
+                                                @endforeach
+                                            </div>
+                                            @endif
+                                            @if(!empty($step['related_interaction_codes']))
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                @foreach($step['related_interaction_codes'] as $code)
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-violet-100 text-violet-700">{{ $code }}</span>
+                                                @endforeach
+                                            </div>
+                                            @endif
+                                            @if(!empty($step['missing_records']))
+                                            <p class="mt-1 text-[11px] text-amber-700"><span class="font-semibold">Missing:</span> {{ implode(', ', $step['missing_records']) }}</p>
+                                            @endif
+                                        </div>
+                                    </li>
+                                    @endforeach
+                                </ol>
+                            </div>
+                            @endif
                         </div>
                     </div>
                 </div>

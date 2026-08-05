@@ -1,11 +1,15 @@
 <?php
 
 use App\Models\Patient;
+use App\Services\AssessmentContextBuilder;
+use App\Services\AssessmentDataQualityService;
 use App\Services\BloodPressureAssessmentService;
 use App\Services\BloodPressureFactorEvidenceMapper;
+use App\Services\ClinicalInteractionEngine;
 use App\Services\ClinicalRuleEngine;
 use App\Services\CompletenessValidator;
 use App\Services\DecisionIntegrationService;
+use App\Services\DecisionTraceBuilder;
 use App\Services\MachineLearningService;
 use App\Services\RiskAssessmentService;
 
@@ -42,7 +46,11 @@ function makeRiskAssessmentService(
         $ml,
         new DecisionIntegrationService,
         new BloodPressureAssessmentService,
-        new BloodPressureFactorEvidenceMapper
+        new BloodPressureFactorEvidenceMapper,
+        new AssessmentContextBuilder,
+        new ClinicalInteractionEngine,
+        new AssessmentDataQualityService(new AssessmentContextBuilder),
+        new DecisionTraceBuilder
     );
 }
 

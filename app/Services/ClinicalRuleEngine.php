@@ -3,8 +3,9 @@
 namespace App\Services;
 
 use App\Models\Patient;
-use App\Models\Ultrasound;
+use App\Support\ClinicalFactorRegistry;
 use App\ValueObjects\ClinicalFactorEvidence;
+use App\ValueObjects\UltrasoundSnapshot;
 
 class ClinicalRuleEngine
 {
@@ -20,7 +21,7 @@ class ClinicalRuleEngine
     public function evaluate(
         Patient $patient,
         array $inputs,
-        ?Ultrasound $ultrasound
+        ?UltrasoundSnapshot $ultrasound
     ): array {
         $evidence = $this->evaluateDetailed($patient, $inputs, $ultrasound);
 
@@ -34,12 +35,16 @@ class ClinicalRuleEngine
      * Evaluate deterministic clinical rules and return structured factor
      * evidence in rule order.
      *
+     * The ultrasound is consumed as a controlled snapshot (never an Eloquent
+     * model), so the engine can only ever evaluate the exact values that were
+     * captured in the assessment context.
+     *
      * @return array<int, ClinicalFactorEvidence>
      */
     public function evaluateDetailed(
         Patient $patient,
         array $inputs,
-        ?Ultrasound $ultrasound
+        ?UltrasoundSnapshot $ultrasound
     ): array {
         $evidence = [];
 
@@ -73,10 +78,10 @@ class ClinicalRuleEngine
             );
         }
 
-        if ($ultrasound) {
-            $presentation = strtoupper(trim((string) $ultrasound->presentation));
-            $amnioticFluid = strtoupper(trim((string) $ultrasound->amniotic_fluid));
-            $fetalHeartbeat = strtoupper(trim((string) $ultrasound->fetal_heartbeat));
+        if ($ultrasound !== null) {
+            $presentation = strtoupper(trim($ultrasound->presentation));
+            $amnioticFluid = strtoupper(trim($ultrasound->amniotic_fluid));
+            $fetalHeartbeat = strtoupper(trim($ultrasound->fetal_heartbeat));
 
             if (in_array($presentation, ['BREECH', 'TRANSVERSE', 'OBLIQUE'], true)) {
                 $evidence[] = ClinicalFactorEvidence::forCode(
@@ -103,6 +108,12 @@ class ClinicalRuleEngine
             }
         }
 
-        return $evidence;
+        // Governance gate: only factors registered as ACTIVE may be surfaced.
+        // This filter never changes a clinical condition; it only guarantees
+        // that inactive/deferred codes cannot reach the assessment result.
+        return array_values(array_filter(
+            $evidence,
+            static fn (ClinicalFactorEvidence $factor) => ClinicalFactorRegistry::isActive($factor->code)
+        ));
     }
 }

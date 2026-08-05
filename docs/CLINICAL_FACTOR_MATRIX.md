@@ -1876,3 +1876,22 @@ Each triggered deterministic factor now has a structured, immutable evidence rec
 ### Factor Metadata Reference
 
 Each registry entry carries: staff-friendly label, category (MATERNAL_DEMOGRAPHICS / VITAL_SIGNS / CURRENT_CONDITION / OBSTETRIC_HISTORY / ULTRASOUND), source type and fields, threshold-or-rule text, decision effect (HIGH), urgency, explanation, and suggested action. Placeholder labels (`{count}`, `{value}`) are always overridden by the rule engine at runtime (e.g., `History of 3 miscarriage(s)`, `Abnormal fetal presentation (BREECH)`).
+
+## Sprint 13 Checkpoint B Addendum — Context-Aware Assessment Architecture and Rule Governance
+
+### Purpose
+
+The assessment engine now persists a reproducibility metadata document alongside every result. This addendum is documentation-only for the factor matrix: **no factor, threshold, decision hierarchy, or clinical behavior changed**. The Sprint 13 metadata is a separate, non-clinical channel that snapshots the context, records the decision path, surfaces data-quality items that need staff verification, and carries interaction evidence governed by an explicit allowlist.
+
+### Metadata Object Model
+
+- **Context snapshot** — `AssessmentContext` (immutable) + `AssessmentContextBuilder`: assessment date, patient id/status, GA, LMP/EDD, selected ultrasound (id/date and its three findings `presentation`, `amniotic_fluid`, `fetal_heartbeat` via `ultrasound_inputs`, controlled by `UltrasoundSnapshot`), active medical-history/birth-plan presence and duplicate counts, visit. The ultrasound is selected **once** deterministically (`scan_date DESC`, `created_at DESC`, `id DESC`); the DQ missing-fields check and the rule engine consume the snapshot, never `Ultrasound::find()`. The same context instance drives the engine and the metadata, so the snapshot always matches what was evaluated.
+- **Interaction evidence** — `ClinicalInteractionRegistry` + `ClinicalInteractionEvidence` + `ClinicalInteractionEngine`: candidate interaction codes (`CLIN-INTER-*`) are all DRAFT/DEFERRED; `activeCodes()` is **empty** in Sprint 13, so the engine emits `[]` with no DB/ML/scoring. No interaction affects any factor matrix entry.
+- **Data-quality flags** — `DataQualityFlagRegistry` + `DataQualityFlag` + `AssessmentDataQualityService`: ACTIVE flags `DQ-SOURCE-FUTURE-DATED`, `DQ-ULTRASOUND-MISSING-FIELDS`, `DQ-DUP-MEDICAL-HISTORY`, `DQ-DUP-BIRTH-PLAN`; DEFERRED `DQ-LMP-MISSING`, `DQ-EDD-MISSING`, `DQ-GA-DATE-MISMATCH`, `DQ-ULTRASOUND-STALE`. Severities INFO / VERIFY / IMPORTANT. Flags never enter `factor_evidence`, never classify HIGH, never affect urgency or counts — they only request staff verification.
+- **Decision trace** — `DecisionTraceStep` + `DecisionTraceBuilder`: approved 7-step pipeline `CONTEXT_BUILT` → `URGENT_BP_CHECK` → `COMPLETENESS_CHECK` → `STANDALONE_RULE_EVALUATION` → `INTERACTION_RULE_EVALUATION` → `ML_EVALUATION` → `FINAL_DECISION`, statuses `COMPLETED`/`TRIGGERED`/`SKIPPED`/`BLOCKED`, derived from the final result only (never re-evaluates, so it cannot contradict the outcome). When BP-URG overrides completeness, missing records are preserved but do not block the urgent result.
+- **Versions** — `AssessmentVersion` records assessment engine, clinical-rule, and context versions per result.
+- **Persistence** — `AssessmentMetadataSerializer` produces the scoped document stored in `PrenatalVisit.assessment_metadata` (nullable JSON, array cast; additive migration `2026_08_05_000002_...` NOT executed). Legacy `NULL` rows keep rendering via existing fallbacks.
+
+### Clinical Safety Position
+
+Sprint 13 adds reproducibility and governance without touching the clinical layer: the factor allowlist (11 codes), BP thresholds, completeness ordering, decision hierarchy, ML path, referrals, and sync logic are unchanged. Any future promotion of an interaction or activation of a deferred DQ flag requires clinical approval before it may influence assessment output.

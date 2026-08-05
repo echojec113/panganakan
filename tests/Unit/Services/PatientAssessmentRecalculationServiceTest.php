@@ -6,6 +6,7 @@ use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use App\Models\Ultrasound;
 use App\Services\BloodPressureAssessmentService;
+use App\Services\AssessmentMetadataSerializer;
 use App\Services\PatientAssessmentRecalculationService;
 use App\Services\RiskAssessmentService;
 use App\ValueObjects\AssessmentResult;
@@ -81,7 +82,7 @@ test('recalculates ASSESSMENT INCOMPLETE visits once all required records exist'
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->times(2)->andReturn(recalcAssessmentResult());
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     $visitA->refresh();
@@ -105,7 +106,7 @@ test('never recalculates HIGH visits', function () {
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->times(1)->andReturn(recalcAssessmentResult());
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     $incomplete->refresh();
@@ -125,7 +126,7 @@ test('never recalculates LOW visits', function () {
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->times(1)->andReturn(recalcAssessmentResult());
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     $low->refresh();
@@ -144,7 +145,7 @@ test('never recalculates visits of delivered patients', function () {
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->never();
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     $visit->refresh();
@@ -162,7 +163,7 @@ test('does not recalculate when any required record is missing', function () {
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->never();
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     $visit = PrenatalVisit::where('patient_id', $patient->id)->first();
@@ -174,7 +175,7 @@ test('does nothing when the patient does not exist', function () {
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->never();
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits(999999);
 
     expect(PrenatalVisit::count())->toBe(0);
@@ -209,7 +210,7 @@ test('preserves the repeat BP pair and verification metadata when recalculating'
         })
         ->andReturn(recalcAssessmentResult());
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     expect($captured['repeatBpInputs'])->toBe(['bp_sys' => 120, 'bp_dia' => 85]);
@@ -226,7 +227,7 @@ test('preserves an existing next_visit_date when recalculating', function () {
     $mock = Mockery::mock(RiskAssessmentService::class);
     $mock->shouldReceive('assess')->times(1)->andReturn(recalcAssessmentResult());
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     $visit->refresh();
@@ -264,7 +265,7 @@ test('passes the visit checkboxes, not medical history fields, as the CDSS input
         })
         ->andReturn(recalcAssessmentResult());
 
-    $service = new PatientAssessmentRecalculationService($mock);
+    $service = new PatientAssessmentRecalculationService($mock, new AssessmentMetadataSerializer);
     $service->recalculateIncompleteVisits($patient->id);
 
     expect($capturedInputs)->not->toBeNull();
