@@ -1507,9 +1507,9 @@ missingRequiredRecords() returns labels for absent records
 | Age + first pregnancy (AGE-A) | Yes (Doc 4 Part 1) | Yes | Current `elseif` mutually exclusive branch |
 | Elevated BP + severe headache | Yes (Doc 4 Part 8) | No | Urgent BP action regardless of BP value |
 | Elevated BP + visual disturbance | Yes (Doc 4 Part 8) | No | Urgent assessment; possible pre-eclampsia pathway |
-| Diabetes + high amniotic fluid | Yes (Doc 4 Part 3,8) | No | Review glucose management, fluid severity, fetal growth |
+| Diabetes + high amniotic fluid | Yes (Doc 4 Part 3,8) | Yes (Sprint 15, HIGH-gated) | Additive evidence `INT-DM-AF`; DM-01 + US-AF01 with observed fluid HIGH only; no polyhydramnios diagnosis; risk unchanged |
 | Anemia + previous CS | Yes (Doc 4 Part 8) | No | Combined hospital birth planning + anemia management |
-| Previous CS + malpresentation | Yes (Doc 4 Part 8) | No | Individualized hospital birth planning |
+| Previous CS + malpresentation | Yes (Doc 4 Part 8) | Yes (Sprint 15) | Additive evidence `INT-CS-PRES`; CS-01 + US-P01 (Breech/Transverse/Oblique); no mode-of-birth/VBAC decision; risk unchanged |
 | Multiple concurrent factors | Yes (Doc 4 Part 8) | Partially | Multiple reasons preserved; no interaction-specific explanation |
 | Severe BP + any other factor | Yes (Doc 4 Part 8) | No | Urgent BP action takes precedence |
 | Rule HIGH vs ML LOW | Yes (Doc 4 Part 5) | Yes | Rule overrides ML LOW |
@@ -1895,3 +1895,32 @@ The assessment engine now persists a reproducibility metadata document alongside
 ### Clinical Safety Position
 
 Sprint 13 adds reproducibility and governance without touching the clinical layer: the factor allowlist (11 codes), BP thresholds, completeness ordering, decision hierarchy, ML path, referrals, and sync logic are unchanged. Any future promotion of an interaction or activation of a deferred DQ flag requires clinical approval before it may influence assessment output.
+
+---
+
+## Sprint 15 Phase 15B Addendum — Controlled Clinical Interaction Activation
+
+### Purpose
+
+Sprint 15 activates exactly three **additive explainability** interactions on the existing RULE_BASED HIGH path. Interactions never replace factor evidence and never change the final risk classification, urgency, precedence, ML invocation, or decision hierarchy. All other interaction candidates remain DRAFT or DEFERRED.
+
+### ACTIVE interactions (Sprint 15)
+
+| Code | Contributors | Observed-value condition | Decision behavior | Boundary / limitation |
+|------|--------------|--------------------------|-------------------|------------------------|
+| `INT-BP-DM` | BP-H + DM-01 | none | Additive evidence only; risk stays HIGH | No preeclampsia diagnosis; no BP threshold/urgency change |
+| `INT-DM-AF` | DM-01 + US-AF01 | `ultrasound_inputs.amniotic_fluid` = HIGH | Additive evidence only; risk stays HIGH | LOW or missing/malformed fluid never triggers; no polyhydramnios cause/severity diagnosis; US-AF01 unchanged |
+| `INT-CS-PRES` | CS-01 + US-P01 | none (presentation is any of Breech/Transverse/Oblique) | Additive evidence only; risk stays HIGH | No mode of birth / VBAC determination; hospital-level planning support only |
+
+### Contract positions
+
+- **Additive-only:** `factor_evidence` keeps each standalone factor row; `interaction_evidence` is a separate list. A detected interaction never deletes or overwrites contributing factor evidence.
+- **Value gate:** the controlled evaluated `amniotic_fluid` value is read from `AssessmentContext::ultrasound_inputs` (already sanitized by `UltrasoundSnapshot`), compared case-insensitively; the interaction only fires when the value is HIGH. LOW, missing, null, or malformed values never satisfy the condition. No DB field added.
+- **Governance:** statuses ACTIVE, `rule_version` 1.1.0, `decision_effect` and `urgency` null. `INT-WARNING-BP`, `INT-US-PRESENTATION-GA`, `INT-ANEMIA-LAB`, `INT-SYMPTOM-CONDITION`, `INT-PERSISTENT-FINDING` remain DRAFT/DEFERRED.
+- **Versioning:** `CLINICAL_RULE_VERSION` stays `1.1.0` (bumped `1.0.0 → 1.1.0` in `AssessmentVersion` for Sprint 15); historical persisted assessments keep their recorded version. No separate interaction version system introduced.
+- **Observed-context preservation (Phase 15C):** each ACTIVE interaction declares `observed_context_keys` (dotted paths) in the registry. The engine copies those exact controlled values (e.g. `ultrasound_inputs.amniotic_fluid = HIGH`, `ultrasound_inputs.presentation`) into `interaction_evidence.observed_context`. It never stores the whole `AssessmentContext`, never stores PII, models, or ultrasound remarks/notes, and never duplicates BP thresholds/snapshots (`INT-BP-DM` has no keys). LOW/missing values stay absent.
+- **Clinician-facing UI (Phase 15D):** the patient profile renders a dedicated **Clinical Interactions Identified** section (label, code, contributing factors, clinician-readable observed values, explanation, suggested action) only when valid persisted evidence exists; Risk Monitoring shows a compact interaction-count badge; the printable patient record includes the same interaction table. Observed context is translated through a strict whitelist — raw keys, internal structure, patient IDs, and technical terms are never shown. Blade never re-evaluates clinical logic and never invents BP snapshots. Legacy/null metadata and malformed/unknown interaction rows render safely.
+
+### Deferral note
+
+All other candidates (warning-symptom+BP, anemia+Hb, placenta, GA-gated presentation, fetal movement, fundal height, new labs, BP-URG combination, clusters, scores) remain deferred exactly as documented in Phase 14C. No scores, percentages, MODERATE/VERY HIGH/EXTREME, or treatment/prescription logic were added.

@@ -6,10 +6,12 @@ namespace App\Support;
  * Metadata-only registry of clinical interaction rules.
  *
  * An interaction represents a multi-factor rule that may only become active
- * after clinical approval. Sprint 13 ships ZERO ACTIVE interactions: the
- * registry, evidence object, and engine exist as infrastructure only.
+ * after clinical approval. Sprint 15 activates exactly three additive
+ * explainability interactions (INT-BP-DM, INT-DM-AF, INT-CS-PRES). All other
+ * candidates remain DRAFT or DEFERRED strictly for documentation.
  *
- * Candidates are registered as DRAFT or DEFERRED strictly for documentation.
+ * Interactions never classify or escalate on their own: they are additive
+ * evidence layered on top of already-triggered ACTIVE standalone factors.
  */
 class ClinicalInteractionRegistry
 {
@@ -20,8 +22,20 @@ class ClinicalInteractionRegistry
     public const RETIRED = 'RETIRED';
 
     /**
-     * Candidate interactions, all DRAFT or DEFERRED. None is evaluated in
-     * Sprint 13. This array is documentation only.
+     * Registered interaction rules.
+     *
+     * Sprint 15 activates exactly three additive explainability interactions.
+     * Every other candidate remains DRAFT or DEFERRED and is never evaluated.
+     *
+     * An optional `observed_value_conditions` map (path => expected value)
+     * gates a candidate on a controlled, already-evaluated value from the
+     * assessment context. Values are compared case-insensitively; a missing,
+     * null, or malformed value never satisfies the condition.
+     *
+     * An optional `observed_context_keys` list (dotted context paths) declares
+     * which controlled values the engine should preserve inside the interaction
+     * evidence's observed_context (for explainability/reproducibility). Only the
+     * declared paths are captured — never the full context, PII, or remarks.
      */
     private const INTERACTIONS = [
         'INT-US-PRESENTATION-GA' => [
@@ -74,6 +88,41 @@ class ClinicalInteractionRegistry
             'suggested_action' => null,
             'rule_version' => null,
         ],
+        'INT-BP-DM' => [
+            'label' => 'Elevated blood pressure with diabetes',
+            'required_factor_codes' => ['BP-H', 'DM-01'],
+            'status' => self::ACTIVE,
+            'decision_effect' => null,
+            'urgency' => null,
+            'explanation' => 'Both an elevated blood-pressure finding and diabetes were independently identified. The combination adds structured evidence supporting coordinated qualified clinical review; it does not diagnose pre-eclampsia and does not change the final risk classification or urgency.',
+            'suggested_action' => 'Coordinate qualified clinical review of the elevated blood-pressure and diabetes findings.',
+            'rule_version' => '1.1.0',
+        ],
+        'INT-DM-AF' => [
+            'label' => 'Diabetes with high amniotic fluid',
+            'required_factor_codes' => ['DM-01', 'US-AF01'],
+            'status' => self::ACTIVE,
+            'decision_effect' => null,
+            'urgency' => null,
+            'observed_value_conditions' => [
+                'ultrasound_inputs.amniotic_fluid' => 'HIGH',
+            ],
+            'observed_context_keys' => ['ultrasound_inputs.amniotic_fluid'],
+            'explanation' => 'A high amniotic-fluid finding and diabetes were identified alongside each other. This adds structured evidence for coordinated review of diabetes care and the ultrasound finding; it makes no causal claim, does not diagnose polyhydramnios cause or severity, and does not change the final risk classification or recommend delivery timing.',
+            'suggested_action' => 'Coordinate qualified review of diabetes care and the high amniotic-fluid ultrasound finding.',
+            'rule_version' => '1.1.0',
+        ],
+        'INT-CS-PRES' => [
+            'label' => 'Previous cesarean with abnormal fetal presentation',
+            'required_factor_codes' => ['CS-01', 'US-P01'],
+            'status' => self::ACTIVE,
+            'decision_effect' => null,
+            'urgency' => null,
+            'observed_context_keys' => ['ultrasound_inputs.presentation'],
+            'explanation' => 'A previous cesarean section and an abnormal fetal presentation were both identified. Combined, these strengthen the need for hospital-level obstetric birth-planning and referral review; the CDSS does not determine cesarean, mode of birth, or VBAC eligibility.',
+            'suggested_action' => 'Arrange hospital-level obstetric birth-planning and referral review.',
+            'rule_version' => '1.1.0',
+        ],
     ];
 
     /**
@@ -85,7 +134,7 @@ class ClinicalInteractionRegistry
     }
 
     /**
-     * Codes whose governance status is ACTIVE. Empty in Sprint 13 by design.
+     * Codes whose governance status is ACTIVE.
      *
      * @return array<int, string>
      */

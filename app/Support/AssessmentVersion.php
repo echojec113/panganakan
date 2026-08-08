@@ -14,8 +14,13 @@ final class AssessmentVersion
     /** Assessment engine internal version (semantic). */
     public const ASSESSMENT_ENGINE_VERSION = '1.0.0';
 
-    /** Clinical rule set internal version (semantic). */
-    public const CLINICAL_RULE_VERSION = '1.0.0';
+    /**
+     * Clinical factor + interaction rule set internal version (semantic).
+     *
+     * Bumped 1.0.0 -> 1.1.0 in Sprint 15 when the first controlled interaction
+     * rules (INT-BP-DM, INT-DM-AF, INT-CS-PRES) became ACTIVE.
+     */
+    public const CLINICAL_RULE_VERSION = '1.1.0';
 
     /** Assessment context schema version (integer). */
     public const CONTEXT_VERSION = 1;

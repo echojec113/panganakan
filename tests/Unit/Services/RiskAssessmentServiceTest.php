@@ -250,7 +250,7 @@ test('multi-factor deterministic assessment preserves every factor evidence code
     expect($codes)->toContain('US-P01');
     expect($codes)->toContain('US-AF01');
     expect($codes)->toContain('US-FH01');
-    expect($result->interaction_evidence)->toBe([]);
+    expect(array_column($result->interaction_evidence, 'code'))->toBe(['INT-CS-PRES']);
 });
 
 test('multiple active factors produce HIGH with no score or classification escalation', function () {

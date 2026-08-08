@@ -225,6 +225,50 @@
                     </ul>
                 @endif
 
+                @php
+                    $structuredInteractions = \App\ValueObjects\ClinicalInteractionEvidence::normalizeList($assessmentMetadata['interaction_evidence'] ?? $latestVisit->interaction_evidence ?? []);
+                    $interactionContextLabels = [
+                        'ultrasound_inputs.amniotic_fluid' => 'Amniotic fluid',
+                        'ultrasound_inputs.presentation' => 'Fetal presentation',
+                    ];
+                @endphp
+                @if(!empty($structuredInteractions))
+                    <div style="margin-top:8px;font-weight:600;color:#374151;">Clinical Interactions Identified:</div>
+                    <table style="width:100%;border-collapse:collapse;margin:6px 0 10px 0;font-size:12px;">
+                        <thead>
+                            <tr style="background:#f9fafb;">
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Interaction</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Code</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Contributing Factors</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Observed Value</th>
+                                <th style="border:1px solid #e5e7eb;padding:6px 8px;text-align:left;">Explanation / Suggested Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($structuredInteractions as $interaction)
+                            @php
+                                $observedLines = [];
+                                foreach (($interaction['observed_context'] ?? []) as $path => $value) {
+                                    if (isset($interactionContextLabels[$path]) && $value !== null && trim((string) $value) !== '') {
+                                        $observedLines[] = $interactionContextLabels[$path] . ': ' . $value;
+                                    }
+                                }
+                            @endphp
+                            <tr>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-weight:500;">{{ $interaction['label'] ?? '' }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-family:monospace;">{{ $interaction['code'] ?? '' }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;font-family:monospace;">{{ implode(', ', $interaction['required_factor_codes'] ?? []) }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">{{ implode(' · ', $observedLines) }}</td>
+                                <td style="border:1px solid #e5e7eb;padding:6px 8px;">
+                                    {{ $interaction['explanation'] ?? '' }}
+                                    @if(!empty($interaction['suggested_action']))<br><em>Action: {{ $interaction['suggested_action'] }}</em>@endif
+                                </td>
+                            </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                @endif
+
                 @if($ds === 'COMPLETENESS' && !empty($latestVisit->missing_records))
                     <div style="margin-top:8px;font-weight:600;color:#374151;">Missing Required Records:</div>
                     <ul style="margin:4px 0 10px 20px;font-size:13px;color:#555;">

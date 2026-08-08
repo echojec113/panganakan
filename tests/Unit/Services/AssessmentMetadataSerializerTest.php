@@ -38,7 +38,7 @@ test('serializer produces a scoped metadata document', function () {
         'decision_trace', 'versions', 'assessed_at',
     ]);
     expect($document['context']['patient_id'])->toBe(1);
-    expect($document['versions']['clinical_rules'])->toBe('1.0.0');
+    expect($document['versions']['clinical_rules'])->toBe('1.1.0');
     expect($document['assessed_at'])->toBe('2026-08-05T10:00:00+00:00');
 });
 

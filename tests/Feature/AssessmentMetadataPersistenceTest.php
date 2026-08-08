@@ -6,6 +6,7 @@ use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use App\Models\Ultrasound;
 use App\Models\User;
+use App\Services\BloodPressureAssessmentService;
 
 function metadataPatient(): Patient
 {
@@ -82,10 +83,158 @@ test('storing a visit with multiple active factors persists all factor evidence 
     expect($standalone['related_factor_codes'])->toContain('US-AF01');
     expect($standalone['related_factor_codes'])->toContain('US-FH01');
 
-    expect($visit->assessment_metadata['interaction_evidence'])->toBe([]);
+    $interactions = $visit->assessment_metadata['interaction_evidence'];
+    expect($interactions)->toHaveCount(1);
+    expect($interactions[0]['code'])->toBe('INT-CS-PRES');
+    expect($interactions[0]['required_factor_codes'])->toBe(['CS-01', 'US-P01']);
+    expect($interactions[0]['decision_effect'])->toBeNull();
+    expect($interactions[0]['urgency'])->toBeNull();
     expect($visit->urgency)->toBeNull();
     expect($visit->ml_valid)->toBeFalse();
     expect($visit->ml_prediction)->toBeNull();
+});
+
+test('D: BP-H + diabetes + previous CS + breech persists both interactions once with trace codes', function () {
+    $patient = Patient::create([
+        'first_name' => 'Rosa', 'last_name' => 'Cruz', 'age' => 31,
+        'gravida' => 3, 'para' => 2,
+        'status' => 'ONGOING',
+        'previous_cs' => 1,
+        'miscarriage' => 0,
+    ]);
+    Ultrasound::create([
+        'patient_id' => $patient->id,
+        'scan_date' => now()->subDays(2)->toDateString(),
+        'presentation' => 'Breech',
+        'amniotic_fluid' => 'Normal',
+        'fetal_heartbeat' => 'Normal',
+    ]);
+    MedicalHistory::create(['patient_id' => $patient->id, 'diabetes' => false, 'anemia' => false]);
+    BirthPlan::create(['patient_id' => $patient->id, 'deliver_in_clinic' => true]);
+
+    $user = User::create([
+        'name' => 'Staff',
+        'email' => 'staff-d@example.com',
+        'password' => bcrypt('password'),
+        'role' => 'staff',
+    ]);
+
+    $response = $this->actingAs($user)->post('/prenatal-visits', [
+        'patient_id' => $patient->id,
+        'visit_date' => now()->toDateString(),
+        'bp_sys' => 150,
+        'bp_dia' => 92,
+        'weight' => 62,
+        'gestational_age' => 26,
+        'hypertension' => 0,
+        'diabetes' => 1,
+        'anemia' => 0,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $visit = PrenatalVisit::where('patient_id', $patient->id)->first();
+    expect($visit)->not->toBeNull();
+    expect($visit->risk_level)->toBe('HIGH');
+    expect($visit->decision_source)->toBe('RULE_BASED');
+    expect($visit->urgency)->toBe(BloodPressureAssessmentService::URGENCY_PROMPT);
+
+    $codes = array_column($visit->factor_evidence, 'code');
+    expect($codes)->toContain('BP-H');
+    expect($codes)->toContain('DM-01');
+    expect($codes)->toContain('CS-01');
+    expect($codes)->toContain('US-P01');
+
+    $interactions = $visit->assessment_metadata['interaction_evidence'];
+    $codes = array_column($interactions, 'code');
+    expect($codes)->toHaveCount(2);
+    expect($codes)->toBe(['INT-BP-DM', 'INT-CS-PRES']);
+    expect($codes)->toBe(array_unique($codes));
+
+    $interactionStep = collect($visit->assessment_metadata['decision_trace'])
+        ->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
+    expect($interactionStep['status'])->toBe('TRIGGERED');
+    expect($interactionStep['related_interaction_codes'])->toBe(['INT-BP-DM', 'INT-CS-PRES']);
+});
+
+test('B-C: diabetes + high AF persists INT-DM-AF with HIGH context; low AF persists UIS-AF01 only', function () {
+    $high = Patient::create([
+        'first_name' => 'Alta', 'last_name' => 'Agua', 'age' => 27,
+        'gravida' => 1, 'para' => 0, 'status' => 'ONGOING',
+        'previous_cs' => 0, 'miscarriage' => 0,
+    ]);
+    Ultrasound::create([
+        'patient_id' => $high->id,
+        'scan_date' => now()->subDays(1)->toDateString(),
+        'presentation' => 'Cephalic',
+        'amniotic_fluid' => 'High',
+        'fetal_heartbeat' => 'Normal',
+    ]);
+    MedicalHistory::create(['patient_id' => $high->id, 'diabetes' => true, 'anemia' => false]);
+    BirthPlan::create(['patient_id' => $high->id, 'deliver_in_clinic' => true]);
+
+    $user = User::create([
+        'name' => 'Staff', 'email' => 'staff-bc@example.com',
+        'password' => bcrypt('password'), 'role' => 'staff',
+    ]);
+
+    $this->actingAs($user)->post('/prenatal-visits', [
+        'patient_id' => $high->id,
+        'visit_date' => now()->toDateString(),
+        'bp_sys' => 118, 'bp_dia' => 78,
+        'weight' => 60, 'gestational_age' => 24,
+        'hypertension' => 0, 'diabetes' => 1, 'anemia' => 0,
+    ])->assertSessionHasNoErrors();
+
+    $visit = PrenatalVisit::where('patient_id', $high->id)->first();
+    expect($visit)->not->toBeNull();
+    expect($visit->risk_level)->toBe('HIGH');
+
+    $interactions = $visit->assessment_metadata['interaction_evidence'];
+    $codes = array_column($interactions, 'code');
+    expect($codes)->toContain('INT-DM-AF');
+
+    $dmAf = collect($interactions)->firstWhere('code', 'INT-DM-AF');
+    expect($dmAf['observed_context']['ultrasound_inputs.amniotic_fluid'])->toBe('HIGH');
+    expect($dmAf['required_factor_codes'])->toBe(['DM-01', 'US-AF01']);
+    expect($dmAf['decision_effect'])->toBeNull();
+    expect($dmAf['urgency'])->toBeNull();
+    expect($dmAf['rule_version'])->toBe('1.1.0');
+
+    $traceStep = collect($visit->assessment_metadata['decision_trace'])
+        ->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
+    expect($traceStep['related_interaction_codes'])->toBe(['INT-DM-AF']);
+
+    // Low-fluid negative boundary
+    $low = Patient::create([
+        'first_name' => 'Baja', 'last_name' => 'Agua', 'age' => 30,
+        'gravida' => 2, 'para' => 1, 'status' => 'ONGOING',
+        'previous_cs' => 0, 'miscarriage' => 0,
+    ]);
+    Ultrasound::create([
+        'patient_id' => $low->id,
+        'scan_date' => now()->subDays(1)->toDateString(),
+        'presentation' => 'Cephalic',
+        'amniotic_fluid' => 'Low',
+        'fetal_heartbeat' => 'Normal',
+    ]);
+    MedicalHistory::create(['patient_id' => $low->id, 'diabetes' => true, 'anemia' => false]);
+    BirthPlan::create(['patient_id' => $low->id, 'deliver_in_clinic' => true]);
+
+    $this->actingAs($user)->post('/prenatal-visits', [
+        'patient_id' => $low->id,
+        'visit_date' => now()->toDateString(),
+        'bp_sys' => 120, 'bp_dia' => 80,
+        'weight' => 58, 'gestational_age' => 24,
+        'hypertension' => 0, 'diabetes' => 1, 'anemia' => 0,
+    ])->assertSessionHasNoErrors();
+
+    $visitLow = PrenatalVisit::where('patient_id', $low->id)->first();
+    expect($visitLow)->not->toBeNull();
+    expect(array_column($visitLow->factor_evidence, 'code'))->toContain('US-AF01');
+    expect(
+        array_column($visitLow->assessment_metadata['interaction_evidence'], 'code')
+    )->not->toContain('INT-DM-AF');
 });
 
 test('storing a visit persists assessment metadata json', function () {
@@ -134,7 +283,7 @@ test('storing a visit persists assessment metadata json', function () {
         'INTERACTION_RULE_EVALUATION', 'ML_EVALUATION', 'FINAL_DECISION',
     ]);
     expect($visit->assessment_metadata['context']['ultrasound_inputs']['presentation'])->toBe('Cephalic');
-    expect($visit->assessment_metadata['versions']['clinical_rules'])->toBe('1.0.0');
+    expect($visit->assessment_metadata['versions']['clinical_rules'])->toBe('1.1.0');
     expect($visit->assessment_metadata['assessed_at'])->not->toBeEmpty();
     expect($visit->assessment_metadata['context']['assessment_date'])->toBe(now()->toDateString());
     expect($visit->assessment_metadata['assessed_at'])->not->toBe($visit->assessment_metadata['context']['assessment_date']);

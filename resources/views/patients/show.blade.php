@@ -908,6 +908,11 @@
                     }
 
                     $assessmentMetadata = is_array($latestAssessment->assessment_metadata) ? $latestAssessment->assessment_metadata : [];
+                    $structuredInteractions = \App\ValueObjects\ClinicalInteractionEvidence::normalizeList($assessmentMetadata['interaction_evidence'] ?? $latestAssessment->interaction_evidence ?? []);
+                    $observedContextLabels = [
+                        'ultrasound_inputs.amniotic_fluid' => 'Amniotic fluid',
+                        'ultrasound_inputs.presentation' => 'Fetal presentation',
+                    ];
                     $metadataContext = is_array($assessmentMetadata['context'] ?? null) ? $assessmentMetadata['context'] : [];
                     $metadataFlags = is_array($assessmentMetadata['data_quality_flags'] ?? null) ? $assessmentMetadata['data_quality_flags'] : [];
                     $metadataTrace = is_array($assessmentMetadata['decision_trace'] ?? null) ? $assessmentMetadata['decision_trace'] : [];
@@ -1107,6 +1112,76 @@
                                 @else
                                 <p class="mt-1 text-sm text-gray-600">No structured clinical factors recorded.</p>
                                 @endif
+                            </div>
+                            @endif
+
+                            {{-- E2. CLINICAL INTERACTIONS IDENTIFIED --}}
+                            @if(!empty($structuredInteractions))
+                            <div class="rounded-xl border border-violet-200 bg-violet-50 p-4">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 010 5.656M10.172 13.828a4 4 0 010-5.656M19 12a7 7 0 11-14 0 7 7 0 0114 0zM12 12h.01"></path>
+                                    </svg>
+                                    <span class="text-xs font-semibold uppercase tracking-wide text-violet-700">Clinical Interactions Identified</span>
+                                </div>
+                                <p class="mt-1 text-xs text-violet-700/70">Additional relationships between already-identified clinical findings. These support review and planning and do not change the final risk classification.</p>
+                                <div class="mt-3 space-y-3">
+                                    @foreach($structuredInteractions as $interaction)
+                                    @php
+                                        $contextLines = collect();
+                                        foreach (($interaction['observed_context'] ?? []) as $path => $value) {
+                                            if (isset($observedContextLabels[$path]) && $value !== null && trim((string) $value) !== '') {
+                                                $contextLines->push($observedContextLabels[$path] . ': ' . $value);
+                                            }
+                                        }
+                                    @endphp
+                                    <details class="group/interaction rounded-lg border border-violet-200 bg-white px-3 py-2">
+                                        <summary class="flex items-center justify-between gap-2 cursor-pointer list-none">
+                                            <span class="flex flex-wrap items-center gap-x-2">
+                                                <span class="text-sm font-medium text-gray-800">{{ $interaction['label'] ?? 'Clinical interaction' }}</span>
+                                                <span class="text-xs text-violet-500 font-mono">{{ $interaction['code'] ?? '' }}</span>
+                                            </span>
+                                            <svg class="w-4 h-4 text-violet-400 flex-shrink-0 group-open/interaction:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </summary>
+                                        <dl class="mt-2 pt-2 border-t border-violet-100 space-y-2 text-sm">
+                                            @if(!empty($interaction['required_factor_codes']))
+                                            <div>
+                                                <dt class="text-gray-500 text-xs">Contributing factors</dt>
+                                                <dd class="flex flex-wrap gap-1 mt-1">
+                                                    @foreach($interaction['required_factor_codes'] as $code)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono bg-violet-100 text-violet-700">{{ $code }}</span>
+                                                    @endforeach
+                                                </dd>
+                                            </div>
+                                            @endif
+                                            @if($contextLines->isNotEmpty())
+                                            <div>
+                                                <dt class="text-gray-500 text-xs">Evaluated finding</dt>
+                                                <dd class="mt-1">
+                                                    @foreach($contextLines as $line)
+                                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700 mr-1">{{ $line }}</span>
+                                                    @endforeach
+                                                </dd>
+                                            </div>
+                                            @endif
+                                            @if(!empty($interaction['explanation']))
+                                            <div>
+                                                <dt class="text-gray-500 text-xs">Explanation</dt>
+                                                <dd class="text-gray-700">{{ $interaction['explanation'] }}</dd>
+                                            </div>
+                                            @endif
+                                            @if(!empty($interaction['suggested_action']))
+                                            <div>
+                                                <dt class="text-gray-500 text-xs">Suggested clinical follow-through</dt>
+                                                <dd class="text-gray-700">{{ $interaction['suggested_action'] }}</dd>
+                                            </div>
+                                            @endif
+                                        </dl>
+                                    </details>
+                                    @endforeach
+                                </div>
                             </div>
                             @endif
 

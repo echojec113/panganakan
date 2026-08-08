@@ -389,6 +389,8 @@
                     $nextLabel = $visit->getMonitoringNextVisitLabel();
                     $isOverdue = $visit->isMonitoringOverdue();
                     $verificationCount = count(is_array($visit->assessment_metadata['data_quality_flags'] ?? null) ? $visit->assessment_metadata['data_quality_flags'] : []);
+                    $interactionEvidence = \App\ValueObjects\ClinicalInteractionEvidence::normalizeList(is_array($visit->assessment_metadata) ? ($visit->assessment_metadata['interaction_evidence'] ?? null) : null);
+                    $interactionCount = count($interactionEvidence);
                 @endphp
                 <div class="p-4 border-b border-gray-100 hover:bg-gray-50">
                     <div class="flex items-start justify-between mb-2">
@@ -411,6 +413,9 @@
                         @endif
                         @if($verificationCount > 0)
                         <span class="ml-1 px-2 py-1 rounded-full text-xs font-medium bg-slate-200 text-slate-700 flex-shrink-0" title="Data requiring verification">Verify {{ $verificationCount }}</span>
+                        @endif
+                        @if($interactionCount > 0)
+                        <span class="ml-1 px-2 py-1 rounded-full text-xs font-medium bg-violet-100 text-violet-700 flex-shrink-0" title="Clinical interactions identified">{{ $interactionCount }} {{ Str::plural('interaction', $interactionCount) }}</span>
                         @endif
                     </div>
 
@@ -552,6 +557,8 @@
                             $nextLabel = $visit->getMonitoringNextVisitLabel();
                             $isOverdue = $visit->isMonitoringOverdue();
                             $verificationCount = count(is_array($visit->assessment_metadata['data_quality_flags'] ?? null) ? $visit->assessment_metadata['data_quality_flags'] : []);
+                            $interactionEvidence = \App\ValueObjects\ClinicalInteractionEvidence::normalizeList(is_array($visit->assessment_metadata) ? ($visit->assessment_metadata['interaction_evidence'] ?? null) : null);
+                            $interactionCount = count($interactionEvidence);
                         @endphp
                         <tr class="hover:bg-gray-50 transition">
                             <td class="px-6 py-4">
@@ -626,6 +633,11 @@
                                     @if($verificationCount > 0)
                                         <div class="mt-0.5">
                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-200 text-slate-700">Verify {{ $verificationCount }}</span>
+                                        </div>
+                                    @endif
+                                    @if($interactionCount > 0)
+                                        <div class="mt-0.5">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700">{{ $interactionCount }} {{ Str::plural('interaction', $interactionCount) }}</span>
                                         </div>
                                     @endif
                                 </div>

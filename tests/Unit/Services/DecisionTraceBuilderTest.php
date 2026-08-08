@@ -260,4 +260,59 @@ test('multi-factor rule high emits no score, percentage, or invented interaction
     $interaction = collect($steps)->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
     expect($interaction->related_interaction_codes)->toBe([]);
     expect($interaction->status)->toBe('COMPLETED');
+    expect($interaction->summary)->toContain('No ACTIVE clinical interaction triggered');
+});
+
+test('CLIN-RES rule high with interactions traces TRIGGERED interaction step with exact codes', function () {
+    $steps = traceSteps([
+        'decision_source' => 'RULE_BASED',
+        'risk_level' => 'HIGH',
+        'factor_evidence' => [
+            ClinicalFactorEvidence::forCode('BP-H', true),
+            ClinicalFactorEvidence::forCode('DM-01', true),
+            ClinicalFactorEvidence::forCode('CS-01', true),
+            ClinicalFactorEvidence::forCode('US-P01', true),
+        ],
+        'interaction_evidence' => [
+            ['code' => 'INT-BP-DM', 'label' => 'Elevated blood pressure with diabetes'],
+            ['code' => 'INT-CS-PRES', 'label' => 'Previous cesarean with abnormal fetal presentation'],
+        ],
+    ]);
+
+    $interaction = collect($steps)->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
+    expect($interaction->status)->toBe('TRIGGERED');
+    expect($interaction->related_interaction_codes)->toBe(['INT-BP-DM', 'INT-CS-PRES']);
+    expect($interaction->related_interaction_codes)->toBe(array_unique($interaction->related_interaction_codes));
+});
+
+test('bp-urg short-circuits the interaction step before evaluation', function () {
+    $steps = traceSteps([
+        'decision_source' => 'RULE_BASED',
+        'risk_level' => 'HIGH',
+        'urgency' => 'URGENT_CLINICAL_REVIEW',
+        'bp_assessment' => ['reason_code' => 'BP-URG', 'label' => 'Severe range'],
+        'factor_evidence' => [
+            ClinicalFactorEvidence::forCode('BP-URG', [165, 110]),
+            ClinicalFactorEvidence::forCode('DM-01', true),
+        ],
+        'interaction_evidence' => [
+            ['code' => 'INT-BP-DM', 'label' => 'Elevated blood pressure with diabetes'],
+        ],
+    ]);
+
+    $interaction = collect($steps)->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
+    expect($interaction->status)->toBe('SKIPPED');
+    expect($interaction->related_interaction_codes)->toBe([]);
+});
+
+test('completeness short-circuit skips the interaction step', function () {
+    $steps = traceSteps([
+        'decision_source' => 'COMPLETENESS',
+        'risk_level' => 'ASSESSMENT INCOMPLETE',
+        'missing_records' => ['Medical History'],
+        'factor_evidence' => [],
+    ]);
+
+    $interaction = collect($steps)->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
+    expect($interaction->status)->toBe('SKIPPED');
 });

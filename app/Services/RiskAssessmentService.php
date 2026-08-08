@@ -213,6 +213,31 @@ class RiskAssessmentService
         $interactionEvidence = $this->clinicalInteractionEngine->evaluate($context, $triggeredFactors);
         $assessedAt = now()->toDateTimeString();
 
+        // The decision trace must reflect the interaction evidence the final
+        // result persists, so it is derived from a result that already carries
+        // the computed interactions rather than the pre-interaction decision.
+        $resultWithInteractions = new AssessmentResult(
+            risk_level: $result->risk_level,
+            assessment: $result->assessment,
+            recommendation: $result->recommendation,
+            reasons: $result->reasons,
+            nextVisit: $result->nextVisit,
+            decision_source: $result->decision_source,
+            missing_records: $result->missing_records,
+            rule_reasons: $result->rule_reasons,
+            ml_prediction: $result->ml_prediction,
+            ml_valid: $result->ml_valid,
+            urgency: $result->urgency,
+            bp_assessment: $result->bp_assessment,
+            factor_evidence: $result->factor_evidence,
+            context: $context->toArray(),
+            interaction_evidence: $interactionEvidence,
+            data_quality_flags: $dataQualityFlags,
+            assessed_at: $assessedAt,
+        );
+
+        $decisionTrace = $this->decisionTraceBuilder->build($resultWithInteractions, $assessedAt);
+
         return new AssessmentResult(
             risk_level: $result->risk_level,
             assessment: $result->assessment,
@@ -230,7 +255,7 @@ class RiskAssessmentService
             context: $context->toArray(),
             interaction_evidence: $interactionEvidence,
             data_quality_flags: $dataQualityFlags,
-            decision_trace: $this->decisionTraceBuilder->build($result, $assessedAt),
+            decision_trace: $decisionTrace,
             assessed_at: $assessedAt,
         );
     }

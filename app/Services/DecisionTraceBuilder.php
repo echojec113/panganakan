@@ -179,11 +179,21 @@ class DecisionTraceBuilder
             );
         }
 
+        if (!empty($interactionCodes)) {
+            return new DecisionTraceStep(
+                step_code: DecisionTraceStep::STEP_INTERACTION_RULE,
+                status: DecisionTraceStep::STATUS_TRIGGERED,
+                summary: 'One or more ACTIVE additive interactions combined triggered factors into explainable evidence.',
+                related_interaction_codes: $interactionCodes,
+                assessed_at: $assessedAt,
+            );
+        }
+
         return new DecisionTraceStep(
             step_code: DecisionTraceStep::STEP_INTERACTION_RULE,
             status: DecisionTraceStep::STATUS_COMPLETED,
-            summary: 'No ACTIVE interactions evaluated; the interaction check completed.',
-            related_interaction_codes: $interactionCodes,
+            summary: 'No ACTIVE clinical interaction triggered; the interaction check completed.',
+            related_interaction_codes: [],
             assessed_at: $assessedAt,
         );
     }
