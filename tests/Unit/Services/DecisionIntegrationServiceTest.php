@@ -244,3 +244,27 @@ test('ml paths set urgency and bp_assessment to null when not provided', functio
     expect($result->urgency)->toBeNull();
     expect($result->bp_assessment)->toBeNull();
 });
+
+test('multiple standalone factors keep the result HIGH and preserve all reasons', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide([], ['Diabetes', 'Anemia'], null);
+
+    expect($result['risk_level'])->toBe('HIGH');
+    expect($result['decision_source'])->toBe('RULE_BASED');
+    expect($result['reasons'])->toBe(['Diabetes', 'Anemia']);
+    expect($result['rule_reasons'])->toBe(['Diabetes', 'Anemia']);
+});
+
+test('multiple HIGH factors produce no numeric risk score and no classification escalation', function () {
+    $service = new DecisionIntegrationService;
+
+    $result = $service->decide([], ['A', 'B', 'C', 'D', 'E'], null);
+
+    expect($result['risk_level'])->toBe('HIGH');
+    expect($result->toArray())->not->toHaveKey('score');
+    expect($result->toArray())->not->toHaveKey('points');
+    expect($result->toArray())->not->toHaveKey('percentage');
+    expect($result['risk_level'])->not->toBe('VERY HIGH');
+    expect($result['risk_level'])->not->toBe('EXTREME');
+});

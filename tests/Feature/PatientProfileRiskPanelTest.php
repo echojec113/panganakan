@@ -210,3 +210,32 @@ it('shows NO ASSESSMENT AVAILABLE when the patient has no prenatal visits', func
     $response->assertOk();
     $response->assertSeeText('NO ASSESSMENT AVAILABLE');
 });
+
+it('renders every persisted factor evidence row for a multi-factor high visit', function () {
+    $user = User::factory()->create(['role' => 'staff']);
+    $patient = riskPanelPatient(['previous_cs' => 1]);
+
+    riskPanelVisit($patient->id, [
+        'risk_level' => 'HIGH',
+        'decision_source' => 'RULE_BASED',
+        'rule_reasons' => ['Diabetes', 'Anemia', 'Previous cesarean section'],
+        'factor_evidence' => [
+            \App\ValueObjects\ClinicalFactorEvidence::forCode('DM-01', true),
+            \App\ValueObjects\ClinicalFactorEvidence::forCode('AN-01', true),
+            \App\ValueObjects\ClinicalFactorEvidence::forCode('CS-01', true),
+        ],
+        'assessment' => 'High risk pregnancy',
+    ]);
+
+    $response = $this->actingAs($user)->get(route('patients.show', $patient->id));
+
+    $response->assertOk();
+    $response->assertSeeText('HIGH RISK');
+    $response->assertSee('Clinical Factors Identified');
+    $response->assertSeeText('Diabetes');
+    $response->assertSeeText('Anemia');
+    $response->assertSeeText('Previous cesarean section');
+    $response->assertSeeText('DM-01');
+    $response->assertSeeText('AN-01');
+    $response->assertSeeText('CS-01');
+});

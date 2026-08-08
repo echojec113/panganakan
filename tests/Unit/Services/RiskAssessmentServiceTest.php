@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Patient;
+use App\Models\Ultrasound;
 use App\Services\AssessmentContextBuilder;
 use App\Services\AssessmentDataQualityService;
 use App\Services\BloodPressureAssessmentService;
@@ -214,4 +215,119 @@ test('forged repeat completed without pair resolves to pending repeat', function
     );
 
     expect($result->bp_assessment['verification_status'])->toBe(BloodPressureAssessmentService::VERIFICATION_PENDING_REPEAT);
+});
+
+test('multi-factor deterministic assessment preserves every factor evidence code', function () {
+    $patient = Patient::create([
+        'first_name' => 'Multi', 'last_name' => 'Factor', 'age' => 30,
+        'gravida' => 2, 'para' => 1, 'status' => 'ONGOING',
+        'previous_cs' => 1, 'miscarriage' => 3,
+    ]);
+
+    Ultrasound::create([
+        'patient_id' => $patient->id,
+        'scan_date' => now()->toDateString(),
+        'presentation' => 'Breech',
+        'amniotic_fluid' => 'Low',
+        'fetal_heartbeat' => 'Abnormal',
+    ]);
+
+    $service = makeRiskAssessmentService(ruleEngine: new ClinicalRuleEngine);
+
+    $result = $service->assess($patient, [
+        'bp_sys' => 120, 'bp_dia' => 80,
+        'diabetes' => 1, 'anemia' => 1,
+    ]);
+
+    $codes = array_column($result->factor_evidence, 'code');
+
+    expect($result->risk_level)->toBe('HIGH');
+    expect($result->decision_source)->toBe('RULE_BASED');
+    expect($codes)->toContain('DM-01');
+    expect($codes)->toContain('AN-01');
+    expect($codes)->toContain('CS-01');
+    expect($codes)->toContain('RM-03');
+    expect($codes)->toContain('US-P01');
+    expect($codes)->toContain('US-AF01');
+    expect($codes)->toContain('US-FH01');
+    expect($result->interaction_evidence)->toBe([]);
+});
+
+test('multiple active factors produce HIGH with no score or classification escalation', function () {
+    $patient = Patient::create([
+        'first_name' => 'Four', 'last_name' => 'Factors', 'age' => 29,
+        'gravida' => 2, 'para' => 1, 'status' => 'ONGOING',
+        'previous_cs' => 1, 'miscarriage' => 3,
+    ]);
+
+    Ultrasound::create([
+        'patient_id' => $patient->id,
+        'scan_date' => now()->toDateString(),
+        'presentation' => 'Transverse',
+        'amniotic_fluid' => 'High',
+        'fetal_heartbeat' => 'Weak',
+    ]);
+
+    $service = makeRiskAssessmentService(ruleEngine: new ClinicalRuleEngine);
+
+    $result = $service->assess($patient, [
+        'bp_sys' => 120, 'bp_dia' => 80,
+        'diabetes' => 1, 'anemia' => 1,
+    ]);
+
+    expect($result->risk_level)->toBe('HIGH');
+    expect($result->decision_source)->toBe('RULE_BASED');
+    expect($result->urgency)->toBeNull();
+
+    $payload = $result->toArray();
+    expect($payload)->not->toHaveKey('score');
+    expect($payload)->not->toHaveKey('points');
+    expect($payload)->not->toHaveKey('percentage');
+    expect($result->risk_level)->not->toBe('VERY HIGH');
+    expect($result->risk_level)->not->toBe('EXTREME');
+});
+
+test('deterministic multi-factor HIGH skips ML evaluation', function () {
+    $patient = Patient::create([
+        'first_name' => 'Override', 'last_name' => 'LOW', 'age' => 28,
+        'gravida' => 2, 'para' => 1, 'status' => 'ONGOING',
+        'previous_cs' => 1, 'miscarriage' => 3,
+    ]);
+
+    $ml = Mockery::mock(MachineLearningService::class);
+    $ml->shouldReceive('predict')->never();
+
+    $service = makeRiskAssessmentService(ruleEngine: new ClinicalRuleEngine, ml: $ml);
+
+    $result = $service->assess($patient, [
+        'bp_sys' => 120, 'bp_dia' => 80,
+        'diabetes' => 1, 'anemia' => 1,
+    ]);
+
+    expect($result->risk_level)->toBe('HIGH');
+    expect($result->decision_source)->toBe('RULE_BASED');
+    expect($result->ml_valid)->toBeFalse();
+    expect($result->ml_prediction)->toBeNull();
+    expect(array_column($result->factor_evidence, 'code'))->toContain('DM-01');
+    expect(array_column($result->factor_evidence, 'code'))->toContain('AN-01');
+});
+
+test('BP-URG plus other risk inputs stays HIGH urgent with no factor-count escalation', function () {
+    $service = makeRiskAssessmentService();
+
+    $result = $service->assess(makePatient(), [
+        'bp_sys' => 165, 'bp_dia' => 110,
+        'diabetes' => 1, 'anemia' => 1,
+    ]);
+
+    expect($result->risk_level)->toBe('HIGH');
+    expect($result->decision_source)->toBe('RULE_BASED');
+    expect($result->urgency)->toBe('URGENT_CLINICAL_REVIEW');
+    expect($result->bp_assessment['reason_code'])->toBe('BP-URG');
+    expect($result->risk_level)->not->toBe('EMERGENCY');
+
+    $payload = $result->toArray();
+    expect($payload)->not->toHaveKey('score');
+    expect($payload)->not->toHaveKey('points');
+    expect($payload)->not->toHaveKey('percentage');
 });

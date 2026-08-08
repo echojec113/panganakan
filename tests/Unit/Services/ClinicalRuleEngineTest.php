@@ -263,7 +263,7 @@ test('warning symptom inputs are ignored by the rule engine', function () {
     expect($reasons)->toBe([]);
 });
 
-test('clinical rule engine consumes visit diabetes and anemia inputs only', function () {
+test('clinical rule engine consumes diabetes and anemia inputs only', function () {
     $patient = new Patient(['age' => 25, 'gravida' => 2, 'para' => 1]);
 
     $engine = new ClinicalRuleEngine;
@@ -279,4 +279,210 @@ test('clinical rule engine consumes visit diabetes and anemia inputs only', func
     ], null);
 
     expect($reasons)->toBe(['Diabetes', 'Anemia']);
+});
+
+test('previous cs 0 does not trigger previous cesarean reason', function () {
+    $patient = new Patient(['age' => 30, 'gravida' => 2, 'para' => 1, 'previous_cs' => 0]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], null);
+
+    expect($reasons)->toBe([]);
+});
+
+test('previous cs null does not trigger previous cesarean reason', function () {
+    $patient = new Patient(['age' => 30, 'gravida' => 2, 'para' => 1, 'previous_cs' => null]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], null);
+
+    expect($reasons)->toBe([]);
+});
+
+test('miscarriage 2 does not trigger recurrent miscarriage reason', function () {
+    $patient = new Patient(['age' => 32, 'gravida' => 2, 'para' => 0, 'miscarriage' => 2]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], null);
+
+    expect($reasons)->toBe([]);
+});
+
+test('miscarriage 0 does not trigger recurrent miscarriage reason', function () {
+    $patient = new Patient(['age' => 32, 'gravida' => 1, 'para' => 1, 'miscarriage' => 0]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], null);
+
+    expect($reasons)->toBe([]);
+});
+
+test('miscarriage null does not trigger recurrent miscarriage reason', function () {
+    $patient = new Patient(['age' => 32, 'gravida' => 1, 'para' => 1, 'miscarriage' => null]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], null);
+
+    expect($reasons)->toBe([]);
+});
+
+test('transverse presentation returns abnormal presentation reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['presentation' => 'TRANSVERSE']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe(['Abnormal fetal presentation (TRANSVERSE)']);
+});
+
+test('oblique presentation returns abnormal presentation reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['presentation' => 'OBLIQUE']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe(['Abnormal fetal presentation (OBLIQUE)']);
+});
+
+test('cephalic presentation does not trigger abnormal presentation reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['presentation' => 'CEPHALIC']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe([]);
+});
+
+test('high amniotic fluid returns fluid abnormality reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['amniotic_fluid' => 'HIGH']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe(['Amniotic fluid abnormality (HIGH)']);
+});
+
+test('normal amniotic fluid returns no fluid abnormality reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['amniotic_fluid' => 'NORMAL']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe([]);
+});
+
+test('weak fetal heartbeat returns heartbeat abnormality reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['fetal_heartbeat' => 'WEAK']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe(['Fetal heartbeat abnormality (WEAK)']);
+});
+
+test('abnormal fetal heartbeat returns heartbeat abnormality reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['fetal_heartbeat' => 'ABNORMAL']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe(['Fetal heartbeat abnormality (ABNORMAL)']);
+});
+
+test('normal fetal heartbeat returns no heartbeat abnormality reason', function () {
+    $patient = new Patient(['age' => 25, 'gravida' => 1, 'para' => 0]);
+
+    $ultrasound = usSnapshot(['fetal_heartbeat' => 'NORMAL']);
+
+    $engine = new ClinicalRuleEngine;
+
+    $reasons = $engine->evaluate($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 0, 'anemia' => 0,
+    ], $ultrasound);
+
+    expect($reasons)->toBe([]);
+});
+
+test('multiple standalone factors coexist and all factor evidence is preserved', function () {
+    $patient = new Patient([
+        'age' => 25, 'gravida' => 2, 'para' => 1,
+        'previous_cs' => 0, 'miscarriage' => 0,
+    ]);
+
+    $engine = new ClinicalRuleEngine;
+
+    $evidence = $engine->evaluateDetailed($patient, [
+        'bp_sys' => 110, 'bp_dia' => 70,
+        'diabetes' => 1, 'anemia' => 1,
+    ], null);
+
+    $codes = array_map(
+        static fn (ClinicalFactorEvidence $factor) => $factor->code,
+        $evidence
+    );
+
+    expect($codes)->toBe(['DM-01', 'AN-01']);
 });

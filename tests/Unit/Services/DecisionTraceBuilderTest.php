@@ -215,3 +215,49 @@ test('trace never includes technical output', function () {
         expect($step->summary)->not->toContain('Exception');
     }
 });
+
+test('multi-factor rule high keeps every factor code in standalone and final trace steps', function () {
+    $steps = traceSteps([
+        'decision_source' => 'RULE_BASED',
+        'risk_level' => 'HIGH',
+        'reasons' => ['Diabetes', 'Anemia', 'Previous cesarean section'],
+        'rule_reasons' => ['Diabetes', 'Anemia', 'Previous cesarean section'],
+        'factor_evidence' => [
+            ClinicalFactorEvidence::forCode('DM-01', true),
+            ClinicalFactorEvidence::forCode('AN-01', true),
+            ClinicalFactorEvidence::forCode('CS-01', true),
+        ],
+    ]);
+
+    $standalone = collect($steps)->firstWhere('step_code', 'STANDALONE_RULE_EVALUATION');
+    $final = $steps[array_key_last($steps)];
+
+    expect($standalone->related_factor_codes)->toContain('DM-01');
+    expect($standalone->related_factor_codes)->toContain('AN-01');
+    expect($standalone->related_factor_codes)->toContain('CS-01');
+    expect($final->related_factor_codes)->toContain('DM-01');
+    expect($final->related_factor_codes)->toContain('AN-01');
+    expect($final->related_factor_codes)->toContain('CS-01');
+    expect($final->summary)->toContain('HIGH');
+});
+
+test('multi-factor rule high emits no score, percentage, or invented interaction in the trace', function () {
+    $steps = traceSteps([
+        'decision_source' => 'RULE_BASED',
+        'risk_level' => 'HIGH',
+        'factor_evidence' => [
+            ClinicalFactorEvidence::forCode('DM-01', true),
+            ClinicalFactorEvidence::forCode('AN-01', true),
+        ],
+    ]);
+
+    foreach ($steps as $step) {
+        expect($step->summary)->not->toContain('Severe');
+        expect($step->summary)->not->toContain('EMERGENCY');
+        expect($step->summary)->not->toContain('percentage');
+    }
+
+    $interaction = collect($steps)->firstWhere('step_code', 'INTERACTION_RULE_EVALUATION');
+    expect($interaction->related_interaction_codes)->toBe([]);
+    expect($interaction->status)->toBe('COMPLETED');
+});

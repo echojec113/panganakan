@@ -1524,3 +1524,151 @@ Removed the ignored `$versions` constructor parameter. `AssessmentResult` always
 4. MAT-WARN evaluation and referral integration remains **deferred and requires clinical approval**.
 5. Resolve the machine-specific ML environment (`PYTHON_PATH` with `joblib`/`pandas`/`scikit-learn`).
 6. Keep EDD outcome monitoring for a later dedicated sprint.
+## Sprint 14 - Phase 14A - Schema & Baseline Stabilization
+
+Status: Complete (awaiting review before Phase 14B)
+
+Branch: refactor/sprint-14-clinical-logic (from main @ a2cb9d2)
+
+### Scope
+
+Phase 14A verifies and stabilizes the database/schema/test baseline so the already-approved assessment engine has a clean-install schema contract. No clinical logic was expanded in this phase.
+
+### Schema verification (Checkpoint A)
+
+- `patients.previous_cs`: CONFIRMED REAL GAP. Present in Patient model `illable`, required by PatientController validation (`equired|in:0,1`), consumed by ClinicalRuleEngine (CS-01) and MachineLearningService (feature 10), but no migration created it. Tests (PatientPhilhealthTest, MedicalHistoryScopeTest) previously added it to the in-memory schema manually.
+- `patients.miscarriage`: CONFIRMED REAL GAP. Present in Patient model `illable`, required by PatientController validation (`equired|integer|min:0` plus misc-rules gravida guard), consumed by ClinicalRuleEngine (RM-03) and MachineLearningService (feature 11), but no migration created it. Same manual test workarounds.
+- `prenatal_visits.recommendation`: FALSE ALARM. Already created by migration 2026_08_01_000002 (`	ext, nullable`, guarded hasColumn(), batch 17) - the inspection claim was wrong. No fix needed.
+
+### Migration created (NOT executed) — revised to a legacy-safe contract
+
+- database/migrations/2026_08_08_000001_add_obstetric_history_to_patients_table.php
+  - Originally drafted as `previous_cs` boolean default false and `miscarriage` integer default 0.
+  - Revised before execution to `previous_cs` boolean **nullable (no default)** and `miscarriage` integer **nullable (no default)**, both still guarded with Schema::hasColumn() and no-op down() (non-destructive reconciliation style, matching 2026_08_01_000002).
+  - Reason: legacy patients without previously recorded obstetric-history values must remain distinguishable from patients explicitly recorded as having no previous CS or zero miscarriages; a NOT NULL DEFAULT 0/0 column would silently convert unrecorded/unknown obstetric history into confirmed negative history on row-bearing databases that lack the columns. NULL is preserved for unknown historical data; all application consumers already handle NULL (ClinicalRuleEngine, AssessmentContextBuilder, MachineLearningService), and PatientController requires explicit values on create/update, so new records never rely on a NULL default.
+  - Additive only, backward compatible, no data rewrite, no backfill, no historical recalculation.
+  - **NOT executed during Phase 14A** (no database commands were run then). Executed safely in Phase 14D after review; the hasColumn() guards made it effectively a no-op for the existing columns and marked id [20] as Ran. See "Sprint 14 - Phase 14D" below.
+
+### Tests added
+
+- tests/Feature/SchemaContractTest.php (4 tests): fresh schema contains patients.previous_cs, patients.miscarriage, prenatal_visits.recommendation; plus evidence that both obstetric-history fields are added as nullable columns.
+- tests/Unit/Services/ClinicalRuleEngineTest.php (boundary/regression additions): CS-01 (1/0/null), RM-03 (3 already covered; 2/0/null), US-P01 (TRANSVERSE/OBLIQUE/CEPHALIC), US-AF01 (HIGH/NORMAL), US-FH01 (WEAK/ABNORMAL/NORMAL), multi-factor coexistence (DM-01 + AN-01 preserved).
+- tests/Unit/Services/DecisionIntegrationServiceTest.php: multi-factor HIGH preserved; no score/points/percentage; no classification escalation (VERY HIGH/EXTREME).
+
+### Test results
+
+- Full suite: **393 passed, 3 failed** (1440 assertions) - up from 374 passed baseline; zero new regressions. Same pre-existing unrelated failures.
+- The 3 failures are the unchanged pre-existing, unrelated ones: ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403.
+- Focused suites (schema contract, rule engine, decision integration, BP, risk assessment, patient/philhealth/medical-history/staff-access/delivered): all green.
+
+### Clinical behavior
+
+NO clinical behavior changed: thresholds, conditions, labels, urgency, evidence behavior, precedence, recommendation wording, factor codes, activation status, BP thresholds/reason codes/repeat behavior, completeness rules, ML model/features/Python, interaction behavior, and decision hierarchy are identical. No new active factors. No gestational-age gate, warning-symptom activation, fetal-movement/placenta/fundic/lab logic, nor any referral/EDD/outcome-monitoring changes.
+
+### Static/quality checks
+
+- php -l clean on changed PHP files.
+- git diff --check clean.
+- No Blade/view files changed; no UI modification in comparison.
+
+### Next
+
+Phase 14A is complete and awaiting review. The next phase remains Phase 14B (Multi-Factor Correctness & Evidence Preservation).
+
+## Sprint 14 - Phase 14B - Multi-Factor Correctness & Evidence Preservation
+
+Status: Complete (awaiting review before clinical candidate validation)
+
+Branch: refactor/sprint-14-clinical-logic (from main @ a2cb9d2)
+
+### Scope
+
+Phase 14B verifies and hardens one specific requirement: when multiple currently ACTIVE clinical factors are present at the same assessment, the system must preserve all applicable evidence and reasons without inventing a score, percentage, new risk category, or generic urgency escalation. No new clinical factors or interactions were added; the active factor set (AGE-Y, AGE-A, BP-H, BP-URG, DM-01, AN-01, CS-01, RM-03, US-P01, US-AF01, US-FH01) and the final states (HIGH / LOW / ASSESSMENT INCOMPLETE) are unchanged.
+
+### Findings
+
+- **No production defect found.** The existing architecture already satisfies every Phase 14B behavior:
+  - `ClinicalRuleEngine::evaluateDetailed()` collects ALL applicable factor evidence in rule order; it never stops after the first HIGH factor, and unregistered/inactive codes are filtered by the governance gate only.
+  - `RiskAssessmentService` derives reason strings from the same evidence object list (single source of truth) and serializes the full factor_evidence list through to `AssessmentResult`.
+  - `DecisionIntegrationService::decide()` treats multiple rule reasons as a single HIGH decision, deduplicates reasons, and caps only the summary text (first 3 + "and N more factor(s)"), while `rule_reasons` and `factor_evidence` keep the full set.
+  - `AssessmentResult` normalizes and preserves every `ClinicalFactorEvidence` entry.
+  - `PrenatalVisit` persists `factor_evidence`, `rule_reasons`, and `assessment_metadata.decision_trace` with every related factor code.
+  - Deterministic rule reasons take precedence over ML; ML is skipped (never invoked) on any rule-based path, so LOW ML cannot cancel a multi-factor HIGH.
+  - ClinicalInteractionRegistry has zero ACTIVE interactions; `interaction_evidence` stays `[]` and the decision-trace interaction step is `COMPLETED` with no codes.
+  - BP handling is inherited unchanged: BP-URG still resolves to HIGH + URGENT_CLINICAL_REVIEW on the dedicated pre-completeness safety path; factor count never influences BP urgency.
+
+### Logic changes
+
+No production logic changed. Phase 14B added tests only (no new columns, no new factors, no `import` changes under `app/`).
+
+### Tests added / strengthened
+
+- tests/Unit/Services/RiskAssessmentServiceTest.php: multi-factor deterministic assessment preserves every factor-evidence code; four active factors produce HIGH with no score/points/percentage and no VERY HIGH/EXTREME; deterministic multi-factor HIGH is not cancelled by a (valid-but-never-invoked) ML LOW; BP-URG plus other risk inputs stays HIGH urgent with no factor-count escalation.
+- tests/Unit/Services/DecisionTraceBuilderTest.php: multi-factor rule HIGH keeps every factor code in STANDALONE_RULE_EVALUATION and FINAL_DECISION steps; multi-factor trace emits no score/percentage or invented interaction (interaction step COMPLETED with empty codes).
+- tests/Feature/AssessmentMetadataPersistenceTest.php: storing a visit with multiple active factors persists `factor_evidence` with all seven codes (DM-01, AN-01, CS-01, RM-03, US-P01, US-AF01, US-FH01), complete rule_reasons, full decision-trace factor codes, urgency null, ML unused.
+- tests/Feature/PatientProfileRiskPanelTest.php: patient profile renders every persisted factor-evidence row for a multi-factor HIGH visit (each code + label shown, no truncation to a single factor).
+
+### Test results
+
+- Focused Phase 14B set (rule engine, decision integration, decision trace, risk assessment, metadata persistence, patient profile, schema contract): **98 passed** (381 assertions).
+- Sprint 10-13 regression: **234 passed** (1004 assertions) — up from 218-baseline because of the added Phase 14B tests; zero regressions.
+- Full suite: **402 passed, 3 failed** (1536 assertions) — the same unchanged pre-existing, unrelated failures (ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403).
+
+### Migration state
+
+- Phase 14A migration `2026_08_08_000001_add_obstetric_history_to_patients_table` remains **Pending / NOT executed**. No migrations were created or run in Phase 14B.
+
+### Static/quality checks
+
+- php -l clean on all changed PHP files.
+- git diff --check clean.
+- No new production files; only tests added.
+
+### Next
+
+Phase 14B is complete and awaiting review before clinical candidate validation. Phase 14C has not started.
+
+## Sprint 14 - Phase 14C - Clinical Candidate Validation
+
+Status: Complete. Concluded `NO NEW CLINICAL FACTORS SHOULD BE ACTIVATED`
+
+Branch: refactor/sprint-14-clinical-logic (from main @ a2cb9d2)
+
+### Result
+
+Phase 14C reviewed the inactive/deferred clinical candidates (AGE-40, MAT-WARN, contextual/GA-gated ultrasound candidates, laboratory-derived candidates such as trimester-specific Hb, gestational protein, fetal-movement candidates, documented medical-history conditions, `CLIN-INTER-*` interactions, and deferred DQ flags). The validation gate concluded that **zero new clinical factors should be activated** because no deferral candidate simultaneously satisfied the required evidence / data-capture / approval / scope criteria. Existing matrix research was preserved and documented as DEFERRED; no candidate, interaction, or DQ flag was activated. No production logic changed.
+
+## Sprint 14 - Phase 14D - Assessment Logic Finalization & Sprint Acceptance
+
+Status: Complete (prepared for human review/commit)
+
+Branch: refactor/sprint-14-clinical-logic (from main @ a2cb9d2)
+
+### Migration execution (authorized reconciliation)
+
+- `database/migrations/2026_08_08_000001_add_obstetric_history_to_patients_table.php` was reviewed and then executed with `php artisan migrate` (no `--fresh`/`--refresh`/wipe/schema reset).
+- Schema contract as approved: `$table->boolean('previous_cs')->nullable(); $table->integer('miscarriage')->nullable();`
+- `Schema::hasColumn()` guards retained; no default false/0; no backfill; no UPDATE; down() remains a non-destructive no-op.
+- The local database already physically contained both columns, so the reconciliation migration was an effective no-op for the columns and is now marked **Ran [20]**.
+- Data safety confirmed: 70 patient rows (incl. soft-deleted) unchanged after execution; `previous_cs` NULL=0, 1=4, 0=66; `miscarriage` NULL=0, 0=66, all <3. No patient data was backfilled or rewritten.
+
+### Final assessment-governance note (freezer contract)
+
+1. Multiple active deterministic factors are preserved independently as structured factor evidence.
+2. Multiple factors do NOT generate a numeric score, points, or percentage and do not raise the final classification.
+3. Deterministic HIGH remains HIGH regardless of the count of factors identified.
+4. BP-URG retains its existing special urgent safety behavior (HIGH + URGENT_CLINICAL_REVIEW, pre-completeness, repeat-BP verification).
+5. Machine learning is never allowed to override a deterministic HIGH path; ML is skipped on any rule-based decision.
+6. No clinical interaction is currently active (ClinicalInteractionRegistry has zero ACTIVE codes; all remain DRAFT/DEFERRED).
+7. Phase 14C intentionally activated zero new factors because no deferred candidate satisfied the combined evidence/data/approval/scope criteria simultaneously.
+8. Any future factor or interaction must pass the same governance process (clinical approval, data reliability, documentation support, scope) before activation.
+
+### Final ACTIVE / DEFERRED boundary
+
+- **ACTIVE (unchanged):** AGE-Y, AGE-A, BP-H, BP-URG, DM-01, AN-01, CS-01, RM-03, US-P01, US-AF01, US-FH01. Final states: HIGH / LOW / ASSESSMENT INCOMPLETE only.
+- **DEFERRED (not activated in Phase 14C):** AGE-40; MAT-WARN (symptom-to-action mapping); contextual/GA-gated ultrasound candidates; laboratory-derived candidates (Hb-trimester-gate, urine protein, HbA1c); fetal-movement candidates; only medical-history condition factors; placenta/fundic/prenatal-exam candidates; `CLIN-INTER-*` interactions; deferred DQ candidates (`DQ-LMP-MISSING`, `DQ-EDD-MISSING`, `DQ-GA-DATE-MISMATCH`, `DQ-ULTRASOUND-STALE`). Reasons stay documented in docs/CLINICAL_FACTOR_MATRIX.md: clinical approval required, data unavailable/unreliable, threshold unresolved, or outside current capstone scope.
+
+### Phase 14D result & next
+
+- No production assessment logic changed in Phase 14D (no `app/` modification). Only test/doc corrections, the executed reconciliation migration, and documentation finalization.
+- Final focused Sprint 14 tests, Sprint 10-13 regression, and full suite results are captured in the Phase 14D final report; the branch is clean for human acceptance review.

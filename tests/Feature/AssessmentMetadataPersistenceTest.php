@@ -16,6 +16,78 @@ function metadataPatient(): Patient
     ]);
 }
 
+test('storing a visit with multiple active factors persists all factor evidence codes', function () {
+    $patient = Patient::create([
+        'first_name' => 'Maria', 'last_name' => 'Santos', 'age' => 30,
+        'gravida' => 2, 'para' => 1,
+        'status' => 'ONGOING',
+        'previous_cs' => 1,
+        'miscarriage' => 3,
+    ]);
+    Ultrasound::create([
+        'patient_id' => $patient->id,
+        'scan_date' => now()->subDays(2)->toDateString(),
+        'presentation' => 'Breech',
+        'amniotic_fluid' => 'Low',
+        'fetal_heartbeat' => 'Abnormal',
+    ]);
+    MedicalHistory::create(['patient_id' => $patient->id, 'diabetes' => true, 'anemia' => false]);
+    BirthPlan::create(['patient_id' => $patient->id, 'deliver_in_clinic' => true]);
+
+    $user = User::create([
+        'name' => 'Staff',
+        'email' => 'staff-multi@example.com',
+        'password' => bcrypt('password'),
+        'role' => 'staff',
+    ]);
+
+    $response = $this->actingAs($user)->post('/prenatal-visits', [
+        'patient_id' => $patient->id,
+        'visit_date' => now()->toDateString(),
+        'bp_sys' => 120,
+        'bp_dia' => 80,
+        'weight' => 60,
+        'gestational_age' => 20,
+        'hypertension' => 0,
+        'diabetes' => 1,
+        'anemia' => 1,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $visit = PrenatalVisit::where('patient_id', $patient->id)->first();
+
+    expect($visit)->not->toBeNull();
+    expect($visit->risk_level)->toBe('HIGH');
+    expect($visit->decision_source)->toBe('RULE_BASED');
+
+    $codes = array_column($visit->factor_evidence, 'code');
+    expect($codes)->toContain('DM-01');
+    expect($codes)->toContain('AN-01');
+    expect($codes)->toContain('CS-01');
+    expect($codes)->toContain('RM-03');
+    expect($codes)->toContain('US-P01');
+    expect($codes)->toContain('US-AF01');
+    expect($codes)->toContain('US-FH01');
+
+    expect(count($visit->rule_reasons))->toBe(7);
+
+    $trace = $visit->assessment_metadata['decision_trace'];
+    $standalone = collect($trace)->firstWhere('step_code', 'STANDALONE_RULE_EVALUATION');
+    expect($standalone['related_factor_codes'])->toContain('DM-01');
+    expect($standalone['related_factor_codes'])->toContain('AN-01');
+    expect($standalone['related_factor_codes'])->toContain('CS-01');
+    expect($standalone['related_factor_codes'])->toContain('RM-03');
+    expect($standalone['related_factor_codes'])->toContain('US-P01');
+    expect($standalone['related_factor_codes'])->toContain('US-AF01');
+    expect($standalone['related_factor_codes'])->toContain('US-FH01');
+
+    expect($visit->assessment_metadata['interaction_evidence'])->toBe([]);
+    expect($visit->urgency)->toBeNull();
+    expect($visit->ml_valid)->toBeFalse();
+    expect($visit->ml_prediction)->toBeNull();
+});
+
 test('storing a visit persists assessment metadata json', function () {
     $patient = metadataPatient();
     Ultrasound::create([
