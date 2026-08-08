@@ -135,6 +135,11 @@ class Patient extends Model
         return $this->belongsTo(User::class, 'assigned_staff_id');
     }
 
+public function canStartNewPregnancy(): bool
+{
+    return $this->isDelivered();
+}
+
 public function isOngoing(): bool
 {
     return $this->status === 'ONGOING';
@@ -145,8 +150,15 @@ public function isDelivered(): bool
     return $this->status === 'DELIVERED';
 }
 
-public function canStartNewPregnancy(): bool
+/**
+ * True when the patient has at least one referral currently in the open
+ * "Pending" workflow state (Phase 16D). Used to surface a referral
+ * indicator in risk monitoring without coupling it to `patient.status`:
+ * referred pregnancies stay ONGOING, and only an active Pending referral —
+ * never a historical closed one — influences the monitoring presentation.
+ */
+public function hasActiveReferral(): bool
 {
-    return $this->isDelivered();
+    return $this->referrals()->where('status', 'Pending')->exists();
 }
 }

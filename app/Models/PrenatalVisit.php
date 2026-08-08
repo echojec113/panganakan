@@ -89,20 +89,36 @@ class PrenatalVisit extends Model
         return $this->belongsTo(\App\Models\Patient::class);
     }
 
+    public function referrals()
+    {
+        return $this->hasMany(\App\Models\Referral::class, 'prenatal_visit_id');
+    }
+
     public function repeatBpRecordedBy()
     {
         return $this->belongsTo(\App\Models\User::class, 'repeat_bp_recorded_by');
     }
 
+    /**
+     * Next-visit label for risk monitoring (Phase 16D review correction).
+     *
+     * A Pending referral does NOT suspend normal prenatal follow-up. For new
+     * architecture patients (ONGOING + Pending referral) the normal
+     * next_visit_date / overdue calculation is preserved; the referral is
+     * surfaced separately in the UI as a "Pending Referral" indicator.
+     * Legacy REFERRED-status rows keep their historical "Referred"
+     * presentation and are never rewritten.
+     */
     public function getMonitoringNextVisitLabel(): string
     {
-        $patientStatus = $this->patient?->status;
+        $patient = $this->patient;
 
-        if ($patientStatus === 'DELIVERED') {
+        if ($patient?->status === 'DELIVERED') {
             return 'Delivered';
         }
 
-        if ($patientStatus === 'REFERRED') {
+        // Legacy REFERRED-status rows: keep their historical presentation.
+        if ($patient?->status === 'REFERRED') {
             return 'Referred';
         }
 
@@ -115,9 +131,16 @@ class PrenatalVisit extends Model
 
     public function isMonitoringOverdue(): bool
     {
-        $patientStatus = $this->patient?->status;
+        $patient = $this->patient;
 
-        if (in_array($patientStatus, ['DELIVERED', 'REFERRED'], true)) {
+        if ($patient?->status === 'DELIVERED') {
+            return false;
+        }
+
+        // Legacy REFERRED-status rows keep their historical "not overdue"
+        // presentation. A Pending referral on an ONGOING patient never
+        // suppresses prenatal overdue.
+        if ($patient?->status === 'REFERRED') {
             return false;
         }
 

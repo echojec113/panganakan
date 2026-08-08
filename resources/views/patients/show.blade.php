@@ -59,6 +59,14 @@
                                     Completed Pregnancy
                                 </div>
                             @endif
+                            @if($patient->hasActiveReferral())
+                                <div class="mt-3 inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-800" title="There is a referral awaiting follow-through for this patient.">
+                                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                    Pending Referral
+                                </div>
+                            @endif
                             <div class="flex flex-wrap gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-600">
                                 <span class="flex items-center">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1420,6 +1428,41 @@
                                 </ol>
                             </div>
                             @endif
+
+                            {{-- 16C: ASSESSMENT-LINKED REFERRAL ENTRY (HIGH + structured metadata only) --}}
+                            @if(
+                                $rl === 'HIGH'
+                                && $patient->status === 'ONGOING'
+                                && is_array($latestAssessment->assessment_metadata)
+                                && count($latestAssessment->assessment_metadata) > 0
+                            )
+                            @php
+                                $pendingForThisAssessment = $patient->referrals
+                                    ->where('prenatal_visit_id', $latestAssessment->id)
+                                    ->where('status', 'Pending')
+                                    ->sortByDesc('id')
+                                    ->first();
+                            @endphp
+                            @if($pendingForThisAssessment)
+                            <a href="{{ route('referrals.show', $pendingForThisAssessment->id) }}"
+                               class="inline-flex items-center justify-center gap-2 w-full px-4 py-3 bg-orange-100 text-orange-800 rounded-xl hover:bg-orange-200 transition font-semibold text-sm shadow-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Pending Referral Exists
+                            </a>
+                            <p class="text-[11px] text-gray-500">A referral for this assessment is pending follow-through. The duplicate is protected server-side.</p>
+                            @else
+                            <a href="{{ route('referrals.create', ['id' => $patient->id, 'prenatal_visit_id' => $latestAssessment->id]) }}"
+                               class="inline-flex items-center justify-center gap-2 w-full px-4 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition font-semibold text-sm shadow-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Create Referral from this Assessment
+                            </a>
+                            <p class="text-[11px] text-gray-500">Links this assessment's evidence snapshot to the referral for traceability.</p>
+                            @endif
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -1512,6 +1555,74 @@
                             <span class="text-sm text-gray-600">PhilHealth Number</span>
                             <span class="text-sm font-mono text-gray-800">{{ $patient->philhealth_number }}</span>
                         </div>
+                        @endif
+                    </div>
+                </div>
+
+                <!-- Referral Card (16E) -->
+                @php
+                    $referrals = $patient->referrals->sortByDesc(fn ($r) => [$r->referral_date?->timestamp ?? 0, $r->id]);
+                    $latestReferral = $referrals->first();
+                @endphp
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <svg class="w-5 h-5 {{ $latestReferral && $latestReferral->status === 'Pending' ? 'text-orange-600' : 'text-blue-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                                </svg>
+                                <h3 class="font-semibold text-gray-800">Referral Follow-through</h3>
+                            </div>
+                            <a href="{{ route('referrals.index') }}" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Manage</a>
+                        </div>
+                    </div>
+                    <div class="p-6 space-y-3">
+                        <div class="flex justify-between items-center pb-2 border-b border-gray-100">
+                            <span class="text-sm text-gray-600">Latest Referral</span>
+                            @if($latestReferral)
+                                @if($latestReferral->status === 'Pending')
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">Pending Referral</span>
+                                @elseif($latestReferral->status === 'Completed')
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Completed</span>
+                                @elseif($latestReferral->status === 'Refused')
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-orange-800">Refused</span>
+                                @else
+                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Cancelled</span>
+                                @endif
+                            @else
+                                <span class="text-sm text-gray-400">None</span>
+                            @endif
+                        </div>
+
+                        @if($latestReferral)
+                        <div class="py-2">
+                            <p class="text-sm font-semibold text-gray-800">{{ $latestReferral->referred_to }}</p>
+                            <p class="text-xs text-gray-500">{{ $latestReferral->referral_date?->format('M d, Y') }}</p>
+                            <span class="mt-1.5 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold
+                                {{ $latestReferral->prenatal_visit_id && is_array($latestReferral->assessment_snapshot) && count($latestReferral->assessment_snapshot) > 0 ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
+                                {{ $latestReferral->prenatal_visit_id && is_array($latestReferral->assessment_snapshot) && count($latestReferral->assessment_snapshot) > 0 ? 'Assessment-linked' : 'Manual Referral' }}
+                            </span>
+                        </div>
+
+                        @if($latestReferral->status === 'Refused' && $latestReferral->refusal_recorded_at)
+                        <p class="text-[11px] text-gray-500">Recorded {{ $latestReferral->refusal_recorded_at->format('M d, Y') }}</p>
+                        @elseif($latestReferral->status === 'Completed')
+                        <p class="text-[11px] text-gray-500">Completed {{ $latestReferral->completed_at?->format('M d, Y') ?? '' }}</p>
+                        @endif
+
+                        <a href="{{ route('referrals.show', $latestReferral->id) }}"
+                            class="inline-flex items-center justify-center w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                            View Referral
+                        </a>
+
+                        @php
+                            $closedCount = $referrals->where('status', '!=', 'Pending')->count();
+                        @endphp
+                        @if($closedCount > 0)
+                        <p class="text-[11px] text-gray-400">{{ $referrals->count() }} total referral{{ $referrals->count() === 1 ? '' : 's' }} · {{ $closedCount }} closed</p>
+                        @endif
+                        @else
+                        <p class="text-sm text-gray-500">No referrals recorded for this patient.</p>
                         @endif
                     </div>
                 </div>

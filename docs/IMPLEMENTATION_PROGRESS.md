@@ -559,7 +559,449 @@ The associative array pattern had four drawbacks: no type safety, no discoverabi
 
 ## Next Planned Work
 
-1. Sprint 9 — Create the Document-to-Code Clinical Factor Matrix.
-2. Map Documents 0–7 against current database fields, forms, services, rules, explanations, and tests.
+1. Sprint 9 �?" Create the Document-to-Code Clinical Factor Matrix.
+2. Map Documents 0�?"7 against current database fields, forms, services, rules, explanations, and tests.
 3. Do not add or change clinical rules until the matrix is reviewed and approved.
 4. Keep EDD-triggered pregnancy outcome monitoring planned for a later dedicated sprint.
+
+## Sprint 16 - Phase 16A - Read-Only Referral Inspection
+
+Status: Complete (inspection only, no implementation)
+
+Branch: feature/sprint-16-referral-follow-through
+
+### Findings
+
+- Referral table (`referrals`) held only manual workflow fields: `patient_id`, `created_by`, `referred_to`, `doctor_name`, `reason`, `notes`, `referral_date`, `status` (`Pending`/`Completed`/`Cancelled`), `waiver_signed` (schema-only, NOT in `$fillable`), `completed_at`.
+- No `prenatal_visit_id`, no assessment snapshot, no urgency, no refusal fields, no outcome data, no soft deletes.
+- `ReferralController` has `index`, `analytics`, `create`, `store`, `complete`, `print`. `store()` sets `patient.status = REFERRED` (architecturally coupled; intentionally left unchanged until Phase 16D). Delivered-patient guard is an inline `create()` check only; `store()` does not re-check.
+- Referral cannot be linked to a specific assessment today: patient profile shows a single "Refer Patient" button for all ONGOING patients, no HIGH-specific entry.
+- No duplicate-referral constraint exists; multiple referrals can already exist per patient.
+- Assessment data available: `PrenatalVisit` persists `risk_level`, `assessment`, `recommendation`, `decision_source`, `missing_records`, `rule_reasons`, `ml_prediction`, `ml_valid`, `urgency`, `bp_assessment`, `factor_evidence`, and `assessment_metadata` (which carries `context`, `interaction_evidence`, `decision_trace`, `versions`, `assessed_at`). `assessed_at` and interaction evidence live only inside `assessment_metadata`.
+- The existing column `waiver_signed` is present in the schema but was missing from the model's `$fillable` (confirmed mismatch).
+
+## Sprint 16 - Phase 16B - Referral Schema & Snapshot Contract Foundation
+
+Status: Complete (schema/model foundation; migration created but NOT executed)
+
+### Scope
+
+Additive referral-integration schema foundation only. No referral creation workflow, no UI changes, no refusal actions, no `patient.status = REFERRED` behavior change, no clinical logic touched (rules stay 1.1.0).
+
+### Migration (created, NOT run)
+
+`database/migrations/2026_08_09_000001_add_referral_integration_to_referrals_table.php`
+
+- `prenatal_visit_id` nullable FK to `prenatal_visits` with `nullOnDelete`. Historical referral evidence is not destroyed when a visit is soft-deleted or hard-removed.
+- `assessment_snapshot` nullable JSON (the immutable persisted-evidence copy written once at referral creation, later).
+- `refusal_recorded_at` nullable timestamp.
+- `refusal_recorded_by` nullable FK to `users` with `nullOnDelete` (removing a user never destroys referral history).
+- `refusal_notes` nullable text.
+- `status` enum extended to `Pending | Completed | Cancelled | Refused` (existing values preserved).
+- `waiver_signed` already exists; was mapped into `$fillable` (the Phase 16A mismatch fix). No new waiver column.
+- No backfill, no UPDATE of existing rows, no historical rewrite. Migration left Pending in the developer DB.
+
+### Rollback strategy
+
+Columns roll back via guarded `hasColumn()` drops, FKs are dropped before columns, and the status enum is reverted to the original three values. Non-destructive and data-protective; no no-op `down()`.
+
+### Rollback safety correction
+
+`down()` now calls `assertNoRefusedRows()` BEFORE any destructive operation. If any referral currently uses `status = 'Refused'`, rollback aborts with a `RuntimeException`, no row is converted/deleted/coerced, and the Phase 16B schema is left fully intact (no partial rollback). When no `Refused` rows exist the enum narrows to `Pending | Completed | Cancelled` and the columns drop normally. Covered by `tests/Feature/ReferralMigrationRollbackSafetyTest.php` (4 tests, 24 assertions).
+
+### Model / relationships
+
+- `Referral::$fillable`: added `prenatal_visit_id`, `assessment_snapshot`, `waiver_signed`, `refusal_recorded_at`, `refusal_recorded_by`, `refusal_notes`.
+- `Referral::$casts`: `assessment_snapshot` => array, `waiver_signed` => boolean, `refusal_recorded_at` => datetime (existing date/datetime preserved).
+- New relationships: `Referral::prenatalVisit()`, `Referral::refusalRecordedBy()`, `PrenatalVisit::referrals()`. `patient()` and `user()` preserved; `Patient::referrals()` untouched.
+
+### Snapshot service (created)
+
+`app/Services/ReferralAssessmentSnapshotService.php` — `fromPrenatalVisit(PrenatalVisit $visit): ?array` returns the immutable snapshot from persisted assessment only.
+
+- Approved keys only: `schema_version, prenatal_visit_id, visit_date, risk_level, decision_source, urgency, assessment, recommendation, rule_reasons, factor_evidence, interaction_evidence, bp_assessment, assessment_date, assessed_at, versions`.
+- `interaction_evidence` copied from persisted `assessment_metadata.interaction_evidence` and normalized with `ClinicalInteractionEvidence::normalizeList` (not ACTIVE-status dependent).
+- `factor_evidence` normalized with `ClinicalFactorEvidence::normalizeList`.
+- No `RiskAssessmentService`/BP/ML invocation, no new ultrasound queries, no Eloquent serialization, no PII, no arbitrary notes.
+- Returns `null` when the visit carries no persisted assessment (legacy safety).
+
+### Immutability principle
+
+The snapshot is intended to be written once at assessment-linked referral creation. No observers/listeners auto-update it; a later visit/ultrasound/registry/version change must never regenerate the stored snapshot.
+
+### Tests
+
+`tests/Feature/ReferralIntegrationSchemaTest.php` (13 tests, 38 assertions) covering: column presence, `Refused` status, `waiver_signed` mapping, legacy-null referral, snapshot array cast, all three new relationships, and the snapshot contract (approved keys, interaction copy from metadata, versions/assessed_at copy, no PII, null-when-no-assessment).
+
+- Focused: 13 passed.
+- Referral regression (`ReferralAnalyticsTest`, `RiskMonitoringStatusTest`): 37 passed + 1 pre-existing unrelated 403 failure (unchanged from Sprint 15 baseline).
+- Sprint 15 assessment regression: 58 passed.
+- Full suite: 460 passed, 3 failed (same 3 pre-existing unrelated failures: ExampleTest guest redirect, ProfileTest soft-delete, RiskMonitoringStatusTest referral 403).
+
+### Scope confirmation
+
+Migration created but NOT executed (`migrate:status` shows the new file as Pending). No clinical logic, BP, ML, completeness, interactions, patient `REFERRED` behavior, referral creation UI, or refusal action changed. No EDD/outcome work. Nothing committed/pushed.
+
+## Sprint 16 - Phase 16C - Assessment-Linked Referral Creation & Immutable Evidence Snapshot
+
+Status: Complete (assessment-linked referral creation shipped; no migration, no refusal workflow)
+
+Branch: feature/sprint-16-referral-follow-through
+
+> The Phase 16B migration was subsequently executed on the developer MySQL database by the human reviewer (`migrate:status` shows `2026_08_09_000001_add_referral_integration_to_referrals_table` as `[21] Ran`). Phase 16C added NO new migration.
+
+### Objective
+
+Let staff deliberately create a referral from a SPECIFIC HIGH-risk prenatal assessment, linking `referral.prenatal_visit_id` and freezing a server-built `assessment_snapshot` (historical evidence). Manual/legacy referral creation is preserved unchanged. No refusal workflow, no `patient.status = REFERRED` decoupling, no migration, no commit/push.
+
+### Approach
+
+Reused the existing routes — `GET /patients/{id}/referral/create` (`referrals.create`) and `POST /referrals/store` (`referrals.store`) — no route changes. The linked mode is entered through the HIGH assessment card on `patients/show.blade.php` ("Create Referral from this Assessment"), which passes a `prenatal_visit_id` query parameter.
+
+### Controller changes (`app/Http/Controllers/ReferralController.php`)
+
+- Constructor now also receives `ReferralAssessmentSnapshotService` (still container-resolved; the legacy `ReferralAnalyticsService` injection is untouched).
+- `create()`:
+  - With `prenatal_visit_id`: the visit must exist, belong to the requested patient, not be soft-deleted, and carry `risk_level === 'HIGH'`. Otherwise `404` (missing/soft-deleted) or `403` (wrong patient / non-HIGH). No "latest visit" fallback — the referral is bound to the exact assessment chosen by staff.
+  - The immutable `assessment_snapshot` is built for the preview from persisted evidence only (no assessment re-run, no BP/ML invocation).
+  - A readable `reasonPrefill` is passed to the view so staff get a helpful starting reason.
+  - The existing delivered-patient redirect guard is preserved.
+- `store()` now closes the Phase 16A gap (store-side delivered guard) for BOTH modes, and adds the linked branch:
+  - The visit is reloaded at save time (TOCTOU protection); must exist, not be soft-deleted, belong to the submitted patient, and be `HIGH` — otherwise rejected with a field error and nothing is created.
+  - `assessment_snapshot` is always rebuilt server-side via the service; client-submitted `assessment_snapshot`, `created_by`, and `status` are never trusted (forgery test M).
+  - A second `Pending` referral for the same `prenatal_visit_id` is blocked with a field error (no DB unique constraint). `Completed/Cancelled` referrals do NOT block later re-referral.
+  - Persisted fields: `patient_id`, `prenatal_visit_id` (nullable -> manual stays null), server-built `assessment_snapshot`, `created_by`, `referred_to`, `doctor_name`, `reason`, `notes`, `referral_date`, `status = 'Pending'`.
+  - Manual/legacy flow (no `prenatal_visit_id`) keeps its prior behavior, including `patient.status = REFERRED`.
+  - Audit log description now reads: `Created referral #X for patient: <name> linked to PrenatalVisit #Z` for linked referrals (no snapshot dump). The existing `UPDATE` audit at `complete()` is unchanged.
+
+### Snapshot prefill helper
+
+`ReferralAssessmentSnapshotService::prefillReason(array $snapshot): string` builds an editable, clinician-readable reason: interaction labels → factor labels → rule-reason labels → persisted recommendation → persisted assessment. It never writes into the snapshot and never emits PII or raw developer codes.
+
+### View changes
+
+- `resources/views/patients/show.blade.php`: inside the Risk Assessment card, only when `risk_level === 'HIGH'` AND patient status is `ONGOING`, a red "Create Referral from this Assessment" button links to `referrals.create` with the latest HIGH assessment's id. LOW / ASSESSMENT INCOMPLETE / legacy-null patients show no linked button. The general manual "Refer Patient" header button is still present.
+- `resources/views/referrals/create.blade.php`: linked mode renders a read-only "Linked Assessment Evidence (read-only)" panel (visit date, risk level, decision source, urgency with an "URGENT CLINICAL REVIEW" banner, factor labels, interaction labels, BP-URG note), a hidden `prenatal_visit_id`, and a reason textarea prefilled (editable). Manual mode renders as before.
+
+### Tests
+
+`tests/Feature/AssessmentLinkedReferralTest.php` (21 tests, 68 assertions): linked create page preview (risk HIGH, urgent banner, factors, interactions, reason prefill), LOW / ASSESSMENT INCOMPLETE / mismatched-patient / soft-deleted / delivered create rejection, persisted linked create, server-built snapshot with HIGH + urgency + BP-URG, factor/interaction preservation, mismatch/soft-delete/tamper/stale-form store rejection, delivered store rejection in both modes, duplicate-Pending block, closed-status re-referral allowed, manual flow preserved with null snapshot, snapshot immutability after later visit changes, audit CREATE with visit reference, profile button visibility (HIGH vs LOW).
+
+### Verification
+
+- Focused Phase 16C: 21 passed.
+- Referral regression (`ReferralAnalyticsTest`, `RiskMonitoringStatusTest`): 14 passed + 1 pre-existing unrelated 403 (unchanged baseline).
+- Phase 16B regression (`ReferralIntegrationSchemaTest`, `ReferralMigrationRollbackSafetyTest`): 17 passed.
+- Full suite: 485 passed, 3 failed — the same 3 pre-existing unrelated failures as before (ExampleTest guest redirect 302/200, ProfileTest soft-delete account check, RiskMonitoringStatusTest referral 403 from `role = null` in `UserFactory`).
+- `php -l` clean on all changed PHP files; `view:cache`/`view:clear` ok; `git diff --check` exit 0.
+
+### Scope confirmation
+
+No clinical thresholds, rules (stay 1.1.0), BP, ML, completeness, interactions, or assessment services were touched. No refusal workflow, no `patient.status = REFERRED` decoupling (temporary debt documented for Phase 16D), no audit redesign, no new migrations, nothing committed/pushed.
+
+## Sprint 16 - Phase 16C Legacy-Assessment Safety Correction
+
+Status: Complete (linkage now requires structured persisted assessment metadata)
+
+Reviewed after human review. The assessment-linked referral path previously allowed a legacy `PrenatalVisit` with `risk_level = HIGH` but `assessment_metadata = null`, because the snapshot service only returned null when BOTH the risk was null AND metadata was empty. The linked path now requires a modern structured assessment.
+
+### Eligibility rule (assessment-linked only)
+
+1. `risk_level === 'HIGH'`
+2. `assessment_metadata` is a non-empty array (structured Sprint 13+ persisted metadata)
+
+No interaction evidence is required, no factor code is required, ML is not required, and no assessment is re-run. A modern HIGH with zero interactions remains eligible. A legacy HIGH with nullable metadata is NOT eligible for the linked path and stays reachable via the MANUAL referral workflow.
+
+### Enforcement
+
+- `ReferralController::create()`: after the HIGH-risk check, if `assessment_metadata` is not a non-empty array, `abort(422)` with: "This historical assessment does not contain structured evidence for an assessment-linked referral. Use the manual referral workflow instead."
+- `ReferralController::store()`: same metadata guard (re-checked server-side, TOCTOU-safe) rejected with a form error on `prenatal_visit_id`; no referral is created.
+- `patients/show.blade.php`: "Create Referral from this Assessment" now rendered only when the displayed assessment is HIGH AND `assessment_metadata` is a non-empty array. The general/manual `Refer Patient` action remains.
+
+### Snapshot service
+
+`ReferralAssessmentSnapshotService::fromPrenatalVisit()` now returns null whenever the visit lacks structured `assessment_metadata` (i.e. when `assessment_metadata` is not an array or is empty), because the service must represent a canonical structured referral snapshot. Risk level alone is no longer sufficient; no metadata is fabricated for legacy visits.
+
+### Tests
+
+`tests/Feature/AssessmentLinkedReferralTest.php` extended (29 tests, 95 assertions) proving: modern HIGH + structured metadata (create/store allowed), legacy HIGH + null metadata (create rejected 422, POST rejected, no referral created, profile button hidden), legacy HIGH manual referral still succeeds with null visit/snapshot, modern HIGH + metadata + zero interactions still succeeds, and LOW / INCOMPLETE linked behavior unchanged.
+
+### Verification
+
+- Focused Phase 16C: 29 passed.
+- Referral regression (`ReferralAnalyticsTest`, `RiskMonitoringStatusTest`): 14 passed + 1 pre-existing unrelated 403 (unchanged baseline).
+- Sprint 16B regression (`ReferralIntegrationSchemaTest`, `ReferralMigrationRollbackSafetyTest`): 17 passed.
+- Full suite: 493 passed, 3 failed — same 3 pre-existing unrelated failures as before.
+- `php -l` clean; `view:cache`/`view:clear` ok; `git diff --check` exit 0.
+
+### Scope confirmation
+
+Correction only. No migration (16B migration unchanged, still `[21] Ran`). No clinical assessment logic, BP, ML, completeness, or interaction rules changed. No refusal workflow. No `patient.status = REFERRED` change. No referral lifecycle/status change. Nothing committed/pushed.
+## Sprint 16 - Phase 16D Referral Follow-Through, Refusal/Waiver & Pregnancy-Status Decoupling
+
+Status: Complete (backend + UI + tests + docs done; REFERRAL UI/UX & PRINT FINALIZATION held for human review in Phase 16E)
+
+### Approved scope
+
+- Remove the `patient.status = REFERRED` write from referral creation.
+- Implement dedicated referral follow-through transitions (Pending -> Completed / Refused / Cancelled) via `ReferralFollowThroughService`.
+- Add refuse + cancel routes and usable UI.
+- Decouple the pregnancy lifecycle (`patient.status` stays ONGOING) from the referral workflow state (`Referral.status`).
+- Keep legacy `REFERRED`-status rows viewable without backfill.
+- Do NOT begin Phase 16E. No migrations (16B migration remains `[21] Ran`). No EDD/outcome/BiPolar/assessment/BP/ML/completeness/interaction changes.
+
+### Lifecycle decoupling decision
+
+Creating a referral no longer writes `Patient.status = REFERRED`; referred pregnancies remain `ONGOING`. Referral progress is tracked exclusively on the `Referral` row (Pending -> Completed/Refused/Cancelled). Existing legacy `REFERRED` rows are left in place for viewing, treated as "ongoing pregnancy with referral activity", and are never silently rewritten to ONGOING.
+
+### Transition model (`ReferralFollowThroughService`)
+
+- New referral row always starts at `Pending`.
+- `Pending -> Completed`: clinic-recorded follow-through/closed based on info available to the clinic. NOT electronic acceptance, admission, treatment done, or pregnancy end. Sets `completed_at`; refusal fields remain null.
+- `Pending -> Refused`: patient declined. `refusal_notes` required (min 10 / max 2000); `refusal_recorded_at` = server now(); `refusal_recorded_by` = auth id; `waiver_signed` staff boolean (labeled "Physical referral-refusal waiver signed/recorded" - documentation only, no legal claims/digital signatures/uploads); `completed_at` stays null. Browser can NEVER forge timestamps/actor/status.
+- `Pending -> Cancelled`: smallest clinic-side admin transition, distinct from refusal. Optional clean note reuses `referral.notes`. No invented medical reasons.
+- Closed statuses (Completed/Refused/Cancelled) are terminal: cannot transition again or reopen to Pending; a new referral row preserves history (re-referral).
+- Race protection: every transition reloads the row with `lockForUpdate()` inside a transaction.
+
+### Service vs controller helper decision
+
+A dedicated `ReferralFollowThroughService` was used (not a private controller helper) because the transition invariant (only Pending may move, server-stamped refusal metadata, locked read-modify-write) is shared by three routes, must behave identically under concurrency, and needs explicit unit-style coverage independent of HTTP. The controller stays a thin validator + audit wrapper, which is the pattern already used for `RiskAssessmentService` / `ReferralAnalyticsService`.
+
+### Delivered guards
+
+Strict read-only: delivered patients cannot have new referrals, and their existing referrals cannot be completed/refused/cancelled (complete/refuse/cancel return an error). No change without human approval. If real-life follow-through after delivery must be recorded, that is a separate policy decision for review.
+
+### Audit
+
+Successful transitions log an UPDATE in module REFERRAL with referral id + patient name + explicit transition (e.g. "Pending -> Completed"); refusal logs include waiver yes/no. Refusal narrative (`refusal_notes`) and assessment snapshots are never dumped. No audit row is written for blocked transitions.
+
+### Monitoring presentation (PrenatalVisit)
+
+Legacy REFERRED-status rows keep their historical "Referred" / not-overdue presentation. For ONGOING patients, a "Referred" indicator is shown only while an active Pending referral exists (via `Patient::hasActiveReferral()`), so a historical closed referral never permanently suppresses unrelated prenatal follow-up; once the referral closes, standard next-visit/overdue behavior resumes (delay of overdue is intentional while a referral is pending, matching the historical REFERRED semantics).
+
+### Consumer inventory of `REFERRED`
+
+- Removed: `ReferralController::store()` `'status' => 'REFERRED'` write (the core decoupling); `RiskMonitoringStatusTest` obsolete fixture + assertion `expect($patient->status)->toBe('REFERRED')` -> updated contract (patient stays ONGOING + referral Pending).
+- Updated: `PrenatalVisit::getMonitoringNextVisitLabel()` / `isMonitoringOverdue()` now use `hasActiveReferral()` (active Pending) instead of coupling to the patient's REFERRED status; legacy REFERRED keeps its historical presentation.
+- Unchanged / intentionally kept: `RiskMonitoringController` patient filter still includes REFERRED (legacy rows viewable); `ReferralAnalyticsTest` + `ExplainabilitySprint7Test` fixtures keep REFERRED patients for legacy-compatibility coverage.
+- Refusal gates are bounded by refusals for delivered patients and non-Pending referrals.
+
+### Routes
+
+Added `POST /referrals/{id}/refuse` (`referrals.refuse`) and `POST /referrals/{id}/cancel` (`referrals.cancel`) beside existing `referrals.complete`, all under the staff middleware (auth + staff). Not accessible to admin (unchanged authorization).
+
+### UI
+
+- referrals/index: status filter now includes Refused + Cancelled; Refused/Cancelled status badges; 5 stat cards; Pending-only actions (Print / Complete / Record Refusal via modal / Cancel); Refused rows show recorded date + waiver flag.
+- Patient profile: pending referral badge ("Pending Referral") rendered from `Patient::hasActiveReferral()` next to the name, independent of patient status.
+- Referral print: shows completed-on and refusal/waiver details for closed rows.
+
+### Tests (new)
+
+`tests/Feature/ReferralFollowThroughTest.php` (18 tests): referral creation leaves patient ONGOING, complete/refuse/cancel transition math, closed referrals reject further transitions, refusal requires notes + server-stamps actor/time, browser cannot forge status fields, delivered patients can't transition, route validation, audit logging for transitions, monitoring indicator appears only while Pending and clears after closure, legacy REFERRED displays historically, follow-up overdue returns after a refusal closure.
+
+`RiskTestingStatusTest` contract updated: referral creation -> referral Pending + patient stays ONGOING; staff fixture role fixed (the old UserFactory role-null 403 defect no longer applies to the store flow).
+
+### Verification
+
+- Focused 16D: 21 passed (ReferralFollowThroughTest + RiskMonitoringStatusTest).
+- Related regression: AssessmentLinkedReferralTest (29), ReferralIntegrationSchemaTest (13), ReferralMigrationRollbackSafetyTest (4), ReferralAnalyticsTest (14), ExplainabilitySprint7Test (23), DeliveredPatientWorkflowTest (2), StaffAccessControlTest (8) -> 93 passed / 331 assertions.
+- Sprint 15 regression (Sprint15InteractionUiTest): 15 passed.
+- Full suite: 513 passed, 2 pre-existing unrelated failures (ExampleTest guest 302 vs 200; ProfileTest soft-delete mismatch). The prior RiskMonitoringStatusTest 403 is now fixed and its contract updated.
+- Static: `php -l` clean on all touched files; `view:cache`/`view:clear` ok; `git diff --check` exit 0; `migrate:status` shows the 16B migration still `[21] Ran`.
+
+### Scope confirmation
+
+Hard scope respected: no migrations run or added (16B is still `[21] Ran`), no EDD/outcome work, no clinical assessment/BP/ML/completeness/interaction changes, no `REFERRED` backfill occurred, no commit/push. Phase 16E (Referral UI/UX & PRINT finalization) was NOT started.
+
+## Sprint 16 - Phase 16D Human Review Correction
+
+Status: Complete
+
+Human review of Phase 16D requested three corrections. All implemented, tested, and documented. Phase 16E (Referral UI/UX & PRINT finalization) NOT started.
+
+### Correction 1 - Pending referral no longer suppresses prenatal overdue
+
+A Pending referral does NOT prove the receiving facility assumed care, that the patient attended, that clinic follow-up is cancelled, or that next_visit_date is moot. It is also patient-wide and could come from a manual referral unrelated to the specific visit.
+
+Before: `PrenatalVisit::getMonitoringNextVisitLabel()` returned "Referred" and `isMonitoringOverdue()` returned false whenever the patient had any active Pending referral.
+
+After: For new architecture patients (ONGOING + Referral.status = Pending):
+- `getMonitoringNextVisitLabel()` returns the normal next-visit date (or "Not scheduled")
+- `isMonitoringOverdue()` keeps the standard overdue calculation
+- The referral is shown as a SEPARATE "Pending Referral" indicator in both the mobile card and desktop table views of risk monitoring.
+- `Patient::hasActiveReferral()` is kept but ONLY as a UI indicator source; it is no longer a reason to return "Referred" / false.
+
+So the UI can show BOTH "Overdue" and "Pending Referral".
+
+### Correction 2 - Cancellation never overwrites original referral notes
+
+`ReferralFollowThroughService::cancel()` no longer accepts or stores a cancellation note. It performs only the Pending -> Cancelled transition (completed_at null, refusal fields cleared). `referral.notes` captured at creation are NEVER overwritten. The controller dropped the `notes` validation/argument; the audit entry still records the transition. No new column, no migration.
+
+### Correction 3 - Refusal wording
+
+The refusal modal no longer says "`completed_at` is not set because the referral did not close." It now reads "`completed_at` is not set because the referral was refused rather than completed." No database semantics changed.
+
+### Tests (Phase 16D human-review)
+
+`tests/Feature/ReferralFollowThroughTest.php` (21 tests) + `tests/Feature/RiskMonitoringStatusTest.php` (3 tests) prove:
+
+A. ONGOING + Pending referral + past next_visit_date -> still Overdue (keeps normal prenatal overdue behavior despite a pending referral)
+B. same scenario -> Pending Referral indicator displayed separately
+C. closing the referral does not change correctness of normal next-visit logic (no restore/overdue flip)
+D. legacy patient.status = REFERRED -> historical Referred / not-overdue behavior remains
+E. manual Pending referral does not suppress prenatal overdue
+F. cancelling a referral with existing referral.notes -> original notes remain unchanged
+G. cancellation route no longer overwrites notes (client cannot inject a cancellation narrative)
+H. Pending -> Cancelled still works
+I. refusal modal wording no longer says the referral "did not close"
+
+### Verification
+
+- Focused Phase 16D review: 24 passed / 93 assertions.
+- Phase 16C/16B referral regression (AssessmentLinkedReferralTest 29, ReferralIntegrationSchemaTest 13, ReferralMigrationRollbackSafetyTest 4, ReferralAnalyticsTest 14, ExplainabilitySprint7Test 23): 83 passed / 301 assertions.
+- Full suite: 516 passed, 2 pre-existing unrelated failures (ExampleTest guest 302 vs 200; ProfileTest soft-delete).
+- `php -l` clean; `view:cache`/`view:clear` ok; `git diff --check` exit 0; `migrate:status` shows the 16B migration still `[21] Ran`; no migrations run.
+- Nothing committed/pushed.
+
+PHASE 16D HUMAN REVIEW CORRECTION COMPLETE — AWAITING FINAL REVIEW BEFORE PHASE 16E
+
+## Sprint 16 - Phase 16E - Referral UI/UX, Historical Evidence Display & Print Finalization
+
+Status: Complete (implementation + tests + docs; deferred to human acceptance)
+
+Branch: feature/sprint-16-referral-follow-through
+
+### Scope
+
+Finalize the referral UI surface with a UI safety contract: views DISPLAY persisted/snapshot data only and never re-run any clinical engine (RiskAssessmentService, BloodPressureAssessmentService, ML, ClinicalInteractionEngine). No factors, interactions, BP thresholds, labels, eligibility, acceptance, or treatment completion are ever recomputed in Blade. The detail and print pages render from the frozen `Referral.assessment_snapshot` plus persisted relationships and value objects only. No migration was run in this phase (the 16B/16E schema `[21]` remains `Ran`).
+
+### UI Decisions
+
+- Dedicated detail page: new `GET /referrals/{id}` route (`referrals.show`) with `ReferralController::show($id)`, eager-loading `['patient','user','refusalRecordedBy','prenatalVisit']`. Manual referrals render a safe "Manual Referral" fallback with no invented evidence.
+- Index enhanced with a Source column ("Assessment-linked" / "Manual Referral"), a new "View" action, explicit pending-only mutation buttons ("Mark Completed", "Record Refusal", "Cancel Referral"), refusal date + waiver sub-lines, and a status-filter dropdown. The shared refusal modal is rendered only when at least one Pending row is on the current page (prevents mutation text on all-closed pages).
+- Status language: "Pending Referral" (amber), "Completed" (green), "Refused" (orange), "Cancelled" (gray). Never status-by-color alone; every badge carries a text label. Closed states render no mutation actions (backend routes remain authoritative and tested).
+- Urgent banner is shown only when the snapshot `urgency === 'URGENT_CLINICAL_REVIEW'`.
+- Friendly observed-context labels via `ClinicalFactorEvidence::displayObserved()` and `ClinicalInteractionEvidence::normalizeList()`: `ultrasound_inputs.amniotic_fluid` -> "Amniotic fluid", `ultrasound_inputs.presentation` -> "Fetal presentation".
+- Decision-source friendly labels on the detail page: `RULE_BASED` -> "Rule-Based Clinical Assessment", `MACHINE_LEARNING` -> "Machine Learning Assessment", `COMPLETENESS` -> "Required Records Check", `MACHINE_LEARNING_INVALID` -> "ML Assessment Unavailable", fallback = raw value or "Legacy".
+- No raw JSON / dict keys anywhere in UI or print (asserted O). LMP/EDD prints are null-guarded.
+
+### Outcome / Refusal / Cancellation Panels
+
+- **Refused**: shows recorded date + "Recorded by" (friendly `refusalRecordedBy` name; neutral "Staff account no longer available" fallback when the user is soft-deleted), refusal notes, and waiver status ("Physical waiver signed/recorded" or "Not recorded"). Exact wording: "`completed_at` is not set because the referral was refused rather than completed."
+- **Completed**: shows `completed_at`. Wording: "Clinic staff recorded the referral follow-through as completed." No "accepted", "admitted", "treatment completed", "hospital accepted", "digitally signed", or "consent legally completed" vocabulary.
+- **Cancelled**: shows Cancelled label only; `referral.notes` remain the original creation notes, never interpreted as a cancellation reason.
+
+### Patient Profile (Phase 16C guards unchanged)
+
+- "Create Referral from this Assessment" only when HIGH + structured `assessment_metadata` + guard conditions.
+- When a Pending duplicate exists for that assessment, the button is replaced by a "Pending Referral Exists" link pointing to `referrals.show`. Duplicate POST remains protected server-side.
+- New "Referrals" quick-card section (sorted by referral date/id) showing badge + destination + "X total · Y closed", with a side action link to the referrals index.
+
+### Print (Phase 16E finalization)
+
+- Header now reads "Print Date".
+- Referral Details section includes Status, Referral State, and Source ("Assessment-linked"/"Manual Referral").
+- Completed / Refused record sections with `completed_at` / refusal recorded date + recorder + waiver; neutral fallback for deleted recorders, cancelled section.
+- Snapshot Evidence section rendered only from `assessment_snapshot` (urgency banner, risk level, assessment/visit dates, decision source, summary, recommendation, BP finding card, grouped clinical factor chips, interaction cards, version lines). Snapshot invariance is tested: a later live-visit change does NOT alter the printed evidence (test J).
+- No faked details on manual-referral print (K test).
+
+### Files
+
+- `routes/web.php` — `referrals.show` in the `auth` group after the print route.
+- `app/Http/Controllers/ReferralController.php` — `show()`, eager-loads on index/show/print.
+- `app/Http/Controllers/PatientController.php` — eager-reloads `referrals` on show.
+- `resources/views/referrals/show.blade.php` (new), `resources/views/referrals/index.blade.php`, `resources/views/referrals/print.blade.php`, `resources/views/patients/show.blade.php`.
+- `tests/Feature/Phase16EUiTest.php` (24 tests).
+
+### Tests
+
+- Phase16EUiTest: 24 passed / 145 assertions (A-X).
+- Focused regressions: ReferralFollowThroughTest + RiskMonitoringStatusTest + AssessmentLinkedReferralTest + ReferralIntegrationSchemaTest + ReferralMigrationRollbackSafetyTest + Phase16EUiTest = 94 passed; ReferralAnalyticsTest + PatientProfileRiskPanelTest + Sprint15InteractionUiTest + DeliveredPatientWorkflowTest + LegacyPatientShowRenderingTest + MedicalHistoryScopeTest = 66 passed.
+- Full suite: 540 passed, 2 pre-existing unrelated failures (ExampleTest guest 302 vs 200; ProfileTest soft-delete mismatch).
+- `php -l` clean on all changed PHP files; `view:clear` + `view:cache` clean; `git diff --check` exit 0; `migrate:status` confirms 16B/16E migration `[21] Ran`; no migrations run in this phase.
+
+### Known notes / out of scope
+
+- IMPLEMENTATION_PROGRESS.md from earlier phases lists "refusal metadata — `refusal_field`"; the actual persisted field is the boolean `waiver_signed` (see 16B schema contract), not a free-text `refusal_field`.
+- Digital waiver signature (e.g. client-entered signature capture) is out of scope; the checkbox is documentation-only.
+- Nothing committed/pushed.
+
+PHASE 16E COMPLETE — AWAITING FINAL SPRINT 16 HUMAN ACCEPTANCE
+
+## Sprint 16 - Phase 16E - Human UI/UX Review Correction (visual-only)
+
+Status: Complete (visual/UX-only polish; no business logic, no migration, no Sprint 17)
+
+Branch: feature/sprint-16-referral-follow-through (uncommitted)
+
+### Scope & constraint confirmation
+
+- VISUAL/UX ONLY. No referral logic, status transitions, eligibility, snapshot content, analytics, diagnosis/treatment claims, or DB schema changed. No new fields/statuses. No migrations run.
+- `migrate:status` confirms the 16B/16E referral-integration migration remains `[21] Ran`; `git diff --check` exit 0.
+- Follow-through mutations now live on the detail page only; the index no longer carries any mutation action.
+
+### What changed (presentation only)
+
+- `index.blade.php` — full Tailwind rewrite. Header subtitle now "Track referral decisions and clinical follow-through.". Summary hierarchy: amber "Action Required / Pending Referrals" leads; Completed/Refused/Cancelled and Total are quiet. Rows show patient, destination, date, reason (truncated), Source chip, status pill, and ONLY `[View Referral]` + `[Print]`. Mobile uses a `lg:hidden` card list; analytics panel moved below the operational table. Refused rows carry a small "Recorded M d" sub-line; completed rows show the completion date. Full refusal narrative lives on the detail page.
+- `show.blade.php` (detail hub, order A-F): patient + destination header; three separately-coded compact status cards (Pregnancy ONGOING = sky, Referral status, Clinical Risk HIGH = red); Referral Information card; Assessment Evidence at Referral (neutral gray, red HIGH badge, urgency banner only when persisted, BP finding in sky accent, grouped factor rows label+code, violet interaction accents, low-priority version metadata); Referral Follow-through card (Pending: Mark Completed / Record Refusal / Cancel Referral; closed states: no buttons). Refusal modal rewritten in Tailwind with `openRefuseModal/closeRefuseModal`, `@if(status === 'Pending')` guard, no legal text; exact refused wording preserved.
+- `create.blade.php` — two-column layout for linked referrals (left: Referral Form incl. Facility/Doctor/Reason/Notes/date + hidden ids; right: read-only "Assessment Being Referred / Linked Assessment Evidence (read-only)" panel). Manual referrals are a single centered `max-w-2xl` card with a small neutral "Manual Referral" pill and no evidence column.
+- `print.blade.php` — conservative polish only: `@page` size/margin, `break-inside: avoid` on content + signature sections, `no-print` wrapper fixed, `print-container` becomes fluid on print. No dashboard colors, snapshot/evidence rendering unchanged.
+- `patients/show.blade.php` — referral quick card renamed "Referral Follow-through", now shows latest referral status badge + destination + date + source chip + "View Referral" button instead of an inline swipe; does NOT duplicate full snapshot evidence (the assessment evidence remains in the risk panel). "Pending Referral Exists" / "Create Referral from this Assessment" block unchanged.
+- `risk/monitoring.blade.php` — the "Pending Referral" chip on mobile and desktop is now a quiet outline chip (`border-orange-200`), visually secondary to HIGH/urgent clinical badges; text assertion unchanged.
+
+### Tests
+
+- `Phase16EUiTest` — updated the index assertion that previously expected per-row "Mark Completed" (now expected "View Referral" + no per-row mutation buttons), added presentation tests: A2 (index row does not expose per-row mutations), D3 (linked create page renders "Assessment Being Referred" + "Assessment evidence (read-only)"), I2 (patient profile does not duplicate the full snapshot evidence).
+- `ReferralFollowThroughTest` — "renders the corrected refusal wording without a false close claim" moved from the index to the detail page (the index no longer renders the full refusal narrative by design).
+- Focused suites (Phase16EUiTest, AssessmentLinkedReferralTest, ReferralFollowThroughTest, RiskMonitoringStatusTest, ReferralAnalyticsTest, PatientProfileRiskPanelTest, Sprint15InteractionUiTest, LegacyPatientShowRenderingTest, MedicalHistoryScopeTest, DeliveredPatientWorkflowTest, PatientExportConsistencyTest, StaffAccessControlTest, AssessmentMetadataPersistenceTest, ReferralIntegrationSchemaTest, ReferralMigrationRollbackSafetyTest) all PASS.
+- Full suite: 543 passed, 2 pre-existing unrelated failures (ExampleTest guest 302 vs 200; ProfileTest soft-delete mismatch). Same baseline as prior phases.
+- `view:clear` + `view:cache` clean; `php -l` clean on all changed PHP; `git diff --check` exit 0.
+
+### Defense notes
+
+- The visual priority requires the index to communicate status at a glance, so the per-row mutation buttons are removed and all follow-through decisions are made on the detail page, preserving the backend-authoritative safety boundary from 16D.
+- Three separately-coded status cards keep Pregnancy (sky), Referral (amber/gray), and Clinical Risk (red) conceptually separate, matching the reviewer's "ONGOING must not look red" and "Pending not equal to Overdue/HIGH".
+- The create page's right column is deliberately read-only — same data that will freeze into the snapshot — so the user cannot accidentally change the evidence while writing the referral.
+- Print stays a clinical letter (clinic header, patient/pregnancy/ref test info, referral reason/notes, status/refusal/completion, signature) — only print CSS hardened for page-breaks.
+
+The sprint does not change clinical thresholds, does not rewrite working logic, and adds no new active rule.
+
+PHASE 16E UI/UX REVIEW CORRECTION COMPLETE — AWAITING FINAL SPRINT 16 ACCEPTANCE
+
+## Sprint 16 - Phase 16F - Final Acceptance Gate
+
+Status: Complete (verification-first; no feature work, no redesign, no migration, no Sprint 17)
+
+Branch: feature/sprint-16-referral-follow-through (uncommitted)
+
+### Scope & constraint confirmation
+
+- ACCEPTANCE GATE ONLY. No production code changed: no referral logic, status transitions, eligibility, snapshot content, analytics, diagnosis/treatment claims, or DB schema touched. No new fields/statuses. No migrations run.
+- `migrate:status` confirms the 16B/16F referral-integration migration remains `[21] Ran`; `git diff --check` exit 0; `php -l` clean; `view:clear` + `view:cache` clean.
+- Existing Sprint 16 suites (ReferralIntegrationSchemaTest, ReferralMigrationRollbackSafetyTest, AssessmentLinkedReferralTest, ReferralFollowThroughTest, RiskMonitoringStatusTest, Phase16EUiTest, ReferralAnalyticsTest, StaffAccessControlTest, DeliveredPatientWorkflowTest, LegacyPatientShowRenderingTest, PatientExportConsistencyTest, AssessmentMetadataPersistenceTest, PatientProfileRiskPanelTest, Sprint15InteractionUiTest, MedicalHistoryScopeTest) all PASS.
+
+### What changed (tests + docs only)
+
+- Added `tests/Feature/Phase16FFinalAcceptanceTest.php` closing the genuine acceptance-matrix gaps not already asserted by the existing suites:
+  - G: completing, refusing, and cancelling a referral all keep `patient.status = ONGOING` (pregnancy lifecycle stays decoupled through every terminal transition, driven over the real HTTP routes).
+  - G9/L4: a legacy `patient.status = REFERRED` is never rewritten and no backfill occurs when a new referral is created and closed against it.
+  - J1: referral read routes stay open to admin/staff while every mutation route (store/complete/refuse/cancel) rejects a non-staff user and mutates nothing on the denied attempts.
+  - K: index status filter and search behave at the HTTP layer (Pending/Refused filters and name search).
+  - K3: index pagination renders 15 rows on page one and the remainder on page two.
+  - D6/E7: completed and refused detail pages render no mutation controls (previously only Cancelled was explicitly asserted).
+
+### Tests
+
+- Focused suite `Phase16FFinalAcceptanceTest`: 6 passed (43 assertions).
+- Full suite: 549 passed, 2 pre-existing unrelated failures (ExampleTest guest 302 vs 200; ProfileTest soft-delete mismatch) — the same two known failures as every prior phase, plus the six new acceptance tests added by this phase.
+
+### Defense notes
+
+- No assertion was added where the existing suite already proves the behavior (e.g., A8 duplicate-pending is covered by AssessmentLinkedReferralTest + ReferralFollowThroughTest; M1/M4/M5/M6 by ReferralMigrationRollbackSafetyTest), keeping the acceptance suite lean and non-duplicative.
+- HTTP-layer assertions were preferred over direct service calls for the transition/decoupling proof so the middleware and route contract are exercised end-to-end.
+- Count-based pagination assertions use the fixed `View Referral` link text (twice per row: mobile card + desktop table) because referral-ID hrefs collide on single/double-digit prefixes.
+
+The sprint does not change clinical thresholds, does not rewrite working logic, and adds no new active rule.
+
+PHASE 16F COMPLETE — SPRINT 16 READY FOR HUMAN ACCEPTANCE

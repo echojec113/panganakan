@@ -46,7 +46,7 @@ class RiskMonitoringController extends Controller
     {
         $latestIds = $this->latestVisitSubquery();
 
-        $query = PrenatalVisit::with('patient')
+        $query = PrenatalVisit::with('patient.referrals')
             ->whereIn('id', $latestIds);
 
         $query->whereHas('patient', function ($q) {

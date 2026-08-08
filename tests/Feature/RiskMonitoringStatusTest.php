@@ -5,8 +5,8 @@ use App\Models\PrenatalVisit;
 use App\Models\Referral;
 use App\Models\User;
 
-it('shows delivered and referred patients in risk monitoring with terminal labels', function () {
-    $user = User::factory()->create();
+it('shows delivered patients and separate Pending Referral indicators in risk monitoring', function () {
+    $user = User::factory()->create(['role' => 'staff']);
 
     $deliveredPatient = Patient::create([
         'first_name' => 'Maria',
@@ -39,7 +39,7 @@ it('shows delivered and referred patients in risk monitoring with terminal label
         'email' => 'ana@example.com',
         'gravida' => 3,
         'para' => 2,
-        'status' => 'REFERRED',
+        'status' => 'ONGOING',
     ]);
 
     PrenatalVisit::create([
@@ -51,18 +51,27 @@ it('shows delivered and referred patients in risk monitoring with terminal label
         'next_visit_date' => now()->subDays(5)->toDateString(),
     ]);
 
+    // Decoupled model: ONGOING patient with an active Pending referral.
+    Referral::create([
+        'patient_id' => $referredPatient->id,
+        'created_by' => $user->id,
+        'referred_to' => 'Provincial Hospital',
+        'reason' => 'Needs specialist care',
+        'referral_date' => now()->toDateString(),
+        'status' => 'Pending',
+    ]);
+
     $response = $this->actingAs($user)->get(route('risk.monitoring'));
 
     $response->assertOk();
     $response->assertSeeText('Maria Dela Cruz');
     $response->assertSeeText('Delivered');
     $response->assertSeeText('Ana Santos');
-    $response->assertSeeText('Referred');
-    $response->assertDontSeeText('Overdue');
+    $response->assertSeeText('Pending Referral');
 });
 
-it('marks a patient as referred when a referral is created', function () {
-    $user = User::factory()->create();
+it('decouples referral creation from the pregnancy lifecycle', function () {
+    $user = User::factory()->create(['role' => 'staff']);
 
     $patient = Patient::create([
         'first_name' => 'Liza',
@@ -88,6 +97,55 @@ it('marks a patient as referred when a referral is created', function () {
     $response->assertRedirect(route('referrals.index'));
     $patient->refresh();
 
-    expect($patient->status)->toBe('REFERRED');
-    expect(Referral::latest('id')->first()->patient_id)->toBe($patient->id);
+    expect($patient->status)->toBe('ONGOING');
+    $referral = Referral::latest('id')->first();
+    expect($referral->patient_id)->toBe($patient->id);
+    expect($referral->status)->toBe('Pending');
+});
+
+it('shows a Pending Referral indicator separately without suppressing overdue', function () {
+    $user = User::factory()->create(['role' => 'staff']);
+
+    $patient = Patient::create([
+        'first_name' => 'Clara',
+        'last_name' => 'Mercado',
+        'age' => 29,
+        'address' => 'Test address',
+        'contact_number' => '09131234567',
+        'email' => 'clara@example.com',
+        'gravida' => 2,
+        'para' => 1,
+        'status' => 'ONGOING',
+    ]);
+
+    PrenatalVisit::create([
+        'patient_id' => $patient->id,
+        'visit_date' => now()->subWeek()->toDateString(),
+        'risk_level' => 'HIGH',
+        'risk_reasons' => ['Hypertension'],
+        'assessment' => 'High risk',
+        'next_visit_date' => now()->subDays(3)->toDateString(),
+    ]);
+
+    $referral = Referral::create([
+        'patient_id' => $patient->id,
+        'created_by' => $user->id,
+        'referred_to' => 'Provincial Hospital',
+        'reason' => 'Needs specialist care',
+        'referral_date' => now()->toDateString(),
+        'status' => 'Pending',
+    ]);
+
+    $this->actingAs($user)->get(route('risk.monitoring'))
+        ->assertOk()
+        ->assertSeeText('Pending Referral')
+        ->assertSeeText('Overdue');
+
+    app(\App\Services\ReferralFollowThroughService::class)
+        ->complete($referral, $user);
+
+    $this->actingAs($user)->get(route('risk.monitoring'))
+        ->assertOk()
+        ->assertDontSeeText('Pending Referral')
+        ->assertSeeText('Overdue');
 });

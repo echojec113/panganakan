@@ -70,6 +70,7 @@
             margin-bottom: 20px;
             font-size: 13px;
             line-height: 1.8;
+            break-inside: avoid;
         }
 
         .section-label {
@@ -124,6 +125,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 40px;
+            break-inside: avoid;
         }
 
         .signature-line {
@@ -152,6 +154,11 @@
         }
 
         @media print {
+            @page {
+                size: letter;
+                margin: 12mm;
+            }
+
             body {
                 background: white;
                 padding: 0;
@@ -159,9 +166,10 @@
 
             .print-container {
                 width: 100%;
-                height: 100%;
+                height: auto;
+                min-height: 100%;
                 box-shadow: none;
-                padding: 40px 50px;
+                padding: 0;
             }
 
             .no-print {
@@ -205,7 +213,7 @@
 
         {{-- Date --}}
         <div class="date-info">
-            <strong>Date:</strong> {{ \Carbon\Carbon::now()->format('F d, Y') }}
+            <strong>Print Date:</strong> {{ \Carbon\Carbon::now()->format('F d, Y') }}
         </div>
 
         {{-- TO Section --}}
@@ -283,12 +291,12 @@
 
                 <div class="info-item">
                     <div class="info-label">Last Menstrual Period (LMP):</div>
-                    <div class="info-text">{{ $referral->patient->lmp->format('F d, Y') }}</div>
+                    <div class="info-text">{{ $referral->patient->lmp ? $referral->patient->lmp->format('F d, Y') : '—' }}</div>
                 </div>
 
                 <div class="info-item">
                     <div class="info-label">Expected Delivery Date (EDD):</div>
-                    <div class="info-text">{{ $referral->patient->edd->format('F d, Y') }}</div>
+                    <div class="info-text">{{ $referral->patient->edd ? $referral->patient->edd->format('F d, Y') : '—' }}</div>
                 </div>
             </div>
         </div>
@@ -324,8 +332,164 @@
                     <div class="info-label">Status:</div>
                     <div class="info-text">{{ $referral->status }}</div>
                 </div>
+
+                @if($referral->status === 'Pending')
+                <div class="info-item">
+                    <div class="info-label">Referral State:</div>
+                    <div class="info-text">Pending Referral — awaiting follow-through.</div>
+                </div>
+                @endif
+
+                @if($referral->status === 'Completed' && $referral->completed_at)
+                <div class="info-item">
+                    <div class="info-label">Completed On:</div>
+                    <div class="info-text">{{ $referral->completed_at->format('F d, Y g:i A') }}</div>
+                </div>
+                @endif
+
+                @if($referral->status === 'Refused' && $referral->refusal_recorded_at)
+                <div class="info-item">
+                    <div class="info-label">Refusal Recorded On:</div>
+                    <div class="info-text">{{ $referral->refusal_recorded_at->format('F d, Y g:i A') }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Refusal Recorded By:</div>
+                    <div class="info-text">{{ $referral->refusalRecordedBy?->name ?? 'Staff account no longer available' }}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Physical Waiver:</div>
+                    <div class="info-text">{{ $referral->waiver_signed ? 'Signed / recorded' : 'Not signed' }}</div>
+                </div>
+                @endif
+
+                <div class="info-item">
+                    <div class="info-label">Source:</div>
+                    <div class="info-text">
+                        @if($referral->prenatal_visit_id && is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0)
+                            Assessment-linked
+                        @else
+                            Manual Referral
+                        @endif
+                    </div>
+                </div>
             </div>
         </div>
+
+        {{-- Assessment Evidence at Referral (immutable snapshot, linked referrals only) --}}
+        @if(is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0)
+        @php
+            $snap = $referral->assessment_snapshot;
+            $factorEvidence = is_array($snap['factor_evidence'] ?? null) ? $snap['factor_evidence'] : [];
+            $interactionEvidence = is_array($snap['interaction_evidence'] ?? null) ? $snap['interaction_evidence'] : [];
+            $bpAssessment = is_array($snap['bp_assessment'] ?? null) ? $snap['bp_assessment'] : [];
+            $observedContextLabels = [
+                'ultrasound_inputs.amniotic_fluid' => 'Amniotic fluid',
+                'ultrasound_inputs.presentation' => 'Fetal presentation',
+            ];
+            $versions = is_array($snap['versions'] ?? null) ? $snap['versions'] : [];
+        @endphp
+        <div class="content-section">
+            <div class="section-label">Assessment Evidence at Referral</div>
+            <p style="font-size: 11px; color: #666; margin-bottom: 10px;">Recorded at referral creation from the stored assessment. Read-only; does not change.</p>
+
+            @if(($snap['urgency'] ?? null) === 'URGENT_CLINICAL_REVIEW')
+            <div style="border: 2px solid #dc2626; border-radius: 4px; padding: 10px 14px; background: #fff5f5; font-weight: 700; color: #dc2626; text-align: center; margin-bottom: 12px;">
+                URGENT CLINICAL REVIEW
+            </div>
+            @endif
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-bottom: 12px;">
+                <div>
+                    <div class="info-label">Risk Level</div>
+                    <div class="info-text">{{ $snap['risk_level'] ?? '—' }}</div>
+                </div>
+                <div>
+                    <div class="info-label">Assessment Date</div>
+                    <div class="info-text">{{ $snap['assessment_date'] ?? '—' }}</div>
+                </div>
+                <div>
+                    <div class="info-label">Visit Date</div>
+                    <div class="info-text">{{ ($snap['visit_date'] ?? null) ? \Carbon\Carbon::parse($snap['visit_date'])->format('F d, Y') : '—' }}</div>
+                </div>
+                <div>
+                    <div class="info-label">Decision Source</div>
+                    <div class="info-text">{{ $snap['decision_source'] ?? 'Legacy' }}</div>
+                </div>
+            </div>
+
+            @if(!empty($snap['assessment']))
+            <div class="info-label" style="margin-top: 8px;">Clinical Assessment</div>
+            <div class="section-value" style="margin-left: 0;">{{ $snap['assessment'] }}</div>
+            @endif
+
+            @if(!empty($snap['recommendation']))
+            <div class="info-label" style="margin-top: 8px;">Recommendation</div>
+            <div class="section-value" style="margin-left: 0;">{{ $snap['recommendation'] }}</div>
+            @endif
+
+            @if(!empty($bpAssessment))
+            <div class="info-label" style="margin-top: 8px;">Blood Pressure Finding</div>
+            <div class="section-value" style="margin-left: 0;">
+                @if(($bpAssessment['reason_code'] ?? null) === 'BP-URG')
+                    Urgent blood-pressure finding captured in this assessment.
+                @elseif(!empty($bpAssessment['label']))
+                    {{ $bpAssessment['label'] }}
+                @else
+                    Blood-pressure finding captured in this assessment.
+                @endif
+            </div>
+            @endif
+
+            @if(!empty($factorEvidence))
+            <div class="info-label" style="margin-top: 8px;">Clinical Factors</div>
+            <div class="section-value" style="margin-left: 0;">
+                @foreach($factorEvidence as $factor)
+                <span style="display: inline-block; border: 1px solid #ddd; border-radius: 4px; padding: 2px 8px; font-size: 11px; margin-right: 5px; margin-bottom: 5px;">
+                    {{ $factor['label'] ?? $factor['code'] ?? 'Factor' }}
+                </span>
+                @endforeach
+            </div>
+            @endif
+
+            @if(!empty($interactionEvidence))
+            <div class="info-label" style="margin-top: 8px;">Clinical Interactions</div>
+            <div class="section-value" style="margin-left: 0;">
+                @foreach($interactionEvidence as $interaction)
+                @php
+                    $contextLines = collect();
+                    foreach (($interaction['observed_context'] ?? []) as $path => $value) {
+                        if (isset($observedContextLabels[$path]) && $value !== null && trim((string) $value) !== '') {
+                            $contextLines->push($observedContextLabels[$path] . ': ' . $value);
+                        }
+                    }
+                @endphp
+                <div style="border: 1px solid #e0e7ff; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: #f5f3ff;">
+                    <span style="font-weight: 700; color: #4c1d95;">{{ $interaction['label'] ?? 'Clinical interaction' }}</span>
+                    @if($contextLines->isNotEmpty())
+                    <div style="margin-top: 4px; font-size: 11px; color: #555;">
+                        @foreach($contextLines as $line)<span style="margin-right: 6px;">{{ $line }}</span>@endforeach
+                    </div>
+                    @endif
+                    @if(!empty($interaction['explanation']))
+                    <div style="margin-top: 4px; font-size: 11px; color: #666;">{{ $interaction['explanation'] }}</div>
+                    @endif
+                    @if(!empty($interaction['suggested_action']))
+                    <div style="margin-top: 4px; font-size: 11px; color: #4c1d95; font-weight: 600;">Suggested follow-through: {{ $interaction['suggested_action'] }}</div>
+                    @endif
+                </div>
+                @endforeach
+            </div>
+            @endif
+
+            @if(count($versions) > 0)
+            <div style="font-size: 10px; color: #888; margin-top: 8px;">
+                @if(!empty($versions['clinical_rules']))Clinical Rules Version: {{ $versions['clinical_rules'] }}@endif
+                @if(!empty($versions['clinical_rules']) && !empty($versions['assessment_engine'])) &middot; @endif
+                @if(!empty($versions['assessment_engine']))Assessment Engine Version: {{ $versions['assessment_engine'] }}@endif
+            </div>
+            @endif
+        </div>
+        @endif
 
         {{-- Signature Area --}}
         <div class="signature-area">
@@ -349,7 +513,7 @@
     </div>
 
     {{-- Print Button --}}
-    <div style="text-align: center; margin-top: 20px; no-print;" class="no-print">
+    <div class="no-print" style="text-align: center; margin-top: 20px;">
         <button class="print-button" onclick="window.print()">Print Referral Letter</button>
     </div>
 

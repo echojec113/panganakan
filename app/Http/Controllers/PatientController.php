@@ -123,7 +123,7 @@ class PatientController extends Controller
      */
     public function show(string $id)
     {
-        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies'])->findOrFail($id);
+        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals'])->findOrFail($id);
 
         // Newest persisted prenatal visit, deterministically: created_at desc,
         // then id desc as a tie-breaker for records created in the same second.

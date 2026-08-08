@@ -89,6 +89,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/referrals/{id}/print', [ReferralController::class, 'print'])
         ->name('referrals.print');
 
+    Route::get('/referrals/{id}', [ReferralController::class, 'show'])
+        ->name('referrals.show');
+
     /*
     |--------------------------------------------------------------------------
     | Monitoring / Logs (Admin & Staff)
@@ -157,6 +160,12 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/referrals/{id}/complete', [ReferralController::class, 'complete'])
             ->name('referrals.complete');
+
+        Route::post('/referrals/{id}/refuse', [ReferralController::class, 'refuse'])
+            ->name('referrals.refuse');
+
+        Route::post('/referrals/{id}/cancel', [ReferralController::class, 'cancel'])
+            ->name('referrals.cancel');
 
         /*
         |--------------------------------------------------------------------------

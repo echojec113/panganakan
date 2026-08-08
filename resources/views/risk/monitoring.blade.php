@@ -388,6 +388,7 @@
                     }
                     $nextLabel = $visit->getMonitoringNextVisitLabel();
                     $isOverdue = $visit->isMonitoringOverdue();
+                    $hasActiveReferral = $visit->patient?->hasActiveReferral() ?? false;
                     $verificationCount = count(is_array($visit->assessment_metadata['data_quality_flags'] ?? null) ? $visit->assessment_metadata['data_quality_flags'] : []);
                     $interactionEvidence = \App\ValueObjects\ClinicalInteractionEvidence::normalizeList(is_array($visit->assessment_metadata) ? ($visit->assessment_metadata['interaction_evidence'] ?? null) : null);
                     $interactionCount = count($interactionEvidence);
@@ -456,6 +457,12 @@
                         <div>Last: {{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</div>
                         <div>Next: {{ $nextLabel }} @if($isOverdue)<span class="text-red-600 font-semibold ml-1">Overdue</span>@endif</div>
                     </div>
+
+                    @if($hasActiveReferral)
+                    <div class="mt-2 inline-flex items-center rounded-full border border-orange-200 px-2.5 py-0.5 text-[11px] font-medium text-orange-700">
+                        Pending Referral
+                    </div>
+                    @endif
 
                     <div class="flex justify-end pt-2">
                         <x-action-buttons 
@@ -556,6 +563,7 @@
                             }
                             $nextLabel = $visit->getMonitoringNextVisitLabel();
                             $isOverdue = $visit->isMonitoringOverdue();
+                            $hasActiveReferral = $visit->patient?->hasActiveReferral() ?? false;
                             $verificationCount = count(is_array($visit->assessment_metadata['data_quality_flags'] ?? null) ? $visit->assessment_metadata['data_quality_flags'] : []);
                             $interactionEvidence = \App\ValueObjects\ClinicalInteractionEvidence::normalizeList(is_array($visit->assessment_metadata) ? ($visit->assessment_metadata['interaction_evidence'] ?? null) : null);
                             $interactionCount = count($interactionEvidence);
@@ -649,6 +657,9 @@
                                 <div class="text-sm font-medium text-gray-900">
                                     {{ $nextLabel }}
                                 </div>
+                                @if($hasActiveReferral)
+                                    <div class="mt-1 inline-flex items-center rounded-full border border-orange-200 px-2.5 py-0.5 text-[11px] font-medium text-orange-700">Pending Referral</div>
+                                @endif
                                 @if($visit->patient->status === 'ONGOING' && $visit->next_visit_date)
                                     @php
                                         $nextVisitDate = \Carbon\Carbon::parse($visit->next_visit_date);
