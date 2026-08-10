@@ -13,6 +13,7 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\RiskMonitoringController;
 use App\Http\Controllers\ReferralController;
+use App\Http\Controllers\PregnancyOutcomeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -104,6 +105,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/risk-monitoring/analytics', [RiskMonitoringController::class, 'analytics'])
         ->name('risk.monitoring.analytics');
 
+    Route::get('/pregnancy-outcomes', [PregnancyOutcomeController::class, 'index'])
+        ->name('pregnancy-outcomes.index');
+
     Route::get('/audit-logs', [AuditLogController::class, 'index'])
         ->name('audit-logs.index');
 
@@ -145,6 +149,12 @@ Route::middleware('auth')->group(function () {
 
         Route::post('/patients/{id}/start-new-pregnancy', [PatientController::class, 'startNewPregnancy'])
             ->name('patients.start-new-pregnancy');
+
+        Route::post('/patients/{id}/pregnancy-outcome/still-pregnant', [PregnancyOutcomeController::class, 'recordStillPregnant'])
+            ->name('pregnancy-outcomes.still-pregnant');
+
+        Route::post('/patients/{id}/pregnancy-outcome/unable-to-contact', [PregnancyOutcomeController::class, 'recordUnableToContact'])
+            ->name('pregnancy-outcomes.unable-to-contact');
 
         /*
         |--------------------------------------------------------------------------

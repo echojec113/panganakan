@@ -2,6 +2,8 @@
     @php
         $riskLevel = $latestVisit?->risk_level ?: 'N/A';
         $riskClass = $riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' : ($riskLevel === 'LOW' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700');
+        $outcome = $pregnancy->pregnancyOutcome;
+        $confirmed = $outcome && $outcome->hasConfirmedOutcome();
     @endphp
 
     <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -23,14 +25,14 @@
                 <span class="inline-flex rounded-md bg-green-100 px-3 py-1 text-xs font-bold text-green-700">Delivered</span>
             </div>
 
-            <div class="mb-6 grid grid-cols-2 gap-4 border-b border-gray-100 pb-6 md:grid-cols-5">
+            <div class="mb-6 grid grid-cols-2 gap-4 border-b border-gray-100 pb-6 md:grid-cols-4">
                 <div>
                     <div class="text-xs text-gray-500">Delivery Date</div>
                     <div class="mt-1 font-semibold text-gray-900">{{ $pregnancy->delivery_date ? \Carbon\Carbon::parse($pregnancy->delivery_date)->format('M d, Y') : 'N/A' }}</div>
                 </div>
                 <div>
-                    <div class="text-xs text-gray-500">Delivery Type</div>
-                    <div class="mt-1 font-semibold text-gray-900">{{ $pregnancy->delivery_type ?? 'Normal Delivery' }}</div>
+                    <div class="text-xs text-gray-500">Delivery Location</div>
+                    <div class="mt-1 font-semibold text-gray-900">{{ $confirmed && $outcome->delivery_location !== null ? \App\Support\PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : 'Not recorded' }}</div>
                 </div>
                 <div>
                     <div class="text-xs text-gray-500">Babies</div>
@@ -40,11 +42,27 @@
                     <div class="text-xs text-gray-500">Risk Level</div>
                     <span class="mt-1 inline-flex rounded-md px-2 py-1 text-xs font-semibold {{ $riskClass }}">{{ Str::title(strtolower($riskLevel)) }}</span>
                 </div>
-                <div>
-                    <div class="text-xs text-gray-500">Delivery Status</div>
-                    <div class="mt-1 font-semibold text-gray-900">Delivered</div>
-                </div>
             </div>
+
+            @if($confirmed)
+                <div class="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Confirmation Details</div>
+                    <div class="mt-2 grid grid-cols-1 gap-3 text-sm text-gray-700 sm:grid-cols-3">
+                        <div>
+                            <div class="text-xs text-gray-500">Confirmation Source</div>
+                            <div class="font-semibold text-gray-900">{{ \App\Support\PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">Confirmed At</div>
+                            <div class="font-semibold text-gray-900">{{ $outcome->confirmed_at?->format('M d, Y H:i') ?: 'N/A' }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">Recorded By</div>
+                            <div class="font-semibold text-gray-900">{{ $outcome->confirmedBy?->name ?: 'N/A' }}</div>
+                        </div>
+                    </div>
+                </div>
+            @endif
 
             <div class="space-y-6">
                 @forelse($pregnancy->babies as $baby)

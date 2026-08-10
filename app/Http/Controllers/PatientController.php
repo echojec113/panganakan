@@ -4,13 +4,24 @@ namespace App\Http\Controllers;
 use App\Models\Baby;
 use App\Models\Patient;
 use App\Models\PrenatalVisit;
+use App\Services\PregnancyOutcomeRecordingService;
+use App\Services\PregnancyOutcomeMonitoringService;
+use App\Support\PregnancyOutcomeVocabulary;
 use Carbon\Carbon;
+use DomainException;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\Rule;
 
 class PatientController extends Controller
 {
+    public function __construct(
+        private PregnancyOutcomeRecordingService $pregnancyOutcomeRecordingService,
+        private PregnancyOutcomeMonitoringService $pregnancyOutcomeMonitoringService,
+    ) {
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -123,7 +134,14 @@ class PatientController extends Controller
      */
     public function show(string $id)
     {
-        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals'])->findOrFail($id);
+        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals','pregnancyOutcome.followUpRecordedBy','pregnancyOutcome.confirmedBy'])->findOrFail($id);
+
+        // Derived outcome-monitoring state for the profile card. Pure read:
+        // no lifecycle or outcome values are written here.
+        $monitoringState = $this->pregnancyOutcomeMonitoringService->deriveState($patient);
+        $monitoringStateLabel = \App\Services\PregnancyOutcomeMonitoringService::stateLabel($monitoringState);
+        $monitoringEligible = $this->pregnancyOutcomeMonitoringService->isFollowUpEligible($patient);
+        $daysUntilOrPastEdd = $this->pregnancyOutcomeMonitoringService->daysUntilOrPastEdd($patient);
 
         // Newest persisted prenatal visit, deterministically: created_at desc,
         // then id desc as a tie-breaker for records created in the same second.
@@ -144,7 +162,7 @@ class PatientController extends Controller
         $hasBirthPlan = $patient->birthPlan !== null;
         $canAddPrenatalVisit = $hasMedicalHistory && $hasUltrasound && $hasBirthPlan;
 
-        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit'));
+        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit', 'monitoringState', 'monitoringStateLabel', 'monitoringEligible', 'daysUntilOrPastEdd'));
     }
 
     public function download(Request $request, string $id)
@@ -542,17 +560,14 @@ public function markDelivered(Request $request, $id)
 {
     $patient = Patient::findOrFail($id);
 
-    if ($patient->status === 'DELIVERED') {
-    return back()->withErrors([
-        'status' => 'This patient is already marked as delivered.'
-    ])->withInput();
-}
-
     // Validate delivery data
-    $request->validate([
+    $validated = $request->validate([
         'delivery_date' => 'required|date|before_or_equal:today',
+        'delivery_location' => ['required', Rule::in(PregnancyOutcomeVocabulary::DELIVERY_LOCATIONS)],
+        'confirmation_source' => ['required', Rule::in(PregnancyOutcomeVocabulary::CONFIRMATION_SOURCES)],
+        'outcome_notes' => 'nullable|string|max:2000',
         'babies' => 'array|min:1',
-        'babies.*.date_of_birth' => 'required|date',
+        'babies.*.date_of_birth' => 'required|date|before_or_equal:today|same:delivery_date',
         'babies.*.time_of_birth' => 'required|date_format:H:i',
         'babies.*.first_name' => 'nullable|string|max:255',
         'babies.*.middle_name' => 'nullable|string|max:255',
@@ -577,32 +592,29 @@ public function markDelivered(Request $request, $id)
         }
     }
 
-    // Update patient status
-    $patient->update([
-        'status' => 'DELIVERED',
-        'delivery_date' => $request->delivery_date,
-        'para' => $patient->para + 1,
-    ]);
-
-    // Create baby records
-    foreach ($babiesData as $babyData) {
-        Baby::create([
-            'patient_id' => $patient->id,
-            'first_name' => $babyData['first_name'] ?? null,
-            'middle_name' => $babyData['middle_name'] ?? null,
-            'last_name' => $babyData['last_name'] ?? null,
-            'sex' => $babyData['sex'] ?? null,
-            'date_of_birth' => $babyData['date_of_birth'],
-            'time_of_birth' => $babyData['time_of_birth'],
-            'birth_weight' => $babyData['birth_weight'] ?? null,
-            'birth_length' => $babyData['birth_length'] ?? null,
-        ]);
+    // The service owns the entire confirmed-delivery write transaction
+    // (patient lifecycle, outcome record + provenance, babies, para).
+    try {
+        $this->pregnancyOutcomeRecordingService->recordConfirmedDelivery(
+            $patient,
+            $request->user(),
+            $validated['delivery_date'],
+            $validated['delivery_location'],
+            $validated['confirmation_source'],
+            $babiesData,
+            $validated['outcome_notes'] ?? null
+        );
+    } catch (DomainException $e) {
+        return back()->withErrors(['status' => $e->getMessage()])->withInput();
     }
 
+    // Audit only AFTER the transaction committed.
+    $babyLabel = count($babiesData) === 1 ? 'baby' : 'babies';
     $this->logAction(
         'UPDATE',
         'PATIENT',
-        'Marked as delivered with ' . count($babiesData) . ' baby(ies): ' . $patient->first_name . ' ' . $patient->last_name
+        'Recorded confirmed delivery outcome for ' . $patient->first_name . ' ' . $patient->last_name
+            . ' with ' . count($babiesData) . ' ' . $babyLabel . '.'
     );
 
     return redirect()->route('patients.delivered')
@@ -612,7 +624,7 @@ public function delivered()
 {
     $search = trim((string) request('search'));
 
-    $deliveredPatients = Patient::with('babies')
+    $deliveredPatients = Patient::with(['babies', 'pregnancyOutcome.confirmedBy'])
         ->where('status', 'DELIVERED')
         ->orderByDesc('delivery_date')
         ->orderByDesc('created_at')
@@ -631,12 +643,14 @@ public function delivered()
         ->groupBy(fn ($patient) => $this->patientHistoryKey($patient))
         ->map(function ($pregnancies) {
             $latest = $pregnancies->sortByDesc(fn ($patient) => $patient->delivery_date ?: $patient->created_at)->first();
+            $outcome = $latest->pregnancyOutcome;
 
             return (object) [
                 'patient' => $latest,
                 'completed_pregnancies' => $pregnancies->count(),
                 'total_babies' => $pregnancies->sum(fn ($patient) => $patient->babies->count()),
                 'last_delivery_date' => $pregnancies->max('delivery_date'),
+                'confirmed' => $outcome && $outcome->hasConfirmedOutcome(),
             ];
         })
         ->sortByDesc('last_delivery_date')
@@ -670,7 +684,7 @@ public function pregnancyHistory($id)
 
 public function babyInformation($id)
 {
-    $pregnancy = Patient::with(['babies', 'prenatalVisits'])
+    $pregnancy = Patient::with(['babies', 'prenatalVisits', 'pregnancyOutcome.confirmedBy'])
         ->where('status', 'DELIVERED')
         ->findOrFail($id);
 
@@ -693,7 +707,7 @@ public function babyInformation($id)
         } elseif ($request->boolean('all')) {
             $pregnancies = $this->completedPregnanciesFor($patient);
         } else {
-            $pregnancies = collect([$patient->load(['babies', 'prenatalVisits'])]);
+            $pregnancies = collect([$patient->load(['babies', 'prenatalVisits', 'pregnancyOutcome.confirmedBy'])]);
         }
 
         $babyId = $request->integer('baby_id');
@@ -711,7 +725,7 @@ public function babyInformation($id)
 
 private function completedPregnanciesFor(Patient $patient)
 {
-    return Patient::with(['babies', 'prenatalVisits'])
+    return Patient::with(['babies', 'prenatalVisits', 'pregnancyOutcome.confirmedBy'])
         ->where('status', 'DELIVERED')
         ->where('first_name', $patient->first_name)
         ->where('last_name', $patient->last_name)
@@ -740,7 +754,17 @@ public function updateBaby(Request $request, $id)
         'birth_length' => 'nullable|numeric|min:0|max:100',
     ]);
 
-    $baby = Baby::findOrFail($id);
+    $baby = Baby::with('patient')->findOrFail($id);
+
+    // Server-side lifecycle safety: baby records on a closed (DELIVERED) or
+    // legacy REFERRED pregnancy are immutable. The UI already hides the edit
+    // controls, but the backend must be authoritative.
+    if ($baby->patient && in_array($baby->patient->status, ['DELIVERED', 'REFERRED'], true)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Baby information can no longer be edited once the pregnancy is closed.',
+        ], 403);
+    }
 
     $baby->update([
         'first_name' => $request->first_name,

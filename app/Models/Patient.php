@@ -14,6 +14,7 @@ use App\Models\BirthPlan;
 use App\Models\Ultrasound;
 use App\Models\Baby;
 use App\Models\Referral;
+use App\Models\PregnancyOutcome;
 
 class Patient extends Model
 {
@@ -129,6 +130,10 @@ class Patient extends Model
 {
     return $this->hasMany(Referral::class);
 }
+    public function pregnancyOutcome(): HasOne
+    {
+        return $this->hasOne(PregnancyOutcome::class);
+    }
 
     public function assignedStaff(): BelongsTo
     {

@@ -22,13 +22,24 @@
     <div class="muted">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</div>
 
     @foreach($pregnancies as $pregnancy)
-        @php($latestVisit = $pregnancy->prenatalVisits->sortByDesc('visit_date')->first())
+        @php
+            $latestVisit = $pregnancy->prenatalVisits->sortByDesc('visit_date')->first();
+            $outcome = $pregnancy->pregnancyOutcome;
+            $confirmed = $outcome && $outcome->hasConfirmedOutcome();
+        @endphp
         <h2>Pregnancy Delivered {{ $pregnancy->delivery_date ? \Carbon\Carbon::parse($pregnancy->delivery_date)->format('M d, Y') : 'N/A' }}</h2>
         <div class="grid">
-            <div class="box"><div class="label">Delivery Type</div><div class="value">{{ $pregnancy->delivery_type ?? 'Normal Delivery' }}</div></div>
+            <div class="box"><div class="label">Delivery Location</div><div class="value">{{ $confirmed && $outcome->delivery_location !== null ? \App\Support\PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Number of Babies</div><div class="value">{{ $pregnancy->babies->count() }}</div></div>
             <div class="box"><div class="label">Risk Level</div><div class="value">{{ $latestVisit?->risk_level ?: 'N/A' }}</div></div>
         </div>
+        @if($confirmed)
+            <div class="grid">
+                <div class="box"><div class="label">Confirmation Source</div><div class="value">{{ $outcome->confirmation_source !== null ? \App\Support\PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) : 'N/A' }}</div></div>
+                <div class="box"><div class="label">Confirmed At</div><div class="value">{{ $outcome->confirmed_at?->format('M d, Y H:i') ?: 'N/A' }}</div></div>
+                <div class="box"><div class="label">Recorded By</div><div class="value">{{ $outcome->confirmedBy?->name ?: 'N/A' }}</div></div>
+            </div>
+        @endif
 
         @foreach($pregnancy->babies as $baby)
             <h3>Baby {{ $loop->iteration }}</h3>

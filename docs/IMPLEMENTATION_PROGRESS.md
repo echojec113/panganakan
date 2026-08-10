@@ -1005,3 +1005,292 @@ Branch: feature/sprint-16-referral-follow-through (uncommitted)
 The sprint does not change clinical thresholds, does not rewrite working logic, and adds no new active rule.
 
 PHASE 16F COMPLETE — SPRINT 16 READY FOR HUMAN ACCEPTANCE
+
+## Sprint 17 - Phase 17A — Current-system audit & architecture
+
+Status: Complete (read-only audit; architecture correction approved in human review)
+
+Branch: feature/sprint-17-pregnancy-outcomes (uncommitted)
+
+### Scope & constraint confirmation
+
+- READ-ONLY audit. No files modified, no migration created, no data touched, no commit.
+- Verified the current suite reproduces the known baseline: `php artisan test` → 549 passed, 2 pre-existing unrelated failures (ExampleTest guest 302 vs 202; ProfileTest soft-delete mismatch).
+
+### Findings recorded
+
+- `patients.status` is a string column (default `ONGOING`; migration `2026_03_31_174932`) using `ONGOING` / `DELIVERED` / legacy `REFERRED`; DELIVERED currently doubles as pregnancy closure.
+- `markDelivered()` (`PatientController`) requires ≥1 Baby, sets `status = DELIVERED` + `delivery_date`, and increments `para`.
+- Start New Pregnancy requires `status = DELIVERED`, clones identity into a new row, `gravida +1`, `para` unchanged.
+- `delivery_type` is a phantom, non-persisted UI field (Blade fallback `?? 'Normal Delivery'` only).
+- EDD never determines outcome; referral lifecycle is independent; legacy `REFERRED` never rewritten (Sprint 16 contract).
+
+### Approved architecture direction (17A correction)
+
+- One-per-pregnancy `pregnancy_outcomes` record (UNIQUE `patient_id` on `patients` rows).
+- `patients.status` unchanged: OUTCOME / DELIVERY / REFERRED; no CLOSED; no outcome/follow-up encoding.
+- Outcome confirmation via `outcome_type != null` + provenance (no redundant boolean, no duplicated delivery_date).
+- Persisted follow-up observations only: STILL_PREGNANT_CONFIRMED, UNABLE_TO_CONTACT. CONFIRMATION_REQUIRED and RESOLVED are derived.
+- Outcome vocabulary: DELIVERED only; delivery context: THIS_CLINIC / ANOTHER_FACILITY / HOME / OTHER; minus clinically sensitive categories (deferred).
+- No backfill; legacy DELIVERED/ONGOING/REFERRED rows remain valid.
+
+## Sprint 17 - Phase 17B — Pregnancy outcome/follow-up data foundation
+
+Status: Complete (schema/model/vocabulary/tests/docs only; no workflow, no UI, no EDD logic)
+
+Branch: feature/sprint-17-pregnancy-outcomes (uncommitted)
+
+### Scope & constraint confirmation
+
+- DATA FOUNDATION ONLY. No recording routes/controller, no EDD logic, no markDelivered/Baby/para/Start-New-Pregnancy change, no delivered-guard refactor, no sidebar/UI rename, no analytics.
+- Additive migration created but NOT executed against the developer DB (awaits explicit authorization).
+- No commit, no push.
+
+### What changed
+
+- `database/migrations/2026_08_09_000002_create_pregnancy_outcomes_table.php` (new, additive): one record per pregnancy.
+  - `patient_id` UNIQUE FK → patients (CASCADE on hard delete; soft deletes never touch the FK).
+  - `outcome_type`, `delivery_location`, `follow_up_status` (nullable strings); `follow_up_recorded_at` / `confirmed_at` (nullable timestamps); `follow_up_recorded_by` / `confirmed_by` (nullable FK users, `nullOnDelete`); `confirmation_source` (nullable string); `notes` (nullable text); timestamps.
+  - Deliberately absent: `outcome_confirmed`, `delivery_date` (patients.delivery_date stays canonical).
+- `app/Models/PregnancyOutcome.php` (new): fillable, `datetime` casts, `patient()` / `followUpRecordedBy()` / `confirmedBy()` relations, `hasConfirmedOutcome()` = `outcome_type !== null`.
+- `app/Models/Patient.php`: added `pregnancyOutcome(): HasOne` relation. No boot/delete-cascade changes (17C).
+- `app/Support/PregnancyOutcomeVocabulary.php` (new): outcome/delivery/follow-up/source vocabularies + derived markers; null = "no evidence".
+
+### Vocabulary contract (17B)
+
+- outcome_type: `DELIVERED`.
+- delivery_location: `THIS_CLINIC`, `ANOTHER_FACILITY`, `HOME`, `OTHER`.
+- follow_up_status (persisted): `STILL_PREGNANT_CONFIRMED`, `UNABLE_TO_CONTACT`. Derived (never persisted): `CONFIRMATION_REQUIRED`, `RESOLVED`.
+- confirmation_source: `CLINIC_RECORD`, `PATIENT_REPORT`, `OTHER_FACILITY_REPORT`, `OTHER`.
+
+### Tests
+
+- `tests/Feature/PregnancyOutcomeMigrationTest.php` (6): table/columns; no redundant boolean / duplicate date; UNIQUE patient_id; nullOnDelete provenance; patient cascade; add-drop-add rollback via the real down()/up().
+- `tests/Feature/PregnancyOutcomeModelTest.php` (10): relations; casts; all-null unrecorded state; STILL_PREGNANT_CONFIRMED + actor; UNABLE_TO_CONTACT + actor; confirmed DELIVERED struct; mass-assignment of `delivery_date` rejected; legacy DELIVERED/ONGOING/REFERRED without a record remain valid.
+- `tests/Unit\Support/PregnancyOutcomeVocabularyTest.php` (7): accepted/rejected vocabularies, derived-vs-persisted boundary, null-unrecorded acceptance.
+
+### Regression
+
+- Focused new: 23 passed (95 assertions).
+- Full suite: 572 passed, 2 pre-existing unrelated failures (same two known baselines). Sprint 16 reference/referral suites untouched and green.
+
+### Defense notes
+
+- The UNIQUE `patient_id` on `patients` rows encodes one-per-pregnancy without new composite keys; each `patients` row is one pregnancy episode (Start New Pregnancy clones).
+- The boolean `outcome_confirmed` is avoided so `true + outcome_type=null` is structurally impossible; provenance columns persist every recorded fact.
+- `patients.delivery_date` remains canonical; the new table owns context/provenance only, avoiding two-date drift.
+- User FKs use `nullOnDelete` (provenance survives account removal); `patient_id` cascades match the existing child-record delete semantics.
+- No backfill: legacy rows without an outcome record are valid historical records; no evidence was invented.
+
+PHASE 17B COMPLETE — AWAITING SCHEMA/MIGRATION REVIEW BEFORE OUTCOME RECORDING WORKFLOW
+
+## Sprint 17 - Phase 17B — Human schema review correction
+
+Status: Complete (architecture approved; review corrections applied; migration still PENDING)
+
+Branch: feature/sprint-17-pregnancy-outcomes (uncommitted)
+
+### Corrections applied
+
+1. **`hasConfirmedOutcome()` contract.** Previously `outcome_type !== null`. Now requires the full confirmation provenance: `outcome_type` AND `confirmed_at` AND `confirmed_by` AND `confirmation_source`. `delivery_location` is outcome context and is deliberately NOT required. Added tests A–F (outcome_type only / +confirmed_at only / missing confirmed_by / missing confirmation_source / full provenance / null state).
+2. **Rollback guard.** `down()` now: table absent → no-op; table present+empty → allow drop; table present with ANY row → throw `RuntimeException` BEFORE any destructive action (no deletion, truncation, or conversion; table stays intact). Added migration rollback tests A–E (empty-down succeeds; populated-down throws; row unchanged after rejected rollback; columns still present; empty-down then up() recreates).
+3. **Fixture cleanup.** The user-FK `nullOnDelete` test no longer builds one impossible row with `outcome_type = DELIVERED` + `follow_up_status = STILL_PREGNANT_CONFIRMED`; it uses two separate rows (confirmation-provenance record and follow-up-provenance record) on separate patients.
+4. Scope unchanged: 17B data foundation only; no routes/services/EDD/UI/Baby/para/Start-New-Pregnancy/guard/analytics changes.
+
+### Regression
+
+- Focused new/corrected: 34 passed (123 assertions).
+- Full suite: 572 passed, 2 pre-existing unrelated failures (same two known baselines). The `down()` guard means any existing row blocks migration rollback — matching the Sprint 16 `Refused`-protection precedent.
+
+PHASE 17B HUMAN SCHEMA REVIEW CORRECTION COMPLETE — AWAITING MIGRATION EXECUTION APPROVAL
+
+## Sprint 17 - Phase 17B — Final confirmation-provenance correction
+
+Status: Complete (review correction applied; migration still PENDING)
+
+### What changed
+
+- **`hasConfirmedOutcome()` no longer requires `confirmed_by`.**
+  A historically confirmed outcome now requires `outcome_type != null` + `confirmed_at != null` + `confirmation_source != null`. `confirmed_by` remains optional provenance because the FK is nullable with `nullOnDelete()`: deleting a staff account clears only the live FK reference and must never retroactively flip a historically confirmed DELIVERED outcome back to false.
+- Migration **FK policy unchanged** (`confirmed_by` stays nullable + `nullOnDelete`); only its docblock text was clarified.
+- Model/class PHPDoc documents the invariant: account removal un-links the actor, never the fact.
+- Confirmation-contract tests rebuilt to the definitive set:
+  A outcome_type only → false; B +confirmed_at/no source → false; C +source without confirmed_by → true; D full provenance → true; E remains true historically **after** the confirming user is force-deleted and `confirmed_by` becomes null; F missing confirmation_source → false; G null/unrecorded → false.
+- All prior rollback-safety corrections retained (populated-table rollback throws; no rows or columns are lost on rejection; empty rollback re-up()).
+
+### Regression
+
+- Focused: 35 passed (130 assertions).
+- Full suite: 584 passed, 2 pre-existing unrelated failures (same two known baselines).
+- Migration `2026_08_09_000002_create_pregnancy_outcomes_table` remains **PENDING**; no commit, no push.
+
+PHASE 17B FINAL CONFIRMATION-PROVENANCE CORRECTION COMPLETE — AWAITING MIGRATION EXECUTION APPROVAL
+
+---
+
+## Sprint 17 - Phase 17C - Confirmed Delivery Recording Workflow
+
+### Scope
+- Backend + workflow only. The existing Patient profile -> Mark as Delivered action now records a confirmed DELIVERED pregnancy outcome transactionally through a dedicated service.
+- 17B data foundation integrated. No new migration, no EDD/outcome-monitoring UI, no sidebar/module rename, no new outcome types, no clinical risk/BP/ML/interaction/referral changes.
+
+### Files
+- NEW app/Services/PregnancyOutcomeRecordingService.php - authoritative owner of the confirmed-delivery write transaction.
+- app/Http/Controllers/PatientController.php - markDelivered() delegates multi-model writes to the service; constructor DI; updateBaby() server-side lifecycle guard (DELIVERED / legacy REFERRED reject 403).
+- resources/views/patients/show.blade.php - delivery modal gains Delivery Location + Confirmation Source selects and Outcome/Confirmation Notes; removed dead deliveryForm/delivery_type CS JS (17A findings).
+- app/Models/PregnancyOutcome.php - corrected stale class PHPDoc: confirmed_by is optional provenance (nullOnDelete), hasConfirmedOutcome() invariant unchanged.
+- NEW tests/Feature/PregnancyOutcomeRecordingTest.php (26 tests).
+- docs/IMPLEMENTATION_PROGRESS.md - this section.
+
+### Contract
+- One DB::transaction. Patient re-queried with lockForUpdate(); status must be exactly ONGOING (DELIVERED and legacy REFERRED rejected, never rewritten).
+- PregnancyOutcome row: outcome_type=DELIVERED, delivery_location + confirmation_source validated server-side via PregnancyOutcomeVocabulary, confirmed_at = server now(), confirmed_by = authenticated staff, notes trimmed or null. Follow-up fields cleared on the confirmed outcome; derived RESOLVED never stored. Exactly one outcome row (patient_id UNIQUE); a blank/unconfirmed placeholder row is updated in place; an already-confirmed outcome rejects the operation.
+- Patient: status=DELIVERED, canonical delivery_date, para+1 exactly once. Baby rows: at least one required; all supported fields preserved; each baby date_of_birth must equal the submitted delivery_date (no future DOB).
+- Client can never supply outcome_type / confirmed_at / confirmed_by / status / para / follow-up provenance.
+- Audit log written only after transaction success, clinically neutral (no admission/verification/referral claims).
+- No automatic inference from EDD, visits, referral state, babies, risk, or existing delivery_date. No backfill; legacy DELIVERED without outcome stays valid; legacy REFERRED untouched.
+
+### Tests / results
+- Focused: 26 passed (116 assertions).
+- Related regression (17B migration/model/vocab, delivered workflow grouping/history/baby-info/print, referral follow-through + Phase 16F acceptance + rollback safety, risk monitoring, staff access): 79 passed (320 assertions).
+- Full suite: 610 passed, 2 pre-existing unrelated failures (ExampleTest guest expectation, ProfileTest soft-delete expectation) - baseline was 584 passed / 2 failed; the two failures are unchanged.
+
+### Static / state
+- php -l clean on all created/modified PHP; PHPUnit/view cached; git diff --check clean.
+- Migration 2026_08_09_000002_create_pregnancy_outcomes_table remains Ran [22]; no new migration created.
+
+### Deliberately NOT done (Phase 17D scope)
+- Pregnancy Outcome Monitoring page/dashboard, EDD follow-up queue, CONFIRMATION_REQUIRED / RESOLVED UI, Still-Pregnant / Unable-to-contact workflows, sidebar/model rename, delivery_type column, mode-of-delivery classification, sensitive outcomes, gestational-age-at-birth inference, referral-to-outcome linkage.
+
+PHASE 17C COMPLETE - AWAITING HUMAN REVIEW BEFORE PREGNANCY OUTCOME MONITORING / EDD FOLLOW-UP
+
+### Phase 17C final hardening (authoritative service boundary)
+
+Per human review, the core delivery-date/baby-DOB invariants are now enforced by PregnancyOutcomeRecordingService itself, independent of controller validation:
+
+- assertDateIntegrity() rejects, for direct service callers AND the HTTP path:
+  A invalid/unparseable delivery date; B future delivery date; C baby DOB not on the same calendar date as the delivery date; D future baby DOB; E malformed baby DOB; F missing baby date/time (with assertBabyContract); G empty baby array.
+- Comparison is normalized through Carbon::parse() + isSameDay()/isFuture() on calendar dates, never raw string equality. delivery_date is never inferred from babies and vice versa; both must be supplied.
+- PatientController::markDelivered() validation (delivery_date required/date/before_or_equal:today; babies.*.date_of_birth required/date/before_or_equal:today/same:delivery_date; babies.*.time_of_birth required/date_format:H:i) remains in place � defense in depth.
+- Direct-service tests added (service H, A/G, B/G, C/G, D/G, E/G, F/G): every rejection leaves patient.status ONGOING, delivery_date null, para unchanged, zero babies, no confirmed outcome.
+- Results: focused 33 passed (162 assertions); related 17B/17C regression 75 passed (296 assertions); full suite 617 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete). Static checks clean; migration 2026_08_09_000002 remains Ran [22]; no migration/schema/route/UI/status changes.
+
+PHASE 17C FINAL HARDENING COMPLETE - AWAITING HUMAN ACCEPTANCE BEFORE PHASE 17D
+
+---
+
+## Sprint 17 - Phase 17D - Pregnancy Outcome Monitoring + EDD Follow-up
+
+### Scope
+- Read-only monitoring module: a derived-state queue (RESOLVED / STILL_PREGNANT_CONFIRMED / UNABLE_TO_CONTACT / CONFIRMATION_REQUIRED / NOT_YET_DUE / LEGACY_DELIVERED / LEGACY_REFERRED / INVARIANT_VIOLATION) plus staff-only follow-up writes. Never infers DELIVERED from a passed EDD; delivery remains exclusively the 17C confirmed workflow.
+- Sidebar renamed to "Pregnancy Outcome Monitoring"; Patient profile gains a compact monitoring card.
+
+### Files
+- NEW app/Services/PregnancyOutcomeMonitoringService.php - read/derivation only. Deterministic deriveState(asOf), 7-day follow-up window (inclusive both ends), STATE_LABELS, STATE_FILTERS (friendly slugs), isFollowUpEligible, daysUntilOrPastEdd (asOf-first signed diff), countByState.
+- NEW app/Services/PregnancyOutcomeFollowUpService.php - write path. DB::transaction + lockForUpdate, server-stamped follow_up_recorded_at/by, create-or-reuse single outcome row, never touches patient status/notes/delivery_date/para/referrals/clinical data.
+- app/Support/PregnancyOutcomeVocabulary.php - added DELIVERY_LOCATION_LABELS, CONFIRMATION_SOURCE_LABELS, FOLLOW_UP_STATUS_LABELS + label helpers.
+- NEW app/Http/Controllers/PregnancyOutcomeController.php - constructor DI of both services; index() (population, derived rows, stats, search, state-slug filter, LengthAwarePaginator 15) + recordStillPregnant()/recordUnableToContact() (staff-only, DomainException -> error bag, audit log).
+- routes/web.php - GET /pregnancy-outcomes (auth) name pregnancy-outcomes.index; staff-group POSTs .../still-pregnant and .../unable-to-contact.
+- resources/views/pregnancy-outcomes/index.blade.php - 4 summary cards, search, friendly state-filter chips, table with provenance labels for confirmed deliveries, follow-up actions only on eligible ONGOING rows, pagination.
+- resources/views/layouts/app.blade.php - sidebar item renamed to Pregnancy Outcome Monitoring.
+- app/Http/Controllers/PatientController.php + resources/views/patients/show.blade.php - eager-load pregnancyOutcome, pass derived monitoring state + days-until/past EDD, compact card for ONGOING/DELIVERED.
+- NEW tests/Unit/Services/PregnancyOutcomeMonitoringServiceTest.php (18), tests/Feature/PregnancyOutcomeFollowUpTest.php (16), tests/Feature/PregnancyOutcomeMonitoringUiTest.php (21).
+
+### Contract
+- Derived states never persisted; patient.status stays the single lifecycle truth. INVARIANT_VIOLATION surfaces ONGOING + confirmed-outcome inconsistencies for manual review, never auto-corrected.
+- Follow-up recorded between asOf-7d and asOf (inclusive) is fresh; older observations expire back to CONFIRMATION_REQUIRED so stale "still pregnant" never suppresses outcome confirmation.
+- Writes reject DELIVERED, legacy REFERRED, and confirmed outcomes; admin 403 on all mutation routes; client-supplied actor/timestamp ignored.
+- Raw enum strings never appear in DOM/URLs (slug filters + label maps); raw-enum absence is test-asserted.
+
+### Tests / results
+- Focused: 54 passed (unit 18 + feature follow-up 16 + feature UI 20 = 132 assertions).
+- Full suite: 671 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete) - baseline was 617 passed / 2 failed; the two failures are unchanged, +54 passing new tests.
+
+### Static / state
+- php -l clean on all created/modified PHP; git diff --check clean.
+- Migration 2026_08_09_000002_create_pregnancy_outcomes_table remains Ran [22]; no new migration created.
+
+### Deliberately NOT done
+- EDD-reassignment/re-dating, mode-of-delivery classification, sensitive outcomes, gestational-age-at-birth inference, referral-to-outcome linkage, dashboard analytics charts, delivery_type column.
+
+PHASE 17D COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+---
+
+## Sprint 17 - Phase 17D Human-Review Correction - Follow-up Eligibility Boundary
+
+### Scope (only this correction)
+Outcome follow-up observations (STILL_PREGNANT_CONFIRMED / UNABLE_TO_CONTACT) were previously accepted for any ONGOING pregnancy without a confirmed outcome. Review found staff could record follow-ups before outcome monitoring was due. Corrected the authoritative boundary so follow-up requires the EDD to have already passed (today > EDD).
+
+### Files changed
+- app/Services/PregnancyOutcomeMonitoringService.php - added isEddPassed (strict today > EDD; null=false; today=false); isFollowUpEligible now requires status ONGOING + no confirmed outcome + edd not null + isEddPassed. Accepts optional asOf for determinism.
+- app/Services/PregnancyOutcomeFollowUpService.php - constructor-DI of PregnancyOutcomeMonitoringService; enforces isFollowUpEligible after status and confirmed-outcome guards, so backend authority always matches presentation. Delivered / legacy REFERRED / confirmed-outcome messages unchanged.
+- resources/views/pregnancy-outcomes/index.blade.php - Unable to Contact summary wording: "Reached near EDD but not contacted recently" -> "Recent follow-up attempt was unsuccessful." No other redesign.
+- tests/Unit/Services/PregnancyOutcomeMonitoringServiceTest.php - R reworded + new R2/R3/R4/R5 (future/today/null/passed EDD eligibility).
+- tests/Feature/PregnancyOutcomeFollowUpTest.php - new AE/AF/AG (direct service invocation throws for future/today/null EDD) and AH/AI/AJ (direct POST writes nothing).
+- tests/Feature/PregnancyOutcomeMonitoringUiTest.php - new AV/AW/AX (no follow-up buttons future/today/null EDD), AY (buttons on passed EDD), AZ (wording). AU preserved.
+
+### Results
+- Focused (monitoring unit + follow-up + monitoring UI): 69 passed (175 assertions).
+- Related regression (17B/17C migration/model/vocab/recording + Sprint 16 referral/Phase16E/16F/delivered/risk-monitoring/staff-access): 135 passed (613 assertions).
+- Full suite: 686 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete) - baseline 617+54 was /2; failures unchanged.
+- php -l clean on all touched PHP; view:clear + view:cache clean; git diff --check clean.
+- Migration 2026_08_09_000002_create_pregnancy_outcomes_table remains Ran [22]; no migration/schema/status/outcome-type/referral/risk/BP/ML/interaction/Start-New-Pregnancy changes.
+
+PHASE 17D HUMAN REVIEW CORRECTION COMPLETE - AWAITING FINAL ACCEPTANCE BEFORE 17E
+
+---
+
+## Sprint 17 - Phase 17E - Patient Profile Follow-up Modal + Escaping/Blade Integrity
+
+### Scope (incremental, per design rules)
+Follow-up actions on the patient profile were previously triggered by direct POST forms. This phase:
+- Replaces direct POST forms on the patient profile with safe modal-trigger buttons (staff only, ONGOING + passed EDD).
+- Reuses the shared outcome-confirm-modal component on `patients/show`, gated so modal markup (and its JS string references to `data-outcome-confirm-trigger`) is only emitted when follow-up controls actually render.
+- Fixes a Blade compiler regression that silently corrupted compiled output when inline `@php(...)` was used.
+
+### Files changed
+- resources/views/patients/show.blade.php - fixed the inline `@php($outcome = $patient->pregnancyOutcome)` line, which was swallowed by Blade's `storePhpBlocks()` regex and compiled into a raw region causing "unexpected endforeach" parse errors; converted to a proper `@php ... @endphp` block. Wrapped `<x-outcome-confirm-modal />` in the same gate as the trigger buttons (ONGOING + $monitoringEligible + non-admin) so future/EDD-today/null-EDD/DELIVERED pages contain no trigger string.
+- tests/Feature/PregnancyOutcomePhase17ETest.php - use `assertSeeHtml` (escape=false) for raw-attribute assertions (`data-outcome-action="..."`, `id="outcomeConfirmModal"`, `name="_token"`, etc.) that were incorrectly being escaped to `&quot;`.
+
+### Results
+- Focused FE 'PregnancyOutcomePhase17ETest': 18 passed (79 assertions).
+- php -l clean on touched PHP; view:clear + view:cache clean; debug scan/compile artifacts removed.
+- No migration/schema/clinical-threshold/service-behavior changes.
+
+PHASE 17E COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+---
+
+## Sprint 17 - Phase 17E Continuation - Follow-up UI/UX Finalization
+
+### Scope (incremental, per design rules)
+Polish the staff-facing Pregnancy Outcome follow-up workflow without changing any backend authority. The confirmation modal is the single shared mechanism for both "Confirm Still Pregnant" and "Unable to Contact"; clicking a trigger only opens the modal, and only the in-modal Confirm button submits the POST.
+
+### Files changed (this 17E continuation)
+- resources/views/components/outcome-confirm-modal.blade.php - improved reusable modal: action-tone accent (green confirm vs rose alert icon via `data-outcome-tone`), patient name line, spinner + disabled "Saving..." busy state, `aria-labelledby`/`aria-describedby` wiring, `role="dialog"` + `aria-modal`, focus moved into the dialog on open, focus restored to the triggering button on close, Tab focus trap, Escape closes without submitting, backdrop click closes only an open modal, clicks inside the panel never close it, and a single document-level delegated listener (no duplicate listeners across re-renders).
+- resources/views/patients/show.blade.php - trigger buttons now carry `data-outcome-tone`, inline icons, `shadow-sm`, and `focus:ring` visible focus states; monitoring-state badge uses per-state colors.
+- resources/views/pregnancy-outcomes/index.blade.php - trigger buttons (desktop + mobile) upgraded with `data-outcome-tone`, icons, focus rings; per-state badge colors; modal emission gated to staff pages that actually have an observable row (`$hasFollowUpRows`).
+- app/Http/Controllers/PregnancyOutcomeController.php - row builder now computes `state_badge_class` (kept out of Blade so no inline `@php`/`@endphp` block collides with the existing inline `@php($patient = ...)` loop pattern that Blade's `storePhpBlocks()` regex can corrupt).
+- tests/Feature/PregnancyOutcomeMonitoringUiTest.php - AK rewritten to assert per-patient follow-up route URLs (still-pregnant/unable-to-contact present only for the eligible ONGOING row, absent for the DELIVERED row) instead of a fragile global `substr_count` of a label string that legitimately appears in both desktop and mobile views.
+
+### UI/UX behavior improved
+- Staff click "Confirm Still Pregnant" / "Unable to Contact" -> modal opens, nothing is POSTed. Only in-modal Confirm submits.
+- Modal shows patient name, the exact action label, a concise explanation, Cancel and Confirm buttons.
+- Confirm enters a visible disabled "Saving..." state with spinner on submission; double-submit is impossible (button disabled + form submit guard).
+- Cancel, Escape, and backdrop click all close the modal without submitting; focus returns to the trigger.
+- Full keyboard operation via Tab focus trap; modal is announced via aria-labelledby/aria-describedby.
+- Action buttons are distinguishable (green = still pregnant, rose = unable to contact) with visible focus states.
+- Monitoring page shows state-appropriate badge colors and keeps follow-up controls only on eligible ONGOING rows (both desktop table and mobile cards).
+- Patient profile shows follow-up controls only when actually eligible (ONGOING + passed EDD + non-admin); DELIVERED / future / today / null EDD pages contain no trigger markup and no modal.
+
+### Tests / results
+- Focused 17E + monitoring UI + follow-up: 65 passed (214 assertions).
+- Outcome unit/feature (monitoring service, vocabulary, recording, model, migration): 90 passed (334 assertions).
+- Sprint 16/17 regressions (referral follow-through, linked assessment, recording, delivered workflow, staff access, risk monitoring): 96 passed (380 assertions).
+- Phase 16 + referral + outcome migration/model: 92 passed (426 assertions).
+- Full suite: 704 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete) - unchanged from baseline.
+- php -l clean on touched PHP; view:clear + view:cache clean; git diff --check clean.
+- No migration/schema/clinical-threshold/service-behavior/vocabulary changes.
+
+PHASE 17E UI/UX FINALIZATION COMPLETE - AWAITING HUMAN ACCEPTANCE

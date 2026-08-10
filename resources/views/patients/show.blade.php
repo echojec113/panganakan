@@ -37,6 +37,146 @@
             </div>
         @endif
 
+        @if(in_array($patient->status, ['ONGOING', 'DELIVERED'], true))
+            <div class="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Pregnancy Outcome</span>
+                        </div>
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            @php
+    $stateClass = \App\Services\PregnancyOutcomeMonitoringService::class;
+    $stateBadgeClass = match ($monitoringState) {
+        $stateClass::STATE_CONFIRMATION_REQUIRED => 'bg-amber-100 text-amber-900 ring-1 ring-amber-300',
+        $stateClass::STATE_STILL_PREGNANT_CONFIRMED => 'bg-green-100 text-green-800 ring-1 ring-green-300',
+        $stateClass::STATE_UNABLE_TO_CONTACT => 'bg-rose-100 text-rose-800 ring-1 ring-rose-300',
+        $stateClass::STATE_RESOLVED, $stateClass::STATE_LEGACY_DELIVERED => 'bg-slate-100 text-slate-700',
+        $stateClass::STATE_LEGACY_REFERRED => 'bg-slate-100 text-slate-600',
+        default => 'bg-indigo-100 text-indigo-700',
+    };
+@endphp
+                            <span class="inline-flex rounded-full px-3 py-1 text-sm font-semibold {{ $stateBadgeClass }}">{{ $monitoringStateLabel }}</span>
+                            @if($patient->status === 'ONGOING' && $patient->edd)
+                                <span class="text-sm text-gray-500">
+                                    EDD: {{ $patient->edd->format('M d, Y') }}
+                                    @if($daysUntilOrPastEdd !== null && $daysUntilOrPastEdd < 0)
+                                        &middot; <span class="font-semibold text-amber-700">{{ abs($daysUntilOrPastEdd) }} days past EDD</span>
+                                    @elseif($daysUntilOrPastEdd !== null)
+                                        &middot; <span class="text-gray-700">{{ $daysUntilOrPastEdd }} days until EDD</span>
+                                    @endif
+                                </span>
+                            @endif
+                        </div>
+                        @if($patient->status === 'ONGOING' && $patient->pregnancyOutcome?->follow_up_recorded_at)
+                            <p class="mt-1 text-xs text-gray-500">
+                                Last follow-up: {{ $patient->pregnancyOutcome->follow_up_recorded_at->format('M d, Y H:i') }}
+                                @if($patient->pregnancyOutcome->followUpRecordedBy?->name) by {{ $patient->pregnancyOutcome->followUpRecordedBy->name }} @endif
+                                &middot; {{ \App\Support\PregnancyOutcomeVocabulary::followUpStatusLabel($patient->pregnancyOutcome->follow_up_status) }}
+                            </p>
+                        @elseif($patient->status === 'ONGOING' && $monitoringEligible)
+                            <p class="mt-1 text-sm text-gray-500">Follow-up is now due. Record whether the patient is still pregnant or could not be reached.</p>
+                        @endif
+                        @if($patient->status === 'DELIVERED' && $patient->pregnancyOutcome && $patient->pregnancyOutcome->hasConfirmedOutcome())
+                            <p class="mt-1 text-sm text-gray-500">Historical outcome confirmed with recorded provenance.</p>
+                        @endif
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')
+                            <button type="button"
+                                    data-outcome-confirm-trigger
+                                    data-outcome-tone="confirm"
+                                    data-outcome-title="Confirm Still Pregnant"
+                                    data-outcome-message="Record that follow-up confirmed the patient is still pregnant as of today. This observation remains current for the monitoring window and does not mark the pregnancy as delivered."
+                                    data-outcome-confirm-label="Confirm Still Pregnant"
+                                    data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
+                                    data-outcome-action="{{ route('pregnancy-outcomes.still-pregnant', $patient->id) }}"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                Confirm Still Pregnant
+                            </button>
+                            <button type="button"
+                                    data-outcome-confirm-trigger
+                                    data-outcome-tone="alert"
+                                    data-outcome-title="Record Unable to Contact"
+                                    data-outcome-message="Record that a follow-up attempt was made but the patient could not be reached. This does not mark the pregnancy as delivered and does not change referral or clinical risk status."
+                                    data-outcome-confirm-label="Record Unable to Contact"
+                                    data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
+                                    data-outcome-action="{{ route('pregnancy-outcomes.unable-to-contact', $patient->id) }}"
+                                    class="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
+                                </svg>
+                                Unable to Contact
+                            </button>
+                        @endif
+                        @if($patient->status === 'DELIVERED')
+                            <a href="{{ route('patients.delivered.history', $patient->id) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                Pregnancy History
+                            </a>
+                        @endif
+                        <a href="{{ route('pregnancy-outcomes.index') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            View Monitoring Page
+                        </a>
+                    </div>
+                </div>
+
+                @if($patient->status === 'DELIVERED')
+                    @php
+                        $outcome = $patient->pregnancyOutcome;
+                    @endphp
+                    <div class="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+                        @if($outcome && $outcome->hasConfirmedOutcome())
+                            <div>
+                                <div class="text-xs text-gray-500">Delivered</div>
+                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmed_at?->format('M d, Y H:i') ?: ($patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A') }}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Delivery Location</div>
+                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->delivery_location !== null ? \App\Support\PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : 'N/A' }}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Confirmation Source</div>
+                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmation_source !== null ? \App\Support\PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) : 'N/A' }}</div>
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-500">Recorded By</div>
+                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmedBy?->name ?: 'No longer active' }}</div>
+                            </div>
+                        @else
+                            <div class="sm:col-span-2 lg:col-span-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                Historical delivered record — structured outcome confirmation was not recorded in the current system.
+                            </div>
+                        @endif
+                    </div>
+                    @if($outcome && $outcome->hasConfirmedOutcome())
+                        <div class="mt-3 text-sm text-gray-600">
+                            Babies: <span class="font-semibold text-gray-900">{{ $patient->babies->count() }}</span>
+                            <a href="{{ route('patients.delivered.babies', $patient->id) }}" class="ml-2 inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
+                                Baby Information &rarr;
+                            </a>
+                        </div>
+                    @endif
+                @endif
+            </div>
+        @endif
+
+        @if($patient->status === 'REFERRED')
+            <div class="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+                <div class="flex items-start gap-3">
+                    <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-800">Legacy Referred Record</h2>
+                        <p class="mt-1 text-sm text-slate-600">This pregnancy was recorded under a legacy referred status and is kept as a read-only historical record.</p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <!-- Patient Header -->
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">
             <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 sm:px-8 py-6">
@@ -1780,16 +1920,56 @@
                                required
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
                         <p class="text-xs text-gray-500 mt-1">Date of delivery</p>
+                        @error('delivery_date')
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
                     </div>
-                    
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Additional Notes (Optional)
+                            Delivery Location <span class="text-red-500">*</span>
                         </label>
-                        <textarea name="notes" 
+                        <select name="delivery_location" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <option value="" disabled hidden>Select delivery location</option>
+                            <option value="THIS_CLINIC" {{ old('delivery_location') === 'THIS_CLINIC' ? 'selected' : '' }}>This clinic</option>
+                            <option value="ANOTHER_FACILITY" {{ old('delivery_location') === 'ANOTHER_FACILITY' ? 'selected' : '' }}>Another facility</option>
+                            <option value="HOME" {{ old('delivery_location') === 'HOME' ? 'selected' : '' }}>Home</option>
+                            <option value="OTHER" {{ old('delivery_location') === 'OTHER' ? 'selected' : '' }}>Other</option>
+                        </select>
+                        @error('delivery_location')
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Confirmation Source <span class="text-red-500">*</span>
+                        </label>
+                        <select name="confirmation_source" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                            <option value="" disabled hidden>Select how the delivery was confirmed</option>
+                            <option value="CLINIC_RECORD" {{ old('confirmation_source') === 'CLINIC_RECORD' ? 'selected' : '' }}>Clinic record</option>
+                            <option value="PATIENT_REPORT" {{ old('confirmation_source') === 'PATIENT_REPORT' ? 'selected' : '' }}>Patient report</option>
+                            <option value="OTHER_FACILITY_REPORT" {{ old('confirmation_source') === 'OTHER_FACILITY_REPORT' ? 'selected' : '' }}>Other facility report</option>
+                            <option value="OTHER" {{ old('confirmation_source') === 'OTHER' ? 'selected' : '' }}>Other</option>
+                        </select>
+                        @error('confirmation_source')
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Outcome / Confirmation Notes (Optional)
+                        </label>
+                        <textarea name="outcome_notes"
                                   rows="3"
-                                  placeholder="Any notes about the delivery..."
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"></textarea>
+                                  placeholder="Optional note about how or where the delivery was confirmed."
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">{{ old('outcome_notes') }}</textarea>
+                        @error('outcome_notes')
+                            <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                        @enderror
                     </div>
 
                     <!-- Baby Information Section -->
@@ -1912,176 +2092,6 @@
                 }
             }
         });
-        
-        // CS Details Toggle
-        const deliveryType = document.getElementById('delivery_type');
-        const csDetails = document.getElementById('csDetails');
-        
-        if (deliveryType) {
-            deliveryType.addEventListener('change', function() {
-                if (this.value === 'cs') {
-                    csDetails.classList.remove('hidden');
-                } else {
-                    csDetails.classList.add('hidden');
-                }
-            });
-        }
-        
-        // Form Validation
-        const deliveryForm = document.getElementById('deliveryForm');
-        const deliveryDate = document.getElementById('delivery_date');
-        const babyWeight = document.getElementById('baby_weight');
-        
-        if (deliveryForm) {
-            deliveryForm.addEventListener('submit', function(e) {
-                let isValid = true;
-                let errorMessages = [];
-                
-                // Remove existing error notification
-                const existingError = document.querySelector('.delivery-error-notification');
-                if (existingError) existingError.remove();
-                
-                // Validate delivery date
-                if (!deliveryDate.value) {
-                    errorMessages.push('Delivery date is required');
-                    isValid = false;
-                    deliveryDate.classList.add('border-red-500');
-                } else {
-                    const selectedDate = new Date(deliveryDate.value);
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    
-                    if (selectedDate > today) {
-                        errorMessages.push('Delivery date cannot be in the future');
-                        isValid = false;
-                        deliveryDate.classList.add('border-red-500');
-                    } else {
-                        deliveryDate.classList.remove('border-red-500');
-                    }
-                }
-                
-                // Validate delivery type
-                const deliveryTypeValue = document.getElementById('delivery_type').value;
-                if (!deliveryTypeValue) {
-                    errorMessages.push('Please select a delivery type');
-                    isValid = false;
-                    document.getElementById('delivery_type').classList.add('border-red-500');
-                } else {
-                    document.getElementById('delivery_type').classList.remove('border-red-500');
-                }
-                
-                // Validate baby weight if provided
-                if (babyWeight.value) {
-                    const weight = parseFloat(babyWeight.value);
-                    if (isNaN(weight) || weight < 0.5 || weight > 6.0) {
-                        errorMessages.push('Baby weight must be between 0.5 kg and 6.0 kg');
-                        isValid = false;
-                        babyWeight.classList.add('border-red-500');
-                    } else {
-                        babyWeight.classList.remove('border-red-500');
-                    }
-                }
-                
-                // Validate baby information
-                const babyEntries = document.querySelectorAll('.baby-entry');
-                babyEntries.forEach((baby, index) => {
-                    const babyNumber = index + 1;
-                    
-                    // Check required date of birth
-                    const dateOfBirth = baby.querySelector(`input[name="babies[${index}][date_of_birth]"]`);
-                    if (dateOfBirth && !dateOfBirth.value) {
-                        errorMessages.push(`Baby ${babyNumber}: Date of birth is required`);
-                        isValid = false;
-                        dateOfBirth.classList.add('border-red-500');
-                    } else if (dateOfBirth) {
-                        dateOfBirth.classList.remove('border-red-500');
-                    }
-                    
-                    // Check required time of birth
-                    const timeOfBirth = baby.querySelector(`input[name="babies[${index}][time_of_birth]"]`);
-                    if (timeOfBirth && !timeOfBirth.value) {
-                        errorMessages.push(`Baby ${babyNumber}: Time of birth is required`);
-                        isValid = false;
-                        timeOfBirth.classList.add('border-red-500');
-                    } else if (timeOfBirth) {
-                        timeOfBirth.classList.remove('border-red-500');
-                    }
-                    
-                    // Validate birth weight if provided
-                    const birthWeight = baby.querySelector(`input[name="babies[${index}][birth_weight]"]`);
-                    if (birthWeight && birthWeight.value) {
-                        const weight = parseFloat(birthWeight.value);
-                        if (isNaN(weight) || weight < 0.5 || weight > 10.0) {
-                            errorMessages.push(`Baby ${babyNumber}: Birth weight must be between 0.5 kg and 10.0 kg`);
-                            isValid = false;
-                            birthWeight.classList.add('border-red-500');
-                        } else {
-                            birthWeight.classList.remove('border-red-500');
-                        }
-                    }
-                    
-                    // Validate birth length if provided
-                    const birthLength = baby.querySelector(`input[name="babies[${index}][birth_length]"]`);
-                    if (birthLength && birthLength.value) {
-                        const length = parseFloat(birthLength.value);
-                        if (isNaN(length) || length < 20 || length > 100) {
-                            errorMessages.push(`Baby ${babyNumber}: Birth length must be between 20 cm and 100 cm`);
-                            isValid = false;
-                            birthLength.classList.add('border-red-500');
-                        } else {
-                            birthLength.classList.remove('border-red-500');
-                        }
-                    }
-                });
-                
-                // Show validation errors
-                if (!isValid) {
-                    e.preventDefault();
-                    
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'delivery-error-notification mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg';
-                    errorDiv.innerHTML = `
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-red-800">Please fix the following errors:</h3>
-                                <div class="mt-2 text-sm text-red-700">
-                                    <ul class="list-disc list-inside space-y-1">
-                                        ${errorMessages.map(msg => `<li>${msg}</li>`).join('')}
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    
-                    const modalBody = document.querySelector('#deliveryModal .px-6.py-6');
-                    modalBody.insertBefore(errorDiv, modalBody.firstChild);
-                    
-                    // Scroll to error
-                    errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    
-                    // Auto-remove after 5 seconds
-                    setTimeout(() => {
-                        if (errorDiv) errorDiv.remove();
-                    }, 5000);
-                }
-            });
-            
-            // Remove error styling on input
-            deliveryDate.addEventListener('input', function() {
-                this.classList.remove('border-red-500');
-            });
-            
-            if (babyWeight) {
-                babyWeight.addEventListener('input', function() {
-                    this.classList.remove('border-red-500');
-                });
-            }
-        }
         
         // Prevent modal close when clicking inside modal content
         const modalContent = document.querySelector('#deliveryModal .inline-block');
@@ -2544,4 +2554,8 @@
             }, 5000);
         }
     </script>
+
+    @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')
+        <x-outcome-confirm-modal />
+    @endif
 </x-app-layout>
