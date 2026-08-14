@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use App\Models\Ultrasound;
 use App\Models\Patient;
 use Carbon\Carbon;
@@ -48,7 +49,7 @@ class UltrasoundController extends Controller
             'estimated_fetal_weight' => 'nullable|numeric|min:200|max:5000',
             
             // File & Remarks
-            'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120', // 5MB
+            'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120', // 5MB
             'remarks' => 'nullable|string|max:1000'
         ], [
             // Custom error messages
@@ -63,7 +64,7 @@ class UltrasoundController extends Controller
             'estimated_fetal_weight.min' => 'Estimated fetal weight must be at least 200 grams',
             'estimated_fetal_weight.max' => 'Estimated fetal weight cannot exceed 5000 grams',
             'report_file.max' => 'File size must not exceed 5MB',
-            'report_file.mimes' => 'File must be PDF, JPG, JPEG, or PNG format',
+            'report_file.mimes' => 'File must be PDF, JPG, JPEG, PNG, or WebP format',
             'remarks.max' => 'Remarks cannot exceed 1000 characters'
         ]);
 
@@ -112,12 +113,19 @@ class UltrasoundController extends Controller
         // ======================
         // FILE HANDLING
         // ======================
-        $filePath = null;
+        $reportImage = null;
+        $reportFile = null;
 
         if ($request->hasFile('report_file')) {
             $file = $request->file('report_file');
-            $fileName = time() . '_' . $patient->id . '_' . $request->scan_date . '.' . $file->getClientOriginalExtension();
-            $filePath = $file->storeAs('ultrasounds', $fileName, 'public');
+            $storedPath = $this->storeReportFile($request, $patient);
+
+            // Route by MIME type, never by trusting the original filename.
+            if ($this->isImageFile($file)) {
+                $reportImage = $storedPath;
+            } else {
+                $reportFile = $storedPath;
+            }
         }
 
         // ======================
@@ -133,7 +141,8 @@ class UltrasoundController extends Controller
             'placenta_position' => $request->placenta_position,
             'gestational_age_scan' => $request->gestational_age_scan,
             'estimated_fetal_weight' => $request->estimated_fetal_weight,
-            'report_file' => $filePath,
+            'report_image' => $reportImage,
+            'report_file' => $reportFile,
             'remarks' => $request->remarks,
         ]);
 
@@ -180,7 +189,7 @@ class UltrasoundController extends Controller
             'gestational_age_scan' => 'nullable|numeric|min:4|max:42',
             'estimated_fetal_weight' => 'nullable|numeric|min:200|max:5000',
             
-            'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
             'remarks' => 'nullable|string|max:1000'
         ], [
             'scan_date.before_or_equal' => 'Scan date cannot be in the future',
@@ -194,6 +203,7 @@ class UltrasoundController extends Controller
             'estimated_fetal_weight.min' => 'Estimated fetal weight must be at least 200 grams',
             'estimated_fetal_weight.max' => 'Estimated fetal weight cannot exceed 5000 grams',
             'report_file.max' => 'File size must not exceed 5MB',
+            'report_file.mimes' => 'File must be PDF, JPG, JPEG, PNG, or WebP format',
             'remarks.max' => 'Remarks cannot exceed 1000 characters'
         ]);
 
@@ -238,16 +248,38 @@ class UltrasoundController extends Controller
         // ======================
         // FILE HANDLING
         // ======================
+        $replacedImage = false;
+        $replacedPdf = false;
+
         if ($request->hasFile('report_file')) {
-            // Delete old file if exists
-            if ($ultrasound->report_file && \Storage::disk('public')->exists($ultrasound->report_file)) {
-                \Storage::disk('public')->delete($ultrasound->report_file);
-            }
-            
             $file = $request->file('report_file');
-            $fileName = time() . '_' . $patient->id . '_' . $request->scan_date . '.' . $file->getClientOriginalExtension();
-            $filePath = $file->storeAs('ultrasounds', $fileName, 'public');
-            $ultrasound->report_file = $filePath;
+            $column = $this->isImageFile($file) ? 'report_image' : 'report_file';
+
+            // Delete the previous file of the same type only, keeping the other.
+            if ($ultrasound->{$column} && \Storage::disk('public')->exists($ultrasound->{$column})) {
+                \Storage::disk('public')->delete($ultrasound->{$column});
+            }
+
+            $ultrasound->{$column} = $this->storeReportFile($request, $patient);
+            $replacedImage = $column === 'report_image';
+            $replacedPdf = $column === 'report_file';
+        }
+
+        // ======================
+        // MARKED-FOR-REMOVAL HANDLING
+        // ======================
+        // The edit form marks existing files for removal via remove_image /
+        // remove_pdf. The physical file is deleted only here, on a successful
+        // save. If a fresh replacement was just uploaded for a type, that
+        // upload wins and the X only cancels the already-replaced old file.
+        if ($request->boolean('remove_image') && !$replacedImage) {
+            $this->deleteUltrasoundFile($ultrasound->report_image);
+            $ultrasound->report_image = null;
+        }
+
+        if ($request->boolean('remove_pdf') && !$replacedPdf) {
+            $this->deleteUltrasoundFile($ultrasound->report_file);
+            $ultrasound->report_file = null;
         }
 
         // ======================
@@ -284,9 +316,9 @@ class UltrasoundController extends Controller
         $ultrasound = Ultrasound::findOrFail($id);
         $patientName = $ultrasound->patient->first_name . ' ' . $ultrasound->patient->last_name;
         
-        // Delete file if exists
-        if ($ultrasound->report_file && \Storage::disk('public')->exists($ultrasound->report_file)) {
-            \Storage::disk('public')->delete($ultrasound->report_file);
+        // Delete files if they exist
+        foreach (['report_image', 'report_file'] as $column) {
+            $this->deleteUltrasoundFile($ultrasound->{$column});
         }
         
         $ultrasound->delete();
@@ -300,5 +332,66 @@ class UltrasoundController extends Controller
         
         return redirect()->route('patients.show', $ultrasound->patient_id)
             ->with('success', 'Ultrasound record deleted successfully');
+    }
+
+    /**
+     * Stream an ultrasound report file (image or PDF) inline to authorized users.
+     *
+     * The route sits inside the auth group (admin and staff only) and the type
+     * whitelist prevents access to arbitrary filesystem paths.
+     *
+     * @param string $type 'image' | 'pdf'
+     */
+    public function file($id, string $type)
+    {
+        if (!in_array($type, ['image', 'pdf'], true)) {
+            abort(404);
+        }
+
+        $ultrasound = Ultrasound::findOrFail($id);
+        $path = $type === 'image' ? $ultrasound->report_image : $ultrasound->report_file;
+
+        if (!$path || !\Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        return response()->file(\Storage::disk('public')->path($path));
+    }
+
+    /**
+     * Store the uploaded report file under a unique, generated name.
+     */
+    private function storeReportFile(Request $request, Patient $patient): string
+    {
+        $file = $request->file('report_file');
+        $fileName = time() . '_' . $patient->id . '_' . $request->scan_date . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
+
+        return $file->storeAs('ultrasounds', $fileName, 'public');
+    }
+
+    /**
+     * Determine whether an upload is an image by MIME type.
+     */
+    private function isImageFile(\Illuminate\Http\UploadedFile $file): bool
+    {
+        return str_starts_with((string) $file->getMimeType(), 'image/');
+    }
+
+    /**
+     * Delete an ultrasound report file from the public disk.
+     *
+     * Only paths under the configured "ultrasounds/" folder are accepted, and
+     * the caller must pass a path already stored on this record (never a value
+     * from the request), so no file outside this record's folder can be removed.
+     */
+    private function deleteUltrasoundFile(?string $path): void
+    {
+        if (!$path || !Str::startsWith($path, 'ultrasounds/')) {
+            return;
+        }
+
+        if (\Storage::disk('public')->exists($path)) {
+            \Storage::disk('public')->delete($path);
+        }
     }
 }

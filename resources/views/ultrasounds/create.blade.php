@@ -206,22 +206,35 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">
-                            Upload Report (PDF, JPG, PNG)
+                            Upload Report (Image or PDF)
                         </label>
                         <div class="flex items-center justify-center w-full">
-                            <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                            <label id="reportDropZone" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
                                 <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                     <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                     </svg>
                                     <p class="text-sm text-gray-500">Click to upload or drag and drop</p>
-                                    <p class="text-xs text-gray-400 mt-1">PDF, JPG, JPEG, PNG (Max 5MB)</p>
+                                    <p class="text-xs text-gray-400 mt-1">PDF, JPG, JPEG, PNG, WebP (Max 5MB)</p>
                                 </div>
-                                <input type="file" name="report_file" id="report_file" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
+                                <input type="file" name="report_file" id="report_file" class="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp">
                             </label>
                         </div>
+                        <div id="imagePreviewWrap" class="hidden mt-3">
+                            <img id="imagePreview" alt="Ultrasound image preview" class="max-h-64 max-w-full rounded-lg border border-gray-200">
+                        </div>
                         <div id="fileInfo" class="hidden mt-2 p-2 bg-green-50 rounded-lg border border-green-200 text-sm text-green-700">
-                            <span class="font-medium">Selected file:</span> <span id="fileName"></span>
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="font-medium shrink-0">Selected file:</span>
+                                    <span id="fileName" class="truncate"></span>
+                                </div>
+                                <button type="button" id="removeFileBtn" title="Remove selected file" class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -266,16 +279,80 @@
             const fileInput = document.getElementById('report_file');
             const fileInfo = document.getElementById('fileInfo');
             const fileName = document.getElementById('fileName');
-            
+            const imagePreview = document.getElementById('imagePreview');
+            const imagePreviewWrap = document.getElementById('imagePreviewWrap');
+            const removeFileBtn = document.getElementById('removeFileBtn');
+            const reportDropZone = document.getElementById('reportDropZone');
+
+            function clearFileSelection() {
+                fileInput.value = '';
+                fileName.textContent = '';
+                imagePreview.src = '';
+                imagePreviewWrap.classList.add('hidden');
+                fileInfo.classList.add('hidden');
+            }
+
+            function renderSelectedFile(file) {
+                if (!file) {
+                    clearFileSelection();
+                    return;
+                }
+
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+
+                if (file.type.startsWith('image/')) {
+                    fileName.textContent = `${file.name} (${fileSize} MB)`;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreviewWrap.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    fileName.textContent = file.name;
+                    imagePreviewWrap.classList.add('hidden');
+                }
+                fileInfo.classList.remove('hidden');
+            }
+
             if (fileInput) {
                 fileInput.addEventListener('change', function() {
                     if (this.files && this.files[0]) {
-                        const file = this.files[0];
-                        const fileSize = (file.size / 1024 / 1024).toFixed(2);
-                        fileName.textContent = `${file.name} (${fileSize} MB)`;
-                        fileInfo.classList.remove('hidden');
+                        renderSelectedFile(this.files[0]);
                     } else {
-                        fileInfo.classList.add('hidden');
+                        clearFileSelection();
+                    }
+                });
+            }
+
+            if (removeFileBtn) {
+                removeFileBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    clearFileSelection();
+                });
+            }
+
+            if (reportDropZone) {
+                reportDropZone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.add('border-blue-400', 'bg-blue-50');
+                });
+
+                reportDropZone.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('border-blue-400', 'bg-blue-50');
+                });
+
+                reportDropZone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('border-blue-400', 'bg-blue-50');
+                    const files = e.dataTransfer && e.dataTransfer.files;
+                    if (files && files.length) {
+                        fileInput.files = files;
+                        renderSelectedFile(files[0]);
                     }
                 });
             }

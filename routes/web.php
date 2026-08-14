@@ -208,6 +208,16 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Ultrasound File Viewing (Admin & Staff)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/ultrasound/{id}/file/{type}', [UltrasoundController::class, 'file'])
+        ->where('type', 'image|pdf')
+        ->name('ultrasound.file');
+
+    /*
+    |--------------------------------------------------------------------------
     | Wildcard patient route MUST be last to avoid catching /patients/create etc.
     |--------------------------------------------------------------------------
     */

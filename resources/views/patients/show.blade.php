@@ -762,13 +762,39 @@
                                             {{ $u->fetal_movement }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $u->gestational_age_scan }} wks</td>
-                                    <td class="px-4 py-3">
-                                        @if($u->report_file)
-                                            <a href="{{ asset('storage/' . $u->report_file) }}" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm">View PDF</a>
+                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                        @if($u->gestational_age_scan !== null && $u->gestational_age_scan !== '')
+                                            {{ $u->gestational_age_scan }} wks
                                         @else
-                                            <span class="text-gray-400 text-sm">No report</span>
+                                            <span class="text-gray-400">—</span>
                                         @endif
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @php
+                                            $usHasImage = $u->report_image && \Storage::disk('public')->exists($u->report_image);
+                                            $usHasPdf = $u->report_file && \Storage::disk('public')->exists($u->report_file);
+                                            $usImageUrl = $usHasImage ? route('ultrasound.file', ['id' => $u->id, 'type' => 'image']) : null;
+                                            $usPdfUrl = $usHasPdf ? route('ultrasound.file', ['id' => $u->id, 'type' => 'pdf']) : null;
+                                        @endphp
+                                        <div class="flex items-center gap-3">
+                                            @if($usHasImage)
+                                                <img src="{{ $usImageUrl }}" alt="Ultrasound image" data-full="{{ $usImageUrl }}" class="us-lightbox-trigger h-10 w-10 rounded-lg object-cover border border-gray-200 cursor-pointer">
+                                            @endif
+                                            <div class="text-sm whitespace-nowrap">
+                                                @if($usHasImage)
+                                                    <a href="#" data-full="{{ $usImageUrl }}" class="us-lightbox-trigger text-blue-600 hover:text-blue-800">View Image</a>
+                                                @endif
+                                                @if($usHasImage && $usHasPdf)
+                                                    <span class="text-gray-400"> · </span>
+                                                @endif
+                                                @if($usHasPdf)
+                                                    <a href="{{ $usPdfUrl }}" target="_blank" class="text-blue-600 hover:text-blue-800">View PDF</a>
+                                                @endif
+                                                @if(!$usHasImage && !$usHasPdf)
+                                                    <span class="text-gray-400">No report</span>
+                                                @endif
+                                            </div>
+                                        </div>
                                     </td>
                                     <td class="px-4 py-3">
                                         @if($patient->status === 'ONGOING')
@@ -787,6 +813,59 @@
                         </table>
                     </div>
                 </div>
+
+                <!-- Ultrasound image lightbox -->
+                <div id="usLightbox" class="hidden fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4">
+                    <div class="relative max-w-3xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
+                        <button id="usLightboxClose" class="absolute top-2 right-2 w-9 h-9 flex items-center justify-center bg-gray-900/70 text-white rounded-full hover:bg-gray-900/90 text-xl leading-none" aria-label="Close">&times;</button>
+                        <img id="usLightboxImg" src="" alt="Ultrasound image" class="w-full object-contain" style="max-height:80vh">
+                    </div>
+                </div>
+
+                <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const lightbox = document.getElementById('usLightbox');
+                    const lightboxImg = document.getElementById('usLightboxImg');
+                    const lightboxClose = document.getElementById('usLightboxClose');
+
+                    function openLightbox(src) {
+                        lightboxImg.src = src;
+                        lightbox.classList.remove('hidden');
+                        document.body.style.overflow = 'hidden';
+                    }
+
+                    function closeLightbox() {
+                        lightbox.classList.add('hidden');
+                        lightboxImg.src = '';
+                        document.body.style.overflow = '';
+                    }
+
+                    if (lightbox) {
+                        document.querySelectorAll('.us-lightbox-trigger').forEach(function (el) {
+                            el.addEventListener('click', function (e) {
+                                e.preventDefault();
+                                openLightbox(el.getAttribute('data-full'));
+                            });
+                        });
+
+                        if (lightboxClose) {
+                            lightboxClose.addEventListener('click', closeLightbox);
+                        }
+
+                        lightbox.addEventListener('click', function (e) {
+                            if (e.target === lightbox) {
+                                closeLightbox();
+                            }
+                        });
+
+                        document.addEventListener('keydown', function (e) {
+                            if (e.key === 'Escape') {
+                                closeLightbox();
+                            }
+                        });
+                    }
+                });
+                </script>
 
                 <!-- Medical History -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

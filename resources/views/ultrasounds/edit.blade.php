@@ -206,34 +206,74 @@
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Report Upload</h3>
                     </div>
                     <div>
-                        @if($ultrasound->report_file)
+                        @php
+                            $editHasImage = $ultrasound->report_image && \Storage::disk('public')->exists($ultrasound->report_image);
+                            $editHasPdf = $ultrasound->report_file && \Storage::disk('public')->exists($ultrasound->report_file);
+                            $editImageUrl = $editHasImage ? route('ultrasound.file', ['id' => $ultrasound->id, 'type' => 'image']) : null;
+                            $editPdfUrl = $editHasPdf ? route('ultrasound.file', ['id' => $ultrasound->id, 'type' => 'pdf']) : null;
+                        @endphp
+                        @if($editHasImage || $editHasPdf)
                             <div class="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                                <div class="flex items-center gap-2">
-                                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                    </svg>
-                                    <span class="text-sm text-blue-700">Current file:</span>
-                                    <a href="{{ asset('storage/' . $ultrasound->report_file) }}" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 font-medium underline">
-                                        View Current Report
-                                    </a>
+                                <div class="flex flex-wrap items-center gap-3">
+                                    <span class="text-sm text-blue-700">Current:</span>
+                                    @if($editHasImage)
+                                        <span id="currentImageDisplay" class="inline-flex items-center gap-2">
+                                            <img src="{{ $editImageUrl }}" alt="Current ultrasound image" class="h-12 w-12 rounded-lg border border-blue-200 object-cover">
+                                            <a href="{{ $editImageUrl }}" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 font-medium underline">View Image</a>
+                                            <button type="button" data-remove="image" title="Remove saved image" class="currentRemoveBtn w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    @endif
+                                    @if($editHasPdf)
+                                        <span id="currentPdfDisplay" class="inline-flex items-center gap-2">
+                                            <a href="{{ $editPdfUrl }}" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 font-medium underline">View PDF Report</a>
+                                            <button type="button" data-remove="pdf" title="Remove saved report" class="currentRemoveBtn w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    @endif
+                                </div>
+                                <div id="removeNotice" class="hidden mt-2 p-2 bg-red-50 rounded-lg border border-red-200 text-sm text-red-700">
+                                    <span id="removeNoticeText">Report will be removed on save.</span>
+                                    <button type="button" id="undoRemoveBtn" class="ml-2 font-medium text-red-800 hover:text-red-900 underline">Undo</button>
                                 </div>
                             </div>
+                            <input type="hidden" name="remove_image" id="remove_image" value="0">
+                            <input type="hidden" name="remove_pdf" id="remove_pdf" value="0">
                         @endif
                         
                         <div class="flex items-center justify-center w-full">
-                            <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
+                            <label id="reportDropZone" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition">
                                 <div class="flex flex-col items-center justify-center pt-5 pb-6">
                                     <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                     </svg>
                                     <p class="text-sm text-gray-500">Click to upload new report or drag and drop</p>
-                                    <p class="text-xs text-gray-400 mt-1">PDF, JPG, JPEG, PNG (Max 5MB)</p>
+                                    <p class="text-xs text-gray-400 mt-1">PDF, JPG, JPEG, PNG, WebP (Max 5MB)</p>
                                 </div>
-                                <input type="file" name="report_file" id="report_file" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
+                                <input type="file" name="report_file" id="report_file" class="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp">
                             </label>
                         </div>
+                        <div id="imagePreviewWrap" class="hidden mt-3">
+                            <img id="imagePreview" alt="Ultrasound image preview" class="max-h-64 max-w-full rounded-lg border border-gray-200">
+                        </div>
                         <div id="fileInfo" class="hidden mt-2 p-2 bg-green-50 rounded-lg border border-green-200 text-sm text-green-700">
-                            <span class="font-medium">Selected file:</span> <span id="fileName"></span>
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span class="font-medium shrink-0">Selected file:</span>
+                                    <span id="fileName" class="truncate"></span>
+                                </div>
+                                <button type="button" id="removeFileBtn" title="Remove selected file" class="shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -276,17 +316,143 @@
             const fileInput = document.getElementById('report_file');
             const fileInfo = document.getElementById('fileInfo');
             const fileName = document.getElementById('fileName');
-            
+            const imagePreview = document.getElementById('imagePreview');
+            const imagePreviewWrap = document.getElementById('imagePreviewWrap');
+            const removeFileBtn = document.getElementById('removeFileBtn');
+            const reportDropZone = document.getElementById('reportDropZone');
+
+            function clearFileSelection() {
+                fileInput.value = '';
+                fileName.textContent = '';
+                imagePreview.src = '';
+                imagePreviewWrap.classList.add('hidden');
+                fileInfo.classList.add('hidden');
+            }
+
+            function renderSelectedFile(file) {
+                if (!file) {
+                    clearFileSelection();
+                    return;
+                }
+
+                const fileSize = (file.size / 1024 / 1024).toFixed(2);
+
+                if (file.type.startsWith('image/')) {
+                    fileName.textContent = `${file.name} (${fileSize} MB)`;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreviewWrap.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    fileName.textContent = file.name;
+                    imagePreviewWrap.classList.add('hidden');
+                }
+                fileInfo.classList.remove('hidden');
+            }
+
             if (fileInput) {
                 fileInput.addEventListener('change', function() {
                     if (this.files && this.files[0]) {
-                        const file = this.files[0];
-                        const fileSize = (file.size / 1024 / 1024).toFixed(2);
-                        fileName.textContent = `${file.name} (${fileSize} MB)`;
-                        fileInfo.classList.remove('hidden');
+                        renderSelectedFile(this.files[0]);
                     } else {
-                        fileInfo.classList.add('hidden');
+                        clearFileSelection();
                     }
+                });
+            }
+
+            if (removeFileBtn) {
+                removeFileBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    clearFileSelection();
+                });
+            }
+
+            if (reportDropZone) {
+                reportDropZone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.add('border-blue-400', 'bg-blue-50');
+                });
+
+                reportDropZone.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('border-blue-400', 'bg-blue-50');
+                });
+
+                reportDropZone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.classList.remove('border-blue-400', 'bg-blue-50');
+                    const files = e.dataTransfer && e.dataTransfer.files;
+                    if (files && files.length) {
+                        fileInput.files = files;
+                        renderSelectedFile(files[0]);
+                    }
+                });
+            }
+
+            // Existing saved file: mark for removal (only applied on save)
+            const currentRemoveBtns = document.querySelectorAll('.currentRemoveBtn');
+            const currentImageDisplay = document.getElementById('currentImageDisplay');
+            const currentPdfDisplay = document.getElementById('currentPdfDisplay');
+            const removeNotice = document.getElementById('removeNotice');
+            const removeNoticeText = document.getElementById('removeNoticeText');
+            const undoRemoveBtn = document.getElementById('undoRemoveBtn');
+            const removeImageField = document.getElementById('remove_image');
+            const removePdfField = document.getElementById('remove_pdf');
+
+            let removalState = { image: false, pdf: false };
+
+            function updateRemovalUI() {
+                const removing = removalState.image || removalState.pdf;
+
+                if (removeNotice) {
+                    removeNotice.classList.toggle('hidden', !removing);
+                }
+                if (removeNoticeText) {
+                    const parts = [];
+                    if (removalState.image) parts.push('image');
+                    if (removalState.pdf) parts.push('PDF');
+                    removeNoticeText.textContent = parts.length
+                        ? `Report (${parts.join(' and ')}) will be removed on save.`
+                        : '';
+                }
+
+                if (currentImageDisplay) {
+                    currentImageDisplay.classList.toggle('opacity-40', removalState.image);
+                    currentImageDisplay.classList.toggle('line-through', removalState.image);
+                    currentImageDisplay.classList.toggle('pointer-events-none', removalState.image);
+                }
+                if (currentPdfDisplay) {
+                    currentPdfDisplay.classList.toggle('opacity-40', removalState.pdf);
+                    currentPdfDisplay.classList.toggle('line-through', removalState.pdf);
+                    currentPdfDisplay.classList.toggle('pointer-events-none', removalState.pdf);
+                }
+
+                if (removeImageField) {
+                    removeImageField.value = removalState.image ? '1' : '0';
+                }
+                if (removePdfField) {
+                    removePdfField.value = removalState.pdf ? '1' : '0';
+                }
+            }
+
+            currentRemoveBtns.forEach(function(btn) {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    removalState[this.getAttribute('data-remove')] = true;
+                    updateRemovalUI();
+                });
+            });
+
+            if (undoRemoveBtn) {
+                undoRemoveBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    removalState = { image: false, pdf: false };
+                    updateRemovalUI();
                 });
             }
             

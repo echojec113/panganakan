@@ -19,6 +19,7 @@ class Ultrasound extends Model
         'placenta_position',
         'gestational_age_scan',
         'estimated_fetal_weight',
+        'report_image',
         'report_file',
         'remarks'
     ];

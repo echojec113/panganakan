@@ -171,7 +171,7 @@ class PatientController extends Controller
             'format' => 'required|in:pdf,csv',
         ]);
 
-        $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','babies'])->findOrFail($id);
+        $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','ultrasounds','babies'])->findOrFail($id);
 
         $missingFields = $this->getPatientDownloadMissingFields($patient);
 
@@ -414,7 +414,7 @@ class PatientController extends Controller
             }
         }
 
-        $filename = 'patient-' . $patient->id . '-record.csv';
+        $filename = $this->patientRecordFilename($patient, 'csv');
         $handle = fopen('php://memory', 'r+');
 
         foreach ($csvRows as $row) {
@@ -434,21 +434,37 @@ class PatientController extends Controller
     {
         $latestVisit = $this->latestPrenatalVisit($patient);
 
-        $riskSummary = [
-            'currentRiskLevel' => $latestVisit?->risk_level ?: 'N/A',
-            'identifiedRiskFactors' => $latestVisit?->risk_reasons ?: 'N/A',
-            'overdueStatus' => $latestVisit && $latestVisit->next_visit_date && Carbon::parse($latestVisit->next_visit_date)->isPast() ? 'Overdue' : 'On time',
-        ];
-
         $data = [
             'patient' => $patient,
             'latestVisit' => $latestVisit,
-            'riskSummary' => $riskSummary,
         ];
 
         $pdf = Pdf::loadView('exports.patient-record', $data)->setPaper('letter', 'portrait');
 
-        return $pdf->download('patient-' . $patient->id . '-record.pdf');
+        return $pdf->download($this->patientRecordFilename($patient, 'pdf'));
+    }
+
+    /**
+     * Build a safe, patient-name-based download filename.
+     *
+     * Format: "<Sanitized-Full-Name>-<Patient-ID>-Patient-Record.<ext>"
+     * e.g. Jesa-Pro-79-Patient-Record.pdf. The name is trimmed, sanitized to
+     * ASCII letters/digits (separators become single dashes), and collapses to
+     * a safe "Patient-<ID>" fallback when the name sanitizes to nothing.
+     */
+    private function patientRecordFilename(Patient $patient, string $extension): string
+    {
+        $fullName = trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name);
+
+        $slug = preg_replace('/[^A-Za-z0-9]+/', '-', $fullName);
+        $slug = preg_replace('/-+/', '-', $slug);
+        $slug = trim($slug, '-');
+
+        if ($slug === '') {
+            return 'Patient-' . $patient->id . '-Patient-Record.' . $extension;
+        }
+
+        return $slug . '-' . $patient->id . '-Patient-Record.' . $extension;
     }
 
     /**
