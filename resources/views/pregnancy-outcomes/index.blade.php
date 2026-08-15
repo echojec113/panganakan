@@ -114,28 +114,19 @@
                                     @php($patient = $row['patient'])
                                     <tr class="hover:bg-gray-50 transition {{ in_array($row['state'], [\App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED, \App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_REFERRED], true) ? 'opacity-70' : '' }}">
                                         <td class="px-4 py-4">
-                                            <div class="flex items-center gap-3">
-                                                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-pink-50 text-pink-600">
-                                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="text-sm font-semibold text-gray-900 hover:text-blue-600">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
-                                                    <div class="mt-0.5 text-xs text-gray-500">G{{ $patient->gravida }} P{{ $patient->para }} &bull; {{ $patient->contact_number ?: 'No contact' }}</div>
-                                                </div>
-                                            </div>
+                                            <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="text-sm font-semibold text-gray-900 hover:text-blue-600">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
+                                            <div class="mt-0.5 text-xs text-gray-500">G{{ $patient->gravida }} P{{ $patient->para }} &bull; {{ $patient->contact_number ?: 'No contact' }}</div>
                                         </td>
                                         <td class="px-4 py-4 text-sm text-gray-900">
                                             @if($patient->edd)
-                                                <span class="font-medium">EDD: {{ $patient->edd->format('M d, Y') }}</span>
+                                                <div class="font-medium whitespace-nowrap">{{ $patient->edd->format('M d, Y') }}</div>
                                                 @if($row['days_until_edd'] !== null && $row['days_until_edd'] < 0)
                                                     <div class="text-xs font-semibold text-amber-700">{{ abs($row['days_until_edd']) }} days past EDD</div>
                                                 @else
                                                     <div class="text-xs text-gray-500">{{ $row['days_until_edd'] !== null ? $row['days_until_edd'] . ' days until EDD' : '' }}</div>
                                                 @endif
                                             @else
-                                                <span class="text-gray-400">EDD: N/A</span>
+                                                <div class="text-gray-400">N/A</div>
                                             @endif
                                         </td>
                                         <td class="px-4 py-4 text-sm text-gray-900">{{ $row['status_label'] }}</td>
@@ -157,8 +148,8 @@
                                             @endif
                                         </td>
                                         <td class="px-4 py-4 text-right">
-                                            <div class="flex flex-wrap justify-end gap-2">
-                                                @if($row['follow_up_observable'] && auth()->user()->role !== 'admin')
+                                            <div class="flex flex-col items-end gap-2">
+                                                @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED && auth()->user()->role !== 'admin')
                                                     <button type="button"
                                                             data-outcome-confirm-trigger
                                                             data-outcome-tone="confirm"
@@ -167,36 +158,40 @@
                                                             data-outcome-confirm-label="Confirm Still Pregnant"
                                                             data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
                                                             data-outcome-action="{{ route('pregnancy-outcomes.still-pregnant', $patient->id) }}"
-                                                            class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                                                            class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
                                                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                                         </svg>
                                                         Confirm Still Pregnant
                                                     </button>
-                                                    <button type="button"
-                                                            data-outcome-confirm-trigger
-                                                            data-outcome-tone="alert"
-                                                            data-outcome-title="Record Unable to Contact"
-                                                            data-outcome-message="Record that a follow-up attempt was made but the patient could not be reached. This does not mark the pregnancy as delivered and does not change referral or clinical risk status."
-                                                            data-outcome-confirm-label="Record Unable to Contact"
-                                                            data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
-                                                            data-outcome-action="{{ route('pregnancy-outcomes.unable-to-contact', $patient->id) }}"
-                                                            class="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
-                                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
-                                                        </svg>
-                                                        Unable to Contact
-                                                    </button>
                                                 @endif
-                                                @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED)
-                                                    <a href="{{ route('patients.delivered.history', $patient->id) }}"
-                                                       class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                                        Pregnancy History
+                                                <div class="flex flex-wrap items-center justify-end gap-2">
+                                                    @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED && auth()->user()->role !== 'admin')
+                                                        <button type="button"
+                                                                data-outcome-confirm-trigger
+                                                                data-outcome-tone="alert"
+                                                                data-outcome-title="Record Unable to Contact"
+                                                                data-outcome-message="Record that a follow-up attempt was made but the patient could not be reached. This does not mark the pregnancy as delivered and does not change referral or clinical risk status."
+                                                                data-outcome-confirm-label="Record Unable to Contact"
+                                                                data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
+                                                                data-outcome-action="{{ route('pregnancy-outcomes.unable-to-contact', $patient->id) }}"
+                                                                class="inline-flex items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
+                                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
+                                                            </svg>
+                                                            Unable to Contact
+                                                        </button>
+                                                    @endif
+                                                    @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED)
+                                                        <a href="{{ route('patients.delivered.history', $patient->id) }}"
+                                                           class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                                            Pregnancy History
+                                                        </a>
+                                                    @endif
+                                                    <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                                        {{ $patient->status === 'DELIVERED' ? 'View Record' : 'Open Profile' }}
                                                     </a>
-                                                @endif
-                                                <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                                    {{ $patient->status === 'DELIVERED' ? 'View Record' : 'Open Profile' }}
-                                                </a>
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -211,11 +206,6 @@
                             @php($patient = $row['patient'])
                             <div class="rounded-2xl border border-gray-100 bg-white shadow-sm p-4 {{ in_array($row['state'], [\App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED, \App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_REFERRED], true) ? 'opacity-70' : '' }}">
                                 <div class="flex items-start gap-3">
-                                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-pink-50 text-pink-600 shrink-0">
-                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                        </svg>
-                                    </div>
                                     <div class="min-w-0 flex-1">
                                         <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="text-sm font-semibold text-gray-900 hover:text-blue-600">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
                                         <div class="mt-0.5 text-xs text-gray-500">G{{ $patient->gravida }} P{{ $patient->para }}</div>
@@ -239,7 +229,7 @@
                                     <div class="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-500">Delivered at {{ $row['delivery_location_label'] }}</div>
                                 @endif
                                 <div class="mt-3 flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-3">
-                                    @if($row['follow_up_observable'] && auth()->user()->role !== 'admin')
+                                    @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED && auth()->user()->role !== 'admin')
                                         <button type="button"
                                                 data-outcome-confirm-trigger
                                                 data-outcome-tone="confirm"
@@ -286,7 +276,7 @@
         </div>
     </div>
 
-    @php($hasFollowUpRows = collect($paginator->items())->contains(fn (array $row) => $row['follow_up_observable'] === true))
+    @php($hasFollowUpRows = collect($paginator->items())->contains(fn (array $row) => $row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED))
     @if($hasFollowUpRows && auth()->user()->role !== 'admin')
         <x-outcome-confirm-modal />
     @endif
