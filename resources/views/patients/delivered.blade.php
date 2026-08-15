@@ -2,17 +2,18 @@
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="border-b border-gray-100 px-6 py-5 bg-gray-50">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2h-3.28a1 1 0 01-.948-.684L12.5 1h-1L10.23 4.316A1 1 0 019.28 5H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4"></path>
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-semibold text-gray-800">Delivered Patients</h1>
-                        <p class="text-sm text-gray-500">Completed pregnancies with pregnancy history, baby information, and printing.</p>
-                    </div>
-                    <a href="{{ route('pregnancy-outcomes.index') }}" class="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">
+                <div class="flex flex-wrap items-center gap-3">
+                    <x-icon-title
+                        title="Delivered Patients"
+                        subtitle="Completed pregnancies with pregnancy history, baby information, and printing."
+                    >
+                        <x-slot name="icon">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V7a2 2 0 00-2-2h-3.28a1 1 0 01-.948-.684L12.5 1h-1L10.23 4.316A1 1 0 019.28 5H6a2 2 0 00-2 2v6m16 0v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4m16 0H4"></path>
+                            </svg>
+                        </x-slot>
+                    </x-icon-title>
+                    <a href="{{ route('pregnancy-outcomes.index') }}" class="btn btn-secondary">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
@@ -33,22 +34,8 @@
         </div>
 
         <div class="p-6">
-            @if(session('success'))
-                <div class="mb-6 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-                    {{ session('success') }}
-                </div>
-            @endif
-
-            @if($errors->any())
-                <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    <div class="font-semibold">Please review the highlighted issues.</div>
-                    <ul class="mt-2 list-disc space-y-1 pl-5">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
+            <x-flash type="success" :message="session('success')" class="mb-6" />
+            <x-error-summary :errors="$errors" title="Please review the highlighted issues." class="mb-6" />
 
             @if($patients->isEmpty())
                 <div class="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
@@ -90,22 +77,22 @@
                                     </td>
                                     <td class="px-4 py-4 text-center text-sm font-semibold text-gray-900">{{ $row->completed_pregnancies }}</td>
                                     <td class="px-4 py-4 text-center">
-                                        <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700">{{ $row->total_babies }}</span>
+                                        <x-status-badge variant="success">{{ $row->total_babies }}</x-status-badge>
                                     </td>
                                     <td class="px-4 py-4 text-sm font-medium text-gray-900">
                                         {{ $row->last_delivery_date ? \Carbon\Carbon::parse($row->last_delivery_date)->format('M d, Y') : 'N/A' }}
                                     </td>
                                     <td class="px-4 py-4">
                                         @if($row->confirmed)
-                                            <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">Confirmed</span>
+                                            <x-status-badge variant="success">Confirmed</x-status-badge>
                                         @else
-                                            <span class="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">Historical</span>
+                                            <x-status-badge variant="neutral">Historical</x-status-badge>
                                         @endif
                                     </td>
                                     <td class="px-4 py-4 text-right">
                                         <div class="flex flex-col items-end gap-2">
                                             <div class="flex flex-wrap justify-end gap-2">
-                                                <a href="{{ route('patients.delivered.history', $patient->id) }}" class="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50">
+                                                <a href="{{ route('patients.delivered.history', $patient->id) }}" class="btn btn-secondary">
                                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
                                                     </svg>
@@ -114,7 +101,7 @@
                                                 @if(auth()->user()->role !== 'admin')
                                                 <button type="button"
                                                     onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ $patient->address }}', '{{ $patient->contact_number }}')"
-                                                    class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+                                                    class="btn btn-primary">
                                                     Start New Pregnancy
                                                 </button>
                                                 @endif
@@ -137,7 +124,7 @@
 
     <div id="startPregnancyModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl overflow-hidden">
-            <div class="bg-indigo-50 px-6 py-5 border-b">
+            <div class="bg-gray-50 px-6 py-5 border-b">
                 <h2 class="text-xl font-bold text-gray-800">Start New Pregnancy</h2>
                 <p id="modalPatientName" class="text-sm text-gray-600"></p>
             </div>
@@ -179,7 +166,7 @@
                 </div>
                 <div class="flex justify-end gap-3 pt-4 border-t">
                     <button type="button" onclick="closeStartPregnancyModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700">Cancel</button>
-                    <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold">Create New Pregnancy</button>
+                    <button type="submit" class="btn btn-primary">Create New Pregnancy</button>
                 </div>
             </form>
         </div>

@@ -10,20 +10,16 @@
             </a>
         </div>
 
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-purple-50 to-pink-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
-                <div class="flex items-center gap-2 sm:gap-3">
-                    <div class="bg-purple-100 rounded-lg p-2">
-                        <svg class="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="bg-gray-50 border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5">
+                <x-icon-title title="Add Ultrasound Record" subtitle="Record new ultrasound examination results">
+                    <x-slot name="icon">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Add Ultrasound Record</h2>
-                        <p class="text-xs sm:text-sm text-gray-600 mt-1">Record new ultrasound examination results</p>
-                    </div>
-                </div>
+                    </x-slot>
+                </x-icon-title>
             </div>
 
             <form action="{{ route('ultrasound.store') }}" method="POST" enctype="multipart/form-data" id="ultrasoundForm" class="p-4 sm:p-6">
@@ -31,23 +27,7 @@
                 <input type="hidden" name="patient_id" value="{{ $patient_id }}">
 
                 <!-- Error Summary -->
-                @if($errors->any())
-                    <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-                        <div class="flex items-start gap-2">
-                            <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <div>
-                                <p class="font-semibold text-red-700 text-sm">Please fix the following errors:</p>
-                                <ul class="list-disc list-inside text-sm text-red-600 mt-1">
-                                    @foreach($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                @endif
+                <x-error-summary :errors="$errors" title="Please fix the following errors:" class="mb-6" />
 
                 <!-- Scan Information Section -->
                 <div class="mb-6">
@@ -65,7 +45,7 @@
                             <input type="date" name="scan_date" id="scan_date" 
                                 value="{{ old('scan_date', date('Y-m-d')) }}" 
                                 max="{{ date('Y-m-d') }}" required
-                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <p class="text-xs text-gray-500 mt-1">Cannot be in the future</p>
                         </div>
                         
@@ -77,7 +57,7 @@
                                 value="{{ old('gestational_age_scan') }}" 
                                 step="0.5" min="4" max="42"
                                 placeholder="e.g., 28.5"
-                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <p class="text-xs text-gray-500 mt-1" id="ga_hint">Based on patient's LMP: Will auto-validate</p>
                         </div>
                     </div>
@@ -86,7 +66,7 @@
                 <!-- Fetal Measurements Section -->
                 <div class="mb-6">
                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                        <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
                         </svg>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Fetal Measurements</h3>
@@ -100,7 +80,7 @@
                                 value="{{ old('estimated_fetal_weight') }}" 
                                 step="10" min="200" max="5000"
                                 placeholder="e.g., 1500"
-                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <p class="text-xs text-gray-500 mt-1">Range: 200 - 5000 grams</p>
                         </div>
                     </div>
@@ -119,7 +99,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fetal Heartbeat
                             </label>
-                            <select name="fetal_heartbeat" id="fetal_heartbeat" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="fetal_heartbeat" id="fetal_heartbeat" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Normal 120-160" {{ old('fetal_heartbeat') == 'Normal 120-160' ? 'selected' : '' }}>Normal (120-160 bpm)</option>
                                 <option value="Tachycardia >160" {{ old('fetal_heartbeat') == 'Tachycardia >160' ? 'selected' : '' }}>Tachycardia (>160 bpm)</option>
@@ -133,7 +113,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fetal Movement
                             </label>
-                            <select name="fetal_movement" id="fetal_movement" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="fetal_movement" id="fetal_movement" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Active" {{ old('fetal_movement') == 'Active' ? 'selected' : '' }}>Active</option>
                                 <option value="Normal" {{ old('fetal_movement') == 'Normal' ? 'selected' : '' }}>Normal</option>
@@ -146,7 +126,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Presentation
                             </label>
-                            <select name="presentation" id="presentation" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="presentation" id="presentation" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Cephalic" {{ old('presentation') == 'Cephalic' ? 'selected' : '' }}>Cephalic (Head down)</option>
                                 <option value="Breech" {{ old('presentation') == 'Breech' ? 'selected' : '' }}>Breech</option>
@@ -170,7 +150,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Amniotic Fluid
                             </label>
-                            <select name="amniotic_fluid" id="amniotic_fluid" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="amniotic_fluid" id="amniotic_fluid" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Normal" {{ old('amniotic_fluid') == 'Normal' ? 'selected' : '' }}>Normal</option>
                                 <option value="Low" {{ old('amniotic_fluid') == 'Low' ? 'selected' : '' }}>Low (Oligohydramnios)</option>
@@ -183,7 +163,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Placenta Position
                             </label>
-                            <select name="placenta_position" id="placenta_position" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="placenta_position" id="placenta_position" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Anterior" {{ old('placenta_position') == 'Anterior' ? 'selected' : '' }}>Anterior (Front wall)</option>
                                 <option value="Posterior" {{ old('placenta_position') == 'Posterior' ? 'selected' : '' }}>Posterior (Back wall)</option>
@@ -250,7 +230,7 @@
                     <div>
                         <textarea name="remarks" rows="3" 
                             placeholder="Any additional observations, findings, or recommendations..."
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">{{ old('remarks') }}</textarea>
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">{{ old('remarks') }}</textarea>
                         <p class="text-xs text-gray-500 mt-1">Max 1000 characters</p>
                     </div>
                 </div>
@@ -260,7 +240,7 @@
                     <a href="{{ route('patients.show', $patient_id) }}" class="order-2 sm:order-1 px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition text-center">
                         Cancel
                     </a>
-                    <button type="submit" id="submitBtn" class="order-1 sm:order-2 px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-sm font-medium">
+                    <button type="submit" id="submitBtn" class="order-1 sm:order-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm font-medium">
                         <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
                         </svg>
@@ -410,7 +390,7 @@
                     
                     if (Math.abs(expectedWeeks - ga) > 3) {
                         showError(gestationalAge, `Based on LMP (${lmp}), expected GA is ${expectedWeeks.toFixed(1)} weeks. Current GA should be within ±3 weeks.`);
-                        gaHint.innerHTML = `⚠️ Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
+                        gaHint.innerHTML = `Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
                         gaHint.classList.add('text-orange-600');
                         gaHint.classList.remove('text-green-600');
                         return false;

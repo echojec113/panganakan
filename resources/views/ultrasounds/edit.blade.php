@@ -10,20 +10,16 @@
             </a>
         </div>
 
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-amber-50 to-yellow-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
-                <div class="flex items-center gap-2 sm:gap-3">
-                    <div class="bg-yellow-100 rounded-lg p-2">
-                        <svg class="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="bg-gray-50 border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5">
+                <x-icon-title title="Edit Ultrasound Record" subtitle="Update ultrasound examination results">
+                    <x-slot name="icon">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Edit Ultrasound Record</h2>
-                        <p class="text-xs sm:text-sm text-gray-600 mt-1">Update ultrasound examination results</p>
-                    </div>
-                </div>
+                    </x-slot>
+                </x-icon-title>
             </div>
 
             <form action="{{ route('ultrasound.update', $ultrasound->id) }}" method="POST" enctype="multipart/form-data" id="ultrasoundForm" class="p-4 sm:p-6">
@@ -32,23 +28,7 @@
                 <input type="hidden" name="patient_id" value="{{ $ultrasound->patient_id }}">
 
                 <!-- Error Summary -->
-                @if($errors->any())
-                    <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-                        <div class="flex items-start gap-2">
-                            <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <div>
-                                <p class="font-semibold text-red-700 text-sm">Please fix the following errors:</p>
-                                <ul class="list-disc list-inside text-sm text-red-600 mt-1">
-                                    @foreach($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                @endif
+                <x-error-summary :errors="$errors" title="Please fix the following errors:" class="mb-6" />
 
                 <!-- Scan Information Section -->
                 <div class="mb-6">
@@ -66,7 +46,7 @@
                             <input type="date" name="scan_date" id="scan_date" 
                                 value="{{ old('scan_date', $ultrasound->scan_date) }}" 
                                 max="{{ date('Y-m-d') }}" required
-                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <p class="text-xs text-gray-500 mt-1">Cannot be in the future</p>
                         </div>
                         
@@ -78,7 +58,7 @@
                                 value="{{ old('gestational_age_scan', $ultrasound->gestational_age_scan) }}" 
                                 step="0.5" min="4" max="42"
                                 placeholder="e.g., 28.5"
-                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <p class="text-xs text-gray-500 mt-1" id="ga_hint">Based on patient's LMP: Will auto-validate</p>
                         </div>
                     </div>
@@ -87,7 +67,7 @@
                 <!-- Fetal Measurements Section -->
                 <div class="mb-6">
                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                        <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
                         </svg>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Fetal Measurements</h3>
@@ -101,7 +81,7 @@
                                 value="{{ old('estimated_fetal_weight', $ultrasound->estimated_fetal_weight) }}" 
                                 step="10" min="200" max="5000"
                                 placeholder="e.g., 1500"
-                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">
+                                class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <p class="text-xs text-gray-500 mt-1">Range: 200 - 5000 grams</p>
                         </div>
                     </div>
@@ -120,7 +100,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fetal Heartbeat
                             </label>
-                            <select name="fetal_heartbeat" id="fetal_heartbeat" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="fetal_heartbeat" id="fetal_heartbeat" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Normal 120-160" {{ old('fetal_heartbeat', $ultrasound->fetal_heartbeat) == 'Normal 120-160' ? 'selected' : '' }}>Normal (120-160 bpm)</option>
                                 <option value="Tachycardia >160" {{ old('fetal_heartbeat', $ultrasound->fetal_heartbeat) == 'Tachycardia >160' ? 'selected' : '' }}>Tachycardia (>160 bpm)</option>
@@ -134,7 +114,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fetal Movement
                             </label>
-                            <select name="fetal_movement" id="fetal_movement" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="fetal_movement" id="fetal_movement" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Active" {{ old('fetal_movement', $ultrasound->fetal_movement) == 'Active' ? 'selected' : '' }}>Active</option>
                                 <option value="Normal" {{ old('fetal_movement', $ultrasound->fetal_movement) == 'Normal' ? 'selected' : '' }}>Normal</option>
@@ -147,7 +127,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Presentation
                             </label>
-                            <select name="presentation" id="presentation" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="presentation" id="presentation" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Cephalic" {{ old('presentation', $ultrasound->presentation) == 'Cephalic' ? 'selected' : '' }}>Cephalic (Head down)</option>
                                 <option value="Breech" {{ old('presentation', $ultrasound->presentation) == 'Breech' ? 'selected' : '' }}>Breech</option>
@@ -171,7 +151,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Amniotic Fluid
                             </label>
-                            <select name="amniotic_fluid" id="amniotic_fluid" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="amniotic_fluid" id="amniotic_fluid" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Normal" {{ old('amniotic_fluid', $ultrasound->amniotic_fluid) == 'Normal' ? 'selected' : '' }}>Normal</option>
                                 <option value="Low" {{ old('amniotic_fluid', $ultrasound->amniotic_fluid) == 'Low' ? 'selected' : '' }}>Low (Oligohydramnios)</option>
@@ -184,7 +164,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Placenta Position
                             </label>
-                            <select name="placenta_position" id="placenta_position" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500">
+                            <select name="placenta_position" id="placenta_position" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
                                 <option value="Anterior" {{ old('placenta_position', $ultrasound->placenta_position) == 'Anterior' ? 'selected' : '' }}>Anterior (Front wall)</option>
                                 <option value="Posterior" {{ old('placenta_position', $ultrasound->placenta_position) == 'Posterior' ? 'selected' : '' }}>Posterior (Back wall)</option>
@@ -289,7 +269,7 @@
                     <div>
                         <textarea name="remarks" rows="3" 
                             placeholder="Any additional observations, findings, or recommendations..."
-                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition">{{ old('remarks', $ultrasound->remarks) }}</textarea>
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">{{ old('remarks', $ultrasound->remarks) }}</textarea>
                         <p class="text-xs text-gray-500 mt-1">Max 1000 characters</p>
                     </div>
                 </div>
@@ -299,7 +279,7 @@
                     <a href="{{ route('patients.show', $ultrasound->patient_id) }}" class="order-2 sm:order-1 px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition text-center">
                         Cancel
                     </a>
-                    <button type="submit" id="submitBtn" class="order-1 sm:order-2 px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition shadow-sm font-medium">
+                    <button type="submit" id="submitBtn" class="order-1 sm:order-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm font-medium">
                         <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>

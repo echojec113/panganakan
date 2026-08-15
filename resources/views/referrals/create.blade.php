@@ -12,21 +12,13 @@
 <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     {{-- Header --}}
-    <div class="mb-8">
-        <h1 class="text-2xl font-bold text-gray-800">Create Referral</h1>
-        <p class="mt-1 text-sm text-gray-500">Refer {{ $patient->first_name }} {{ $patient->last_name }} to a hospital or OB-GYN specialist.</p>
-    </div>
+    <x-app-header
+        title="Create Referral"
+        subtitle="Refer {{ $patient->first_name }} {{ $patient->last_name }} to a hospital or OB-GYN specialist."
+        class="mb-8"
+    />
 
-    @if ($errors->any())
-        <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <div class="font-semibold">Please review the highlighted issues.</div>
-            <ul class="mt-2 list-disc space-y-1 pl-5">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
+    <x-error-summary :errors="$errors" title="Please review the highlighted issues." class="mb-6" />
 
     @if($linked)
         {{-- Linked referral: two-column desktop layout --}}
@@ -95,10 +87,10 @@
 
             {{-- RIGHT: Assessment Being Referred (read-only) --}}
             <div class="lg:w-2/5">
-                <div class="bg-white rounded-2xl shadow-sm border border-indigo-100 overflow-hidden">
-                    <div class="border-b border-indigo-100 px-6 py-4 bg-indigo-50">
-                        <h2 class="text-lg font-semibold text-indigo-900">Assessment Being Referred</h2>
-                        <p class="mt-0.5 text-xs text-indigo-600">Linked Assessment Evidence (read-only). Editing the form does not change it.</p>
+                <div class="bg-white rounded-2xl shadow-sm border border-blue-100 overflow-hidden">
+                    <div class="border-b border-blue-100 px-6 py-4 bg-blue-50">
+                        <h2 class="text-lg font-semibold text-blue-900">Assessment Being Referred</h2>
+                        <p class="mt-0.5 text-xs text-blue-600">Linked Assessment Evidence (read-only). Editing the form does not change it.</p>
                     </div>
                     <div class="p-6">
                         @if(($snapshot['urgency'] ?? null) === 'URGENT_CLINICAL_REVIEW')
@@ -115,9 +107,9 @@
                             <div>
                                 <dt class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Risk Level</dt>
                                 <dd class="mt-0.5">
-                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {{ ($snapshot['risk_level'] ?? null) === 'HIGH' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600' }}">
+                                    <x-status-badge :variant="($snapshot['risk_level'] ?? null) === 'HIGH' ? 'danger' : (($snapshot['risk_level'] ?? null) === 'LOW' ? 'success' : 'neutral')">
                                         {{ $snapshot['risk_level'] ?? '—' }}
-                                    </span>
+                                    </x-status-badge>
                                 </dd>
                             </div>
                             <div>
@@ -217,7 +209,7 @@
         <div class="max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="border-b border-gray-100 px-6 py-4 bg-gray-50 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-800">Referral Form</h2>
-                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">Manual Referral</span>
+                <x-status-badge variant="neutral">Manual Referral</x-status-badge>
             </div>
             <div class="p-6">
                 <div class="mb-6 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm text-gray-600 text-center">

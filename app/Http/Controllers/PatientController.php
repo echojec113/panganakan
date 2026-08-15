@@ -132,7 +132,7 @@ class PatientController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
         $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals','pregnancyOutcome.followUpRecordedBy','pregnancyOutcome.confirmedBy'])->findOrFail($id);
 
@@ -142,6 +142,11 @@ class PatientController extends Controller
         $monitoringStateLabel = \App\Services\PregnancyOutcomeMonitoringService::stateLabel($monitoringState);
         $monitoringEligible = $this->pregnancyOutcomeMonitoringService->isFollowUpEligible($patient);
         $daysUntilOrPastEdd = $this->pregnancyOutcomeMonitoringService->daysUntilOrPastEdd($patient);
+
+        // Application-controlled "Back" target: the monitoring URL the user
+        // came from, validated as an internal pregnancy-outcomes URL. Null
+        // when the profile was opened directly or the return URL is not safe.
+        $monitoringReturnUrl = $this->resolveMonitoringReturnUrl($request);
 
         // Newest persisted prenatal visit, deterministically: created_at desc,
         // then id desc as a tie-breaker for records created in the same second.
@@ -162,7 +167,47 @@ class PatientController extends Controller
         $hasBirthPlan = $patient->birthPlan !== null;
         $canAddPrenatalVisit = $hasMedicalHistory && $hasUltrasound && $hasBirthPlan;
 
-        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit', 'monitoringState', 'monitoringStateLabel', 'monitoringEligible', 'daysUntilOrPastEdd'));
+        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit', 'monitoringState', 'monitoringStateLabel', 'monitoringEligible', 'daysUntilOrPastEdd', 'monitoringReturnUrl'));
+    }
+
+    /**
+     * Resolve the Pregnancy Outcome Monitoring "Back" target from the request.
+     *
+     * Only an internal, application-controlled pregnancy-outcomes URL is
+     * accepted so the profile never opens an arbitrary/external redirect.
+     * Returns null (safe fallback used in the view) when the return URL is
+     * missing, not a URL, external, or not a monitoring page.
+     */
+    private function resolveMonitoringReturnUrl(Request $request): ?string
+    {
+        $candidate = $request->query('return');
+
+        if (! is_string($candidate) || trim($candidate) === '') {
+            return null;
+        }
+
+        $parts = parse_url($candidate);
+        if ($parts === false) {
+            return null;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        $host = $parts['host'] ?? null;
+        $expectedHost = parse_url(route('pregnancy-outcomes.index'), PHP_URL_HOST);
+        if ($host !== $expectedHost) {
+            return null;
+        }
+
+        $path = $parts['path'] ?? '/';
+        if ($path !== '/' && ! str_starts_with($path, '/pregnancy-outcomes')) {
+            return null;
+        }
+
+        return $candidate;
     }
 
     public function download(Request $request, string $id)

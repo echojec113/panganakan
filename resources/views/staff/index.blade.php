@@ -4,31 +4,23 @@
         <div class="flex-1 flex flex-col">
 
             {{-- HEADER --}}
-            <div class="bg-white border-b px-8 py-6 flex justify-between items-center shadow-sm">
-                <div>
-                    
-
-                    <h1 class="text-2xl font-bold text-gray-900">Manage Staff</h1>
-                    <p class="text-sm text-gray-500">Create and manage clinic staff accounts</p>
-                </div>
-
-                <a href="{{ route('staff.create') }}"
-                   class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow transition">
-                    + Add Staff
-                </a>
+            <div class="bg-white border-b px-8 py-6 shadow-sm">
+                <x-app-header>
+                    <x-slot name="title">Manage Staff</x-slot>
+                    <x-slot name="subtitle">Create and manage clinic staff accounts</x-slot>
+                    <x-slot name="actions">
+                        <a href="{{ route('staff.create') }}" class="btn btn-primary">+ Add Staff</a>
+                    </x-slot>
+                </x-app-header>
             </div>
 
             {{-- CONTENT --}}
             <div class="p-8">
 
-                @if(session('success'))
-                    <div class="mb-6 bg-green-100 text-green-700 px-4 py-3 rounded-lg">
-                        {{ session('success') }}
-                    </div>
-                @endif
+                <x-flash type="success" :message="session('success')" class="mb-6" />
 
                 {{-- STAFF CARD --}}
-                <div class="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
                     <div class="px-6 py-4 border-b bg-gray-50">
                         <h2 class="text-lg font-semibold text-gray-800">Staff List</h2>

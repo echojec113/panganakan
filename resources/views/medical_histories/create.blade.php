@@ -1,28 +1,20 @@
 <x-app-layout>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-                <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900">Add Medical History</h1>
-                <p class="text-sm text-gray-500 mt-1">Capture medical risk factors and history for this patient.</p>
-            </div>
-            <a href="{{ route('patients.show', $patient_id) }}" class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Patient Profile
-            </a>
-        </div>
+        <x-app-header class="mb-6">
+            <x-slot name="title">Add Medical History</x-slot>
+            <x-slot name="subtitle">Capture medical risk factors and history for this patient.</x-slot>
+            <x-slot name="actions">
+                <a href="{{ route('patients.show', $patient_id) }}" class="btn btn-secondary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Patient Profile
+                </a>
+            </x-slot>
+        </x-app-header>
 
-        @if(session('info'))
-            <div class="mb-6 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                {{ session('info') }}
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {{ session('error') }}
-            </div>
-        @endif
+        <x-flash type="info" :message="session('info')" class="mb-6" />
+        <x-flash type="error" :message="session('error')" class="mb-6" />
 
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="px-6 py-5 border-b border-gray-100 bg-gray-50">

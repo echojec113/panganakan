@@ -5,24 +5,23 @@
     $snapshotHas = is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0;
     $pregnancyStatus = $referral->patient?->status ?? 'Unknown';
 
-    $pregnancyColor = match ($pregnancyStatus) {
-        'ONGOING' => 'bg-sky-50 text-sky-700 ring-sky-200',
-        'DELIVERED' => 'bg-amber-100 text-amber-800 ring-amber-200',
-        default => 'bg-gray-100 text-gray-600 ring-gray-200',
+    $pregnancyVariant = match ($pregnancyStatus) {
+        'ONGOING' => 'info',
+        'DELIVERED' => 'success',
+        default => 'neutral',
     };
-    $pregnancyBadge = $pregnancyColor;
 
-    $statusColor = match ($referral->status) {
-        'Pending' => 'bg-amber-50 text-amber-700 ring-amber-200',
-        'Completed' => 'bg-green-50 text-green-700 ring-green-200',
-        'Refused' => 'bg-orange-50 text-orange-700 ring-orange-200',
-        default => 'bg-gray-100 text-gray-600 ring-gray-200',
+    $statusVariant = match ($referral->status) {
+        'Pending' => 'warning',
+        'Completed' => 'success',
+        'Refused' => 'danger',
+        default => 'neutral',
     };
 
     $snapshotRisk = is_array($referral->assessment_snapshot) ? ($referral->assessment_snapshot['risk_level'] ?? null) : null;
-    $riskBadge = $snapshotRisk === 'HIGH'
-        ? 'bg-red-100 text-red-700 ring-red-200'
-        : ($snapshotRisk === 'LOW' ? 'bg-green-50 text-green-700 ring-green-200' : 'bg-gray-100 text-gray-600 ring-gray-200');
+    $riskVariant = $snapshotRisk === 'HIGH'
+        ? 'danger'
+        : ($snapshotRisk === 'LOW' ? 'success' : 'neutral');
 
     $factorCategoryLabels = [
         'MATERNAL_DEMOGRAPHICS' => 'Maternal Demographics',
@@ -40,71 +39,47 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-    @if(session('success'))
-        <div class="mb-6 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {{ session('success') }}
-        </div>
-    @endif
-
-    @if(session('error'))
-        <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {{ session('error') }}
-        </div>
-    @endif
+    <x-flash type="success" :message="session('success')" class="mb-6" />
+    <x-flash type="error" :message="session('error')" class="mb-6" />
 
     {{-- A. Patient + destination header --}}
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 sm:px-8 py-6">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <div class="inline-flex items-center rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-100">
-                        Referral Details
-                    </div>
-                    <h1 class="mt-2 text-2xl font-bold text-gray-800">
-                        {{ $referral->patient->first_name }} {{ $referral->patient->middle_name ? $referral->patient->middle_name . ' ' : '' }}{{ $referral->patient->last_name }}
-                    </h1>
-                    <p class="mt-1 text-sm text-gray-600">
-                        {{ $referral->referred_to }}
-                        @if($referral->doctor_name)
-                            <span class="text-gray-400">·</span> Dr. {{ $referral->doctor_name }}
-                        @endif
-                    </p>
-                    <p class="mt-0.5 text-xs text-gray-400">Referral date {{ $referral->referral_date?->format('M d, Y') }}</p>
-                </div>
-                <div class="flex flex-col sm:flex-row gap-3 flex-wrap">
-                    <a href="{{ route('referrals.index') }}"
-                        class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm">
-                        Back to Referrals
-                    </a>
-                    <a href="{{ route('referrals.print', $referral->id) }}"
-                        class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm shadow-sm">
-                        Print Referral Letter
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
+    <x-app-header class="mb-8">
+        <x-slot name="title">
+            {{ $referral->patient->first_name }} {{ $referral->patient->middle_name ? $referral->patient->middle_name . ' ' : '' }}{{ $referral->patient->last_name }}
+        </x-slot>
+        <x-slot name="subtitle">
+            {{ $referral->referred_to }}
+            @if($referral->doctor_name)
+                <span class="text-gray-400">·</span> Dr. {{ $referral->doctor_name }}
+            @endif
+            <span class="text-gray-400">·</span> Referral date {{ $referral->referral_date?->format('M d, Y') }}
+        </x-slot>
+        <x-slot name="actions">
+            <a href="{{ route('referrals.index') }}" class="btn btn-secondary">Back to Referrals</a>
+            <a href="{{ route('referrals.print', $referral->id) }}" class="btn btn-primary">Print Referral Letter</a>
+        </x-slot>
+    </x-app-header>
 
     {{-- B. Pregnancy / Referral / Risk summary (kept conceptually separate) --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div class="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
             <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Pregnancy</p>
-            <span class="mt-2 inline-flex items-center rounded-full ring-1 ring-inset px-3 py-1 text-sm font-semibold {{ $pregnancyBadge }}">
+            <x-status-badge :variant="$pregnancyVariant" class="mt-2">
                 {{ $pregnancyStatus }}
-            </span>
+            </x-status-badge>
         </div>
         <div class="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
             <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Referral</p>
-            <span class="mt-2 inline-flex items-center rounded-full ring-1 ring-inset px-3 py-1 text-sm font-semibold {{ $statusColor }}">
+            <x-status-badge :variant="$statusVariant" class="mt-2">
                 {{ $referral->status }}
-            </span>
+            </x-status-badge>
         </div>
         <div class="rounded-2xl bg-white shadow-sm border border-gray-100 p-5">
             <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Clinical Risk</p>
             @if($snapshotHas)
-                <span class="mt-2 inline-flex items-center rounded-full ring-1 ring-inset px-3 py-1 text-sm font-semibold {{ $riskBadge }}">
+                <x-status-badge :variant="$riskVariant" class="mt-2">
                     {{ $defensiveLabel($snapshotRisk) }}
-                </span>
+                </x-status-badge>
             @else
                 <p class="mt-2 text-sm text-gray-500">Not assessed</p>
             @endif
@@ -136,13 +111,9 @@
                         <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Source</dt>
                         <dd class="mt-1">
                             @if($linked)
-                                <span class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
-                                    Assessment-linked
-                                </span>
+                                <x-status-badge variant="info">Assessment-linked</x-status-badge>
                             @else
-                                <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                                    Manual Referral
-                                </span>
+                                <x-status-badge variant="neutral">Manual Referral</x-status-badge>
                             @endif
                         </dd>
                     </div>
@@ -279,9 +250,9 @@
                 <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">Risk Level</dt>
                     <dd class="mt-0.5">
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $riskBadge }}">
+                        <x-status-badge :variant="$riskVariant">
                             {{ $defensiveLabel($snap['risk_level'] ?? null) }}
-                        </span>
+                        </x-status-badge>
                     </dd>
                 </div>
                 <div>

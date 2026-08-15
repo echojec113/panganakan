@@ -1,36 +1,23 @@
 <x-app-layout>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         @if(session('success'))
-            <div class="mb-6 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-                {{ session('success') }}
-            </div>
+            <x-flash type="success" :message="session('success')" class="mb-6" />
         @endif
 
         @if(session('error'))
-            <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {{ session('error') }}
-            </div>
+            <x-flash type="error" :message="session('error')" class="mb-6" />
         @endif
 
-        @if($errors->any())
-            <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <div class="font-semibold">Please review the highlighted issues.</div>
-                <ul class="mt-2 list-disc space-y-1 pl-5">
-                    @foreach($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
+        <x-error-summary :errors="$errors" title="Please review the highlighted issues." class="mb-6" />
 
         @if($patient->status === 'DELIVERED')
-            <div class="mb-8 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+            <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm">
                 <div class="flex items-start gap-3">
                     <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                     <div>
-                        <h2 class="text-lg font-semibold text-amber-900">Pregnancy Completed</h2>
+                        <h2 class="text-base font-semibold text-amber-900">Pregnancy Completed</h2>
                         <p class="mt-1 text-sm text-amber-800">This pregnancy has been completed and is kept as a historical record. Clinical records are read-only to preserve accuracy. To register another pregnancy for this mother, use Start New Pregnancy.</p>
                     </div>
                 </div>
@@ -38,27 +25,35 @@
         @endif
 
         @if(in_array($patient->status, ['ONGOING', 'DELIVERED'], true))
-            <div class="mb-8 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">Pregnancy Outcome</span>
-                        </div>
-                        <div class="mt-1 flex flex-wrap items-center gap-2">
-                            @php
-    $stateClass = \App\Services\PregnancyOutcomeMonitoringService::class;
-    $stateBadgeClass = match ($monitoringState) {
-        $stateClass::STATE_CONFIRMATION_REQUIRED => 'bg-amber-100 text-amber-900 ring-1 ring-amber-300',
-        $stateClass::STATE_STILL_PREGNANT_CONFIRMED => 'bg-green-100 text-green-800 ring-1 ring-green-300',
-        $stateClass::STATE_UNABLE_TO_CONTACT => 'bg-rose-100 text-rose-800 ring-1 ring-rose-300',
-        $stateClass::STATE_RESOLVED, $stateClass::STATE_LEGACY_DELIVERED => 'bg-slate-100 text-slate-700',
-        $stateClass::STATE_LEGACY_REFERRED => 'bg-slate-100 text-slate-600',
-        default => 'bg-indigo-100 text-indigo-700',
-    };
-@endphp
-                            <span class="inline-flex rounded-full px-3 py-1 text-sm font-semibold {{ $stateBadgeClass }}">{{ $monitoringStateLabel }}</span>
+            @php
+                $stateClass = \App\Services\PregnancyOutcomeMonitoringService::class;
+                $monitoringVariant = match ($monitoringState) {
+                    $stateClass::STATE_CONFIRMATION_REQUIRED => 'warning',
+                    $stateClass::STATE_STILL_PREGNANT_CONFIRMED => 'success',
+                    $stateClass::STATE_UNABLE_TO_CONTACT => 'danger',
+                    $stateClass::STATE_RESOLVED, $stateClass::STATE_LEGACY_DELIVERED, $stateClass::STATE_LEGACY_REFERRED => 'neutral',
+                    default => 'info',
+                };
+                // Application-controlled back target. When the profile was opened
+                // from Pregnancy Outcome Monitoring the validated return URL is
+                // used; otherwise fall back to the plain monitoring page.
+                $monitoringBackUrl = $monitoringReturnUrl ?? route('pregnancy-outcomes.index');
+            @endphp
+            <div class="panel mb-6">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Pregnancy Outcome
+                    </div>
+                    <x-status-badge :variant="$monitoringVariant">{{ $monitoringStateLabel }}</x-status-badge>
+                </div>
+                <div class="panel-body">
+                    <div class="flex flex-col gap-4">
+                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                             @if($patient->status === 'ONGOING' && $patient->edd)
-                                <span class="text-sm text-gray-500">
+                                <span class="text-gray-500">
                                     EDD: {{ $patient->edd->format('M d, Y') }}
                                     @if($daysUntilOrPastEdd !== null && $daysUntilOrPastEdd < 0)
                                         &middot; <span class="font-semibold text-amber-700">{{ abs($daysUntilOrPastEdd) }} days past EDD</span>
@@ -67,110 +62,105 @@
                                     @endif
                                 </span>
                             @endif
+                            @if($patient->status === 'ONGOING' && $patient->pregnancyOutcome?->follow_up_recorded_at)
+                                <span class="text-xs text-gray-500">
+                                    Last follow-up: {{ $patient->pregnancyOutcome->follow_up_recorded_at->format('M d, Y H:i') }}
+                                    @if($patient->pregnancyOutcome->followUpRecordedBy?->name) by {{ $patient->pregnancyOutcome->followUpRecordedBy->name }} @endif
+                                    &middot; {{ \App\Support\PregnancyOutcomeVocabulary::followUpStatusLabel($patient->pregnancyOutcome->follow_up_status) }}
+                                </span>
+                            @elseif($patient->status === 'ONGOING' && $monitoringEligible)
+                                <span class="text-sm text-gray-500">Follow-up is now due. Record whether the patient is still pregnant or could not be reached.</span>
+                            @endif
+                            @if($patient->status === 'DELIVERED' && $patient->pregnancyOutcome && $patient->pregnancyOutcome->hasConfirmedOutcome())
+                                <span class="text-sm text-gray-500">Historical outcome confirmed with recorded provenance.</span>
+                            @endif
                         </div>
-                        @if($patient->status === 'ONGOING' && $patient->pregnancyOutcome?->follow_up_recorded_at)
-                            <p class="mt-1 text-xs text-gray-500">
-                                Last follow-up: {{ $patient->pregnancyOutcome->follow_up_recorded_at->format('M d, Y H:i') }}
-                                @if($patient->pregnancyOutcome->followUpRecordedBy?->name) by {{ $patient->pregnancyOutcome->followUpRecordedBy->name }} @endif
-                                &middot; {{ \App\Support\PregnancyOutcomeVocabulary::followUpStatusLabel($patient->pregnancyOutcome->follow_up_status) }}
-                            </p>
-                        @elseif($patient->status === 'ONGOING' && $monitoringEligible)
-                            <p class="mt-1 text-sm text-gray-500">Follow-up is now due. Record whether the patient is still pregnant or could not be reached.</p>
-                        @endif
-                        @if($patient->status === 'DELIVERED' && $patient->pregnancyOutcome && $patient->pregnancyOutcome->hasConfirmedOutcome())
-                            <p class="mt-1 text-sm text-gray-500">Historical outcome confirmed with recorded provenance.</p>
-                        @endif
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')
-                            <button type="button"
-                                    data-outcome-confirm-trigger
-                                    data-outcome-tone="confirm"
-                                    data-outcome-title="Confirm Still Pregnant"
-                                    data-outcome-message="Record that follow-up confirmed the patient is still pregnant as of today. This observation remains current for the monitoring window and does not mark the pregnancy as delivered."
-                                    data-outcome-confirm-label="Confirm Still Pregnant"
-                                    data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
-                                    data-outcome-action="{{ route('pregnancy-outcomes.still-pregnant', $patient->id) }}"
-                                    class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                                Confirm Still Pregnant
-                            </button>
-                            <button type="button"
-                                    data-outcome-confirm-trigger
-                                    data-outcome-tone="alert"
-                                    data-outcome-title="Record Unable to Contact"
-                                    data-outcome-message="Record that a follow-up attempt was made but the patient could not be reached. This does not mark the pregnancy as delivered and does not change referral or clinical risk status."
-                                    data-outcome-confirm-label="Record Unable to Contact"
-                                    data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
-                                    data-outcome-action="{{ route('pregnancy-outcomes.unable-to-contact', $patient->id) }}"
-                                    class="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
-                                </svg>
-                                Unable to Contact
-                            </button>
-                        @endif
-                        @if($patient->status === 'DELIVERED')
-                            <a href="{{ route('patients.delivered.history', $patient->id) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                Pregnancy History
+                        <div class="flex flex-wrap gap-2">
+                            @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')
+                                <button type="button"
+                                        data-outcome-confirm-trigger
+                                        data-outcome-tone="confirm"
+                                        data-outcome-title="Confirm Still Pregnant"
+                                        data-outcome-message="Record that follow-up confirmed the patient is still pregnant as of today. This observation remains current for the monitoring window and does not mark the pregnancy as delivered."
+                                        data-outcome-confirm-label="Confirm Still Pregnant"
+                                        data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
+                                        data-outcome-action="{{ route('pregnancy-outcomes.still-pregnant', $patient->id) }}"
+                                        class="btn btn-secondary">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Confirm Still Pregnant
+                                </button>
+                                <button type="button"
+                                        data-outcome-confirm-trigger
+                                        data-outcome-tone="alert"
+                                        data-outcome-title="Record Unable to Contact"
+                                        data-outcome-message="Record that a follow-up attempt was made but the patient could not be reached. This does not mark the pregnancy as delivered and does not change referral or clinical risk status."
+                                        data-outcome-confirm-label="Record Unable to Contact"
+                                        data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
+                                        data-outcome-action="{{ route('pregnancy-outcomes.unable-to-contact', $patient->id) }}"
+                                        class="btn btn-secondary">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
+                                    </svg>
+                                    Unable to Contact
+                                </button>
+                            @endif
+                            <a href="{{ $monitoringBackUrl }}" class="btn btn-secondary">
+                                Back
                             </a>
-                        @endif
-                        <a href="{{ route('pregnancy-outcomes.index') }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                            View Monitoring Page
-                        </a>
+                        </div>
                     </div>
-                </div>
 
-                @if($patient->status === 'DELIVERED')
-                    @php
-                        $outcome = $patient->pregnancyOutcome;
-                    @endphp
-                    <div class="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+                    @if($patient->status === 'DELIVERED')
+                        @php
+                            $outcome = $patient->pregnancyOutcome;
+                        @endphp
+                        <div class="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
+                            @if($outcome && $outcome->hasConfirmedOutcome())
+                                <div>
+                                    <div class="stat-label">Delivered</div>
+                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmed_at?->format('M d, Y H:i') ?: ($patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A') }}</div>
+                                </div>
+                                <div>
+                                    <div class="stat-label">Delivery Location</div>
+                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->delivery_location !== null ? \App\Support\PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : 'N/A' }}</div>
+                                </div>
+                                <div>
+                                    <div class="stat-label">Confirmation Source</div>
+                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmation_source !== null ? \App\Support\PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) : 'N/A' }}</div>
+                                </div>
+                                <div>
+                                    <div class="stat-label">Recorded By</div>
+                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmedBy?->name ?: 'No longer active' }}</div>
+                                </div>
+                            @else
+                                <div class="sm:col-span-2 lg:col-span-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                    Historical delivered record — structured outcome confirmation was not recorded in the current system.
+                                </div>
+                            @endif
+                        </div>
                         @if($outcome && $outcome->hasConfirmedOutcome())
-                            <div>
-                                <div class="text-xs text-gray-500">Delivered</div>
-                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmed_at?->format('M d, Y H:i') ?: ($patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A') }}</div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-500">Delivery Location</div>
-                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->delivery_location !== null ? \App\Support\PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : 'N/A' }}</div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-500">Confirmation Source</div>
-                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmation_source !== null ? \App\Support\PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) : 'N/A' }}</div>
-                            </div>
-                            <div>
-                                <div class="text-xs text-gray-500">Recorded By</div>
-                                <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmedBy?->name ?: 'No longer active' }}</div>
-                            </div>
-                        @else
-                            <div class="sm:col-span-2 lg:col-span-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                Historical delivered record — structured outcome confirmation was not recorded in the current system.
+                            <div class="mt-3 text-sm text-gray-600">
+                                Babies: <span class="font-semibold text-gray-900">{{ $patient->babies->count() }}</span>
+                                <a href="{{ route('patients.delivered.babies', $patient->id) }}" class="ml-2 inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
+                                    Baby Information &rarr;
+                                </a>
                             </div>
                         @endif
-                    </div>
-                    @if($outcome && $outcome->hasConfirmedOutcome())
-                        <div class="mt-3 text-sm text-gray-600">
-                            Babies: <span class="font-semibold text-gray-900">{{ $patient->babies->count() }}</span>
-                            <a href="{{ route('patients.delivered.babies', $patient->id) }}" class="ml-2 inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
-                                Baby Information &rarr;
-                            </a>
-                        </div>
                     @endif
-                @endif
+                </div>
             </div>
         @endif
 
         @if($patient->status === 'REFERRED')
-            <div class="mb-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+            <div class="mb-6 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm">
                 <div class="flex items-start gap-3">
                     <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
                     <div>
-                        <h2 class="text-lg font-semibold text-slate-800">Legacy Referred Record</h2>
+                        <h2 class="text-base font-semibold text-slate-800">Legacy Referred Record</h2>
                         <p class="mt-1 text-sm text-slate-600">This pregnancy was recorded under a legacy referred status and is kept as a read-only historical record.</p>
                     </div>
                 </div>
@@ -178,95 +168,34 @@
         @endif
 
         <!-- Patient Header -->
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 mb-8 overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 sm:px-8 py-6">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div class="flex items-center space-x-4">
-                        <div class="bg-blue-100 rounded-full p-3">
-                            <svg class="w-12 h-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                            </svg>
-                        </div>
-                        <div>
-                            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800">
-                                {{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}
-                            </h1>
-                            @if($patient->status === 'DELIVERED')
-                                <div class="mt-3 inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-800">
-                                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    Completed Pregnancy
-                                </div>
-                            @endif
-                            @if($patient->hasActiveReferral())
-                                <div class="mt-3 inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-sm font-semibold text-orange-800" title="There is a referral awaiting follow-through for this patient.">
-                                    <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                    </svg>
-                                    Pending Referral
-                                </div>
-                            @endif
-                            <div class="flex flex-wrap gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-gray-600">
-                                <span class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    {{ $patient->age }} years
-                                </span>
-                                <span class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
-                                    </svg>
-                                    {{ $patient->contact_number }}
-                                </span>
-                                <span class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                    </svg>
-                                    {{ Str::limit($patient->address, 50) }}
-                                </span>
-                                <span class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle>
-                                    </svg>
-                                    Assigned Staff:
-                                    @if($patient->assignedStaff)
-                                        {{ $patient->assignedStaff->name }}
-                                    @else
-                                        Not Assigned
-                                    @endif
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex flex-col sm:flex-row gap-3 flex-wrap items-center">
+        <div class="panel mb-6">
+            <div class="panel-body">
+                <x-app-header>
+                    <x-slot name="title">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</x-slot>
+                    <x-slot name="subtitle">{{ $patient->age }} years &middot; {{ $patient->contact_number }} &middot; {{ Str::limit($patient->address, 50) }}</x-slot>
+                    <x-slot name="actions">
                         @if($patient->status === 'ONGOING')
                             @if(auth()->user()->role !== 'admin')
-                            {{-- Primary Actions (Left Side) --}}
-                            <a href="{{ route('patients.edit', $patient->id) }}" 
-                               class="px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {{-- Primary Actions --}}
+                            <a href="{{ route('patients.edit', $patient->id) }}" class="btn btn-secondary">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                 </svg>
                                 Edit Profile
                             </a>
-                            
+
                             {{-- Add Prenatal Visit Button (Conditional) --}}
                             @if($canAddPrenatalVisit)
-                            <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" 
-                               class="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="btn btn-primary">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                 </svg>
                                 Add Record
                             </a>
                             @else
                             <div class="group relative">
-                                <button disabled 
-                                        class="px-4 py-2.5 bg-gray-400 text-white rounded-lg cursor-not-allowed font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap opacity-75">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <button disabled class="btn btn-secondary opacity-60 cursor-not-allowed">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                                     </svg>
                                     Complete Records First
@@ -330,117 +259,250 @@
                             </div>
                             @endif
 
-                            <a href="{{ route('referrals.create', $patient->id) }}"
-                               class="px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <a href="{{ route('referrals.create', $patient->id) }}" class="btn btn-primary">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                 </svg>
                                 Refer Patient
                             </a>
 
-                            <button onclick="openDeliveryModal()" 
-                                    class="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button type="button" onclick="openDeliveryModal()" class="btn btn-danger">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
                                 Mark as Delivered
                             </button>
                             @endif
                         @else
-                                <div class="flex flex-col items-end gap-2">
-                                    <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        </svg>
-                                        Read-only record
-                                    </div>
-                                    <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-                                        <a href="{{ route('patients.delivered.history', $patient->id) }}" class="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium text-sm shadow-sm whitespace-nowrap">
-                                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m6 0a3 3 0 11-6 0 3 3 0 016 0z" />
-                                            </svg>
-                                            View Pregnancy History
-                                        </a>
-                                    @if(auth()->user()->role !== 'admin')
-                                    <form method="POST" action="{{ route('patients.start-new-pregnancy', $patient->id) }}">
-                                        @csrf
-                                        <button type="submit"
-                                                onclick="return confirm('Start a new pregnancy record for this patient? The completed record will remain unchanged.')"
-                                                class="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap">
-                                            Start New Pregnancy
-                                        </button>
-                                    </form>
-                                    @endif
-                                </div>
-                            </div>
+                                <span class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Read-only record
+                                </span>
+                                <a href="{{ route('patients.delivered.history', $patient->id) }}" class="btn btn-secondary">
+                                    <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m6 0a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    View Pregnancy History
+                                </a>
+                            @if(auth()->user()->role !== 'admin')
+                            <form method="POST" action="{{ route('patients.start-new-pregnancy', $patient->id) }}">
+                                @csrf
+                                <button type="submit"
+                                        onclick="return confirm('Start a new pregnancy record for this patient? The completed record will remain unchanged.')"
+                                        class="btn btn-primary">
+                                    Start New Pregnancy
+                                </button>
+                            </form>
+                            @endif
                         @endif
 
-                        {{-- Secondary Action (Right Side) --}}
-                        <button type="button" onclick="startDownloadProcess()" data-download-url="{{ route('patients.download', $patient->id) }}" class="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium text-sm shadow-sm inline-flex items-center justify-center whitespace-nowrap sm:ml-auto">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {{-- Secondary Action --}}
+                        <button type="button" onclick="startDownloadProcess()" data-download-url="{{ route('patients.download', $patient->id) }}" class="btn btn-secondary">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                             </svg>
                             Download
                         </button>
-                    </div>
+                    </x-slot>
+                </x-app-header>
+
+                <div class="mt-4 flex flex-wrap items-center gap-2">
+                    @if($patient->status === 'DELIVERED')
+                        <x-status-badge variant="warning">Completed Pregnancy</x-status-badge>
+                    @endif
+                    @if($patient->hasActiveReferral())
+                        <x-status-badge variant="warning" title="There is a referral awaiting follow-through for this patient.">Pending Referral</x-status-badge>
+                    @endif
+                    <span class="inline-flex items-center text-sm text-gray-600">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle>
+                        </svg>
+                        Assigned Staff:
+                        @if($patient->assignedStaff)
+                            {{ $patient->assignedStaff->name }}
+                        @else
+                            Not Assigned
+                        @endif
+                    </span>
                 </div>
             </div>
         </div>
 
+        {{-- Priority strip: Current Pregnancy + Basic Information --}}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            @php
+                $statusVariant = match ($patient->status) {
+                    'ONGOING' => 'info',
+                    'DELIVERED' => 'success',
+                    default => 'neutral',
+                };
+            @endphp
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                        Current Pregnancy
+                    </div>
+                    <x-status-badge :variant="$statusVariant">{{ $patient->status }}</x-status-badge>
+                </div>
+                <div class="panel-body space-y-0">
+                    <div class="kv-row">
+                        <span class="kv-label">Gravida</span>
+                        <span class="kv-value">{{ $patient->gravida }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Para</span>
+                        <span class="kv-value">{{ $patient->para }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Previous CS</span>
+                        <span class="kv-value">{{ $patient->previous_cs ? 'Yes' : 'No' }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Miscarriage</span>
+                        <span class="kv-value">{{ $patient->miscarriage ? 'Yes' : 'No' }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">LMP</span>
+                        <span class="kv-value">{{ $patient->lmp }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">EDD</span>
+                        <span class="kv-value font-semibold text-blue-700">{{ $patient->edd }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Basic Information
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="kv-row">
+                        <span class="kv-label">Birthdate</span>
+                        <span class="kv-value">{{ $patient->birthdate }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Age</span>
+                        <span class="kv-value">{{ $patient->age }} years</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Civil Status</span>
+                        <span class="kv-value">{{ $patient->civil_status }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Contact Number</span>
+                        <span class="kv-value">{{ $patient->contact_number ?: '—' }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">Address</span>
+                        <span class="kv-value">{{ $patient->address ?: '—' }}</span>
+                    </div>
+                    <div class="kv-row">
+                        <span class="kv-label">PhilHealth Member</span>
+                        <span class="kv-value">{{ $patient->philhealth_member ? 'Yes' : 'No' }}</span>
+                    </div>
+                    @if($patient->philhealth_number)
+                    <div class="kv-row">
+                        <span class="kv-label">PhilHealth Number</span>
+                        <span class="kv-value font-mono">{{ $patient->philhealth_number }}</span>
+                    </div>
+                    @endif
+                </div>
+            </div>
         </div>
 
+        {{-- Latest Prenatal Visit --}}
+        @php $latestVisit = $patient->prenatalVisits->first(); @endphp
+        @if($latestVisit)
+        <div class="panel mb-6">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Latest Prenatal Visit
+                </div>
+                <a href="#prenatal-visits-section" class="text-sm font-medium text-blue-700 hover:text-blue-900">View all visits &rarr;</a>
+            </div>
+            <div class="panel-body">
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                    <div class="stat-cell">
+                        <div class="stat-label">Visit Date</div>
+                        <div class="stat-value">{{ $latestVisit->visit_date }}</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-label">Blood Pressure</div>
+                        <div class="stat-value">{{ $latestVisit->bp_sys }}/{{ $latestVisit->bp_dia }} mmHg</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-label">Weight</div>
+                        <div class="stat-value">{{ $latestVisit->weight }} kg</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-label">Temperature</div>
+                        <div class="stat-value">{{ $latestVisit->temperature }}&deg;C</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-label">Gestational Age</div>
+                        <div class="stat-value">{{ $latestVisit->gestational_age }} wks</div>
+                    </div>
+                    <div class="stat-cell">
+                        <div class="stat-label">Fetal Heart Tone</div>
+                        <div class="stat-value">{{ $latestVisit->fetal_heart_tone ?: '—' }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        @endif
+
         <!-- Main 2-Column Layout -->
-        <div class="flex flex-col lg:flex-row gap-8">
+        <div class="flex flex-col lg:flex-row gap-6">
             <!-- LEFT COLUMN (70%) -->
-            <div class="lg:w-2/3 space-y-8">
+            <div class="lg:w-2/3 space-y-6 order-2 lg:order-1">
                 @if($patient->status === 'DELIVERED' && $patient->babies->count() > 0)
                 <!-- Baby Information Section -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-                                </svg>
-                                <h2 class="text-lg font-semibold text-gray-800">Baby Information</h2>
-                            </div>
-                            <span class="text-sm text-gray-500">{{ $patient->babies->count() }} {{ Str::plural('baby', $patient->babies->count()) }}</span>
-                        </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">Baby Information</div>
+                        <span class="text-sm text-gray-500">{{ $patient->babies->count() }} {{ Str::plural('baby', $patient->babies->count()) }}</span>
                     </div>
-                    <div class="p-6">
-                        <div class="space-y-6">
+                    <div class="panel-body">
+                        <div class="space-y-4">
                             @foreach($patient->babies as $index => $baby)
-                            <div class="baby-card bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-6 border border-pink-100" data-baby-id="{{ $baby->id }}">
-                                <div class="flex items-center justify-between mb-4">
-                                    <div class="flex items-center space-x-3">
-                                        <div class="w-10 h-10 bg-pink-100 rounded-full flex items-center justify-center">
-                                            <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="baby-card rounded-xl border border-gray-200 p-5" data-baby-id="{{ $baby->id }}">
+                                <div class="flex items-center justify-between gap-3 flex-wrap">
+                                    <div class="flex items-center gap-3">
+                                        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary-soft text-primary">
+                                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                             </svg>
                                         </div>
                                         <div>
-                                            <h3 class="text-lg font-semibold text-gray-800 baby-name-display">{{ $baby->full_name }}</h3>
-                                            <p class="text-sm text-gray-600">Baby {{ $index + 1 }}</p>
+                                            <h3 class="text-base font-semibold text-gray-800 baby-name-display">{{ $baby->full_name }}</h3>
+                                            <p class="text-sm text-gray-500">Baby {{ $index + 1 }}</p>
                                         </div>
                                     </div>
-                                    <div class="flex items-center space-x-2">
+                                    <div class="flex items-center gap-2">
                                         @if($baby->sex)
-                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                                        <span class="sex-badge inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
                                             @if($baby->sex === 'Male') bg-blue-100 text-blue-800
                                             @elseif($baby->sex === 'Female') bg-pink-100 text-pink-800
                                             @else bg-gray-100 text-gray-800 @endif">
-                                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                @if($baby->sex === 'Male')
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                                @elseif($baby->sex === 'Female')
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
-                                                @endif
-                                            </svg>
                                             {{ $baby->sex }}
                                         </span>
                                         @endif
                                         @if($patient->status === 'ONGOING' && auth()->user()->role !== 'admin')
-                                        <button type="button" onclick="toggleBabyEdit({{ $baby->id }})" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition edit-baby-btn">
+                                        <button type="button" onclick="toggleBabyEdit({{ $baby->id }})" class="btn btn-secondary edit-baby-btn">
                                             <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                             </svg>
@@ -452,80 +514,49 @@
 
                                 <!-- Display Mode -->
                                 <div class="baby-display-mode">
-                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                        <div class="bg-white rounded-lg p-4 border border-gray-200">
-                                            <div class="flex items-center space-x-2 mb-2">
-                                                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                                </svg>
-                                                <span class="text-sm font-medium text-gray-700">Date of Birth</span>
-                                            </div>
-                                            <p class="text-lg font-semibold text-gray-900">
-                                                {{ $baby->date_of_birth ? \Carbon\Carbon::parse($baby->date_of_birth)->format('M d, Y') : 'N/A' }}
-                                            </p>
+                                    <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <div class="stat-cell">
+                                            <div class="stat-label">Date of Birth</div>
+                                            <p class="stat-value">{{ $baby->date_of_birth ? \Carbon\Carbon::parse($baby->date_of_birth)->format('M d, Y') : 'N/A' }}</p>
                                         </div>
-
-                                        <div class="bg-white rounded-lg p-4 border border-gray-200">
-                                            <div class="flex items-center space-x-2 mb-2">
-                                                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                </svg>
-                                                <span class="text-sm font-medium text-gray-700">Time of Birth</span>
-                                            </div>
-                                            <p class="text-lg font-semibold text-gray-900">
-                                                {{ $baby->time_of_birth ? \Carbon\Carbon::parse($baby->time_of_birth)->format('g:i A') : 'N/A' }}
-                                            </p>
+                                        <div class="stat-cell">
+                                            <div class="stat-label">Time of Birth</div>
+                                            <p class="stat-value">{{ $baby->time_of_birth ? \Carbon\Carbon::parse($baby->time_of_birth)->format('g:i A') : 'N/A' }}</p>
                                         </div>
-
-                                        <div class="bg-white rounded-lg p-4 border border-gray-200">
-                                            <div class="flex items-center space-x-2 mb-2">
-                                                <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path>
-                                                </svg>
-                                                <span class="text-sm font-medium text-gray-700">Birth Weight</span>
-                                            </div>
-                                            <p class="text-lg font-semibold text-gray-900">
-                                                {{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A' }}
-                                            </p>
+                                        <div class="stat-cell">
+                                            <div class="stat-label">Birth Weight</div>
+                                            <p class="stat-value">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A' }}</p>
                                         </div>
-
-                                        <div class="bg-white rounded-lg p-4 border border-gray-200">
-                                            <div class="flex items-center space-x-2 mb-2">
-                                                <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m0 0V1a1 1 0 011-1h2a1 1 0 011 1v3M7 4H5a1 1 0 00-1 1v16a1 1 0 001 1h14a1 1 0 001-1V5a1 1 0 00-1-1h-2M7 4h10M9 9h6m-6 4h6m-6 4h6"></path>
-                                                </svg>
-                                                <span class="text-sm font-medium text-gray-700">Birth Length</span>
-                                            </div>
-                                            <p class="text-lg font-semibold text-gray-900">
-                                                {{ $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A' }}
-                                            </p>
+                                        <div class="stat-cell">
+                                            <div class="stat-label">Birth Length</div>
+                                            <p class="stat-value">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A' }}</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Edit Mode -->
                                 <div class="baby-edit-mode hidden">
-                                    <form class="baby-edit-form" data-baby-id="{{ $baby->id }}">
+                                    <form class="baby-edit-form mt-4 border-t border-gray-100 pt-4" data-baby-id="{{ $baby->id }}">
                                         @csrf
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                                                <input type="text" name="first_name" value="{{ $baby->first_name }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="text" name="first_name" value="{{ $baby->first_name }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
-                                                <input type="text" name="middle_name" value="{{ $baby->middle_name }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="text" name="middle_name" value="{{ $baby->middle_name }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                                                <input type="text" name="last_name" value="{{ $baby->last_name }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="text" name="last_name" value="{{ $baby->last_name }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                         </div>
 
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Sex</label>
-                                                <select name="sex" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <select name="sex" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                                     <option value="">Select Sex</option>
                                                     <option value="Male" {{ $baby->sex === 'Male' ? 'selected' : '' }}>Male</option>
                                                     <option value="Female" {{ $baby->sex === 'Female' ? 'selected' : '' }}>Female</option>
@@ -533,27 +564,27 @@
                                             </div>
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Date of Birth <span class="text-red-500">*</span></label>
-                                                <input type="date" name="date_of_birth" value="{{ $baby->date_of_birth }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="date" name="date_of_birth" value="{{ $baby->date_of_birth }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Time of Birth <span class="text-red-500">*</span></label>
-                                                <input type="time" name="time_of_birth" value="{{ $baby->time_of_birth }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="time" name="time_of_birth" value="{{ $baby->time_of_birth }}" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Birth Weight (kg)</label>
-                                                <input type="number" name="birth_weight" value="{{ $baby->birth_weight }}" step="0.01" min="0" max="10" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="number" name="birth_weight" value="{{ $baby->birth_weight }}" step="0.01" min="0" max="10" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                             <div class="md:col-span-2 lg:col-span-1">
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Birth Length (cm)</label>
-                                                <input type="number" name="birth_length" value="{{ $baby->birth_length }}" step="0.1" min="0" max="100" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                                <input type="number" name="birth_length" value="{{ $baby->birth_length }}" step="0.1" min="0" max="100" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                         </div>
 
                                         <div class="flex justify-end space-x-3 mt-6">
-                                            <button type="button" onclick="cancelBabyEdit({{ $baby->id }})" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition">
+                                            <button type="button" onclick="cancelBabyEdit({{ $baby->id }})" class="btn btn-secondary">
                                                 Cancel
                                             </button>
-                                            <button type="submit" class="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition">
+                                            <button type="submit" class="btn btn-primary">
                                                 Save Changes
                                             </button>
                                         </div>
@@ -567,32 +598,30 @@
                 @endif
 
                 <!-- Prenatal Visits Section -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                </svg>
-                                <h2 class="text-lg font-semibold text-gray-800">Prenatal Visits</h2>
-                            </div>
-                            @if($patient->status === 'DELIVERED')
-                                <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only</span>
-                            @else
-                                <span class="text-sm text-gray-500">{{ $patient->prenatalVisits->count() }} visits</span>
-                            @endif
+                <div id="prenatal-visits-section" class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Prenatal Visits
                         </div>
+                        @if($patient->status === 'DELIVERED')
+                            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">Read-only</span>
+                        @else
+                            <span class="text-sm text-gray-500">{{ $patient->prenatalVisits->count() }} visits</span>
+                        @endif
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BP</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GA</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Risk</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    <th class="th-cell">Date</th>
+                                    <th class="th-cell">BP</th>
+                                    <th class="th-cell">Weight</th>
+                                    <th class="th-cell">GA</th>
+                                    <th class="th-cell">Risk</th>
+                                    <th class="th-cell">Action</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -602,22 +631,22 @@
                                     $visitRuleReasons = \App\Support\ListNormalizer::normalize($visit->rule_reasons);
                                 @endphp
                                 <tr class="hover:bg-gray-50 transition cursor-pointer" onclick="toggleVisitDetails({{ $visit->id }})">
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $visit->visit_date }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</td>
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $visit->weight }} kg</td>
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $visit->gestational_age }} wks</td>
-                                    <td class="px-4 py-3">
+                                    <td class="td-cell text-gray-900">{{ $visit->visit_date }}</td>
+                                    <td class="td-cell text-gray-900">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</td>
+                                    <td class="td-cell text-gray-900">{{ $visit->weight }} kg</td>
+                                    <td class="td-cell text-gray-900">{{ $visit->gestational_age }} wks</td>
+                                    <td class="td-cell">
                                         @if($visit->risk_level == 'HIGH')
-                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">High</span>
+                                            <x-status-badge variant="danger">High</x-status-badge>
                                         @elseif($visit->risk_level == 'LOW')
-                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Low</span>
+                                            <x-status-badge variant="success">Low</x-status-badge>
                                         @elseif($visit->risk_level == 'ASSESSMENT INCOMPLETE')
-                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">Assessment Incomplete</span>
+                                            <x-status-badge variant="warning">Assessment Incomplete</x-status-badge>
                                         @else
-                                            <span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Unknown</span>
+                                            <x-status-badge variant="neutral">Unknown</x-status-badge>
                                         @endif
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="td-cell">
                                         @if($patient->status === 'ONGOING')
                                             <div class="flex space-x-2">
                                                 <a href="{{ route('prenatal-visits.edit', $visit->id) }}" class="text-blue-600 hover:text-blue-800 text-sm">Edit</a>
@@ -715,61 +744,59 @@
                 </div>
 
                 <!-- Ultrasound Records -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                                </svg>
-                                <h2 class="text-lg font-semibold text-gray-800">Ultrasound Records</h2>
-                            </div>
-                            @if($patient->status === 'ONGOING')
-                            <a href="{{ route('ultrasound.create', $patient->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                </svg>
-                                Add Ultrasound Record
-                            </a>
-                            @else
-                            <span class="text-sm text-gray-500">Historical record</span>
-                            @endif
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9l3 6m0 0l3-6m0 0l3 6m0 0l3-6m3 3v6a2 2 0 01-2 2H5a2 2 0 01-2-2V9"></path>
+                            </svg>
+                            Ultrasound Records
                         </div>
+                        @if($patient->status === 'ONGOING')
+                        <a href="{{ route('ultrasound.create', $patient->id) }}" class="btn btn-primary">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                            Add Ultrasound Record
+                        </a>
+                        @else
+                        <span class="text-sm text-gray-500">Historical record</span>
+                        @endif
                     </div>
                     <div class="overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Heartbeat</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Movement</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GA</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    <th class="th-cell">Date</th>
+                                    <th class="th-cell">Heartbeat</th>
+                                    <th class="th-cell">Movement</th>
+                                    <th class="th-cell">GA</th>
+                                    <th class="th-cell">Report</th>
+                                    <th class="th-cell">Action</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @forelse($patient->ultrasounds as $u)
                                 <tr class="hover:bg-gray-50">
-                                    <td class="px-4 py-3 text-sm text-gray-900">{{ $u->scan_date }}</td>
-                                    <td class="px-4 py-3">
+                                    <td class="td-cell text-gray-900">{{ $u->scan_date }}</td>
+                                    <td class="td-cell">
                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                             {{ $u->fetal_heartbeat }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="td-cell">
                                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                             {{ $u->fetal_movement }}
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 text-sm text-gray-900">
+                                    <td class="td-cell text-gray-900">
                                         @if($u->gestational_age_scan !== null && $u->gestational_age_scan !== '')
                                             {{ $u->gestational_age_scan }} wks
                                         @else
                                             <span class="text-gray-400">—</span>
                                         @endif
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="td-cell">
                                         @php
                                             $usHasImage = $u->report_image && \Storage::disk('public')->exists($u->report_image);
                                             $usHasPdf = $u->report_file && \Storage::disk('public')->exists($u->report_file);
@@ -796,7 +823,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="td-cell">
                                         @if($patient->status === 'ONGOING')
                                             <a href="{{ route('ultrasound.edit', $u->id) }}" class="text-blue-600 hover:text-blue-800 text-sm">Edit</a>
                                         @else
@@ -868,34 +895,32 @@
                 </script>
 
                 <!-- Medical History -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                                </svg>
-                                <h2 class="text-lg font-semibold text-gray-800">Medical History</h2>
-                            </div>
-                            @if($patient->status === 'ONGOING')
-                                @if($patient->medicalHistory)
-                                    <a href="{{ route('medical-histories.edit', $patient->medicalHistory->id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</a>
-                                @else
-                                    <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add Medical History
-                                    </a>
-                                @endif
-                            @else
-                                <span class="text-sm text-gray-500">Historical record</span>
-                            @endif
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Medical History
                         </div>
+                        @if($patient->status === 'ONGOING')
+                            @if($patient->medicalHistory)
+                                <a href="{{ route('medical-histories.edit', $patient->medicalHistory->id) }}" class="text-blue-600 hover:text-blue-800 text-sm font-medium">Edit</a>
+                            @else
+                                <a href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}" class="btn btn-primary">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add Medical History
+                                </a>
+                            @endif
+                        @else
+                            <span class="text-sm text-gray-500">Historical record</span>
+                        @endif
                     </div>
-                    <div class="p-6">
+                    <div class="panel-body">
                         @if($patient->medicalHistory)
-                        <div class="mb-4 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                        <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                             <strong>Diabetes</strong> and <strong>Anemia</strong> are also assessed during prenatal visits and may affect that visit's CDSS result. This Medical History record stores pregnancy-level background information and is not directly submitted to the risk engine.
                         </div>
                         @php
@@ -947,33 +972,27 @@
                                         <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $groupName }}</h4>
                                         <span class="text-xs text-gray-400">{{ $group['note'] }}</span>
                                     </div>
-                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div class="flex flex-wrap gap-2">
                                         @foreach($group['fields'] as $field => $label)
                                             @if($patient->medicalHistory->$field)
-                                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100">
-                                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                                    </svg>
-                                                    <span class="text-sm text-gray-700">{{ $label }}</span>
-                                                </div>
+                                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                                                    {{ $label }}
+                                                    <span class="text-[10px] font-bold uppercase text-blue-500">Yes</span>
+                                                </span>
                                             @else
-                                                <div class="flex items-center space-x-2 p-2 bg-red-50 rounded-lg border border-red-100 opacity-60">
-                                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                                    </svg>
-                                                    <span class="text-sm text-gray-500">{{ $label }}</span>
-                                                </div>
+                                                <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm text-gray-400 border border-gray-200">
+                                                    {{ $label }}
+                                                </span>
                                             @endif
                                         @endforeach
                                     </div>
                                 </div>
                             @endforeach
                             @if($patient->medicalHistory->other_specify)
-                                <div class="flex items-center space-x-2 p-2 bg-green-50 rounded-lg border border-green-100">
-                                    <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                                    </svg>
-                                    <span class="text-sm text-gray-700">Other: {{ $patient->medicalHistory->other_specify }}</span>
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                                        Other: {{ $patient->medicalHistory->other_specify }}
+                                    </span>
                                 </div>
                             @endif
                         </div>
@@ -985,7 +1004,7 @@
                             });
                         @endphp
                         @if($visitRecordedCondition)
-                            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                                 A condition was recorded during a prenatal visit. Complete the Medical History record to maintain the pregnancy background record.
                             </div>
                         @endif
@@ -994,80 +1013,62 @@
                 </div>
 
                 <!-- Birth Plan -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-                                </svg>
-                                <h2 class="text-lg font-semibold text-gray-800">Birth Plan</h2>
-                            </div>
-                            @if($patient->status === 'ONGOING')
-                                @if($patient->birthPlan)
-                                    <a href="{{ route('birth-plans.edit', $patient->birthPlan->id) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">
-                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Edit Birth Plan
-                                    </a>
-                                @else
-                                    <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add Birth Plan
-                                    </a>
-                                @endif
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                            </svg>
+                            Birth Plan
+                        </div>
+                        @if($patient->status === 'ONGOING')
+                            @if($patient->birthPlan)
+                                <a href="{{ route('birth-plans.edit', $patient->birthPlan->id) }}" class="btn btn-secondary">
+                                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Edit Birth Plan
+                                </a>
                             @else
-                                <span class="text-sm text-gray-500">Historical record</span>
+                                <a href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}" class="btn btn-primary">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add Birth Plan
+                                </a>
                             @endif
-                        </div>
+                        @else
+                            <span class="text-sm text-gray-500">Historical record</span>
+                        @endif
                     </div>
-                    <div class="p-6">
+                    <div class="panel-body">
                         @if($patient->birthPlan)
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <div class="flex items-start space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                                    </svg>
-                                    <div><span class="font-medium text-gray-700">Planned Visits:</span> {{ optional($patient->birthPlan)->planned_visits }}</div>
-                                </div>
-                                <div class="flex items-start space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                                    </svg>
-                                    <div><span class="font-medium text-gray-700">Delivery Location:</span> {{ optional($patient->birthPlan)->delivery_location }}</div>
-                                </div>
-                                <div class="flex items-start space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <div><span class="font-medium text-gray-700">Transportation:</span> {{ optional($patient->birthPlan)->transportation }}</div>
-                                </div>
+                        <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            <div class="kv-row">
+                                <dt class="kv-label">Planned Visits</dt>
+                                <dd class="kv-value">{{ optional($patient->birthPlan)->planned_visits }}</dd>
                             </div>
-                            <div class="space-y-2">
-                                <div class="flex items-start space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    <div><span class="font-medium text-gray-700">Payment Method:</span> {{ optional($patient->birthPlan)->payment_method }}</div>
-                                </div>
-                                <div class="flex items-start space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                    </svg>
-                                    <div><span class="font-medium text-gray-700">Birth Companion:</span> {{ optional($patient->birthPlan)->birth_companion }}</div>
-                                </div>
-                                <div class="flex items-start space-x-2">
-                                    <svg class="w-4 h-4 text-gray-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
-                                    </svg>
-                                    <div><span class="font-medium text-gray-700">Family Planning Method:</span> {{ optional($patient->birthPlan)->family_planning_method }}</div>
-                                </div>
+                            <div class="kv-row">
+                                <dt class="kv-label">Delivery Location</dt>
+                                <dd class="kv-value">{{ optional($patient->birthPlan)->delivery_location }}</dd>
                             </div>
-                        </div>
+                            <div class="kv-row">
+                                <dt class="kv-label">Transportation</dt>
+                                <dd class="kv-value">{{ optional($patient->birthPlan)->transportation }}</dd>
+                            </div>
+                            <div class="kv-row">
+                                <dt class="kv-label">Payment Method</dt>
+                                <dd class="kv-value">{{ optional($patient->birthPlan)->payment_method }}</dd>
+                            </div>
+                            <div class="kv-row">
+                                <dt class="kv-label">Birth Companion</dt>
+                                <dd class="kv-value">{{ optional($patient->birthPlan)->birth_companion }}</dd>
+                            </div>
+                            <div class="kv-row">
+                                <dt class="kv-label">Family Planning Method</dt>
+                                <dd class="kv-value">{{ optional($patient->birthPlan)->family_planning_method }}</dd>
+                            </div>
+                        </dl>
                         @else
                         <p class="text-gray-500 text-center py-4">No birth plan recorded</p>
                         @endif
@@ -1076,7 +1077,7 @@
             </div>
 
             <!-- RIGHT COLUMN (30%) -->
-            <div class="lg:w-1/3 space-y-6">
+            <div class="lg:w-1/3 space-y-6 order-1 lg:order-2">
                 <!-- Risk Assessment Card -->
                 @if($latestAssessment)
                 @php
@@ -1156,35 +1157,35 @@
                         'BLOCKED' => 'bg-amber-100 text-amber-800',
                     ];
                 @endphp
-                <div class="rounded-2xl shadow-md border overflow-hidden
-                    @if($rl === 'HIGH') border-red-300
-                    @elseif($rl === 'LOW') border-green-300
-                    @elseif($rl === 'ASSESSMENT INCOMPLETE') border-amber-300
-                    @else border-gray-200 @endif">
+                <div class="panel">
                     {{-- A. PROMINENT STATUS HERO --}}
-                    <div class="p-6
-                        @if($rl === 'HIGH') bg-red-600
-                        @elseif($rl === 'LOW') bg-green-600
-                        @elseif($rl === 'ASSESSMENT INCOMPLETE') bg-amber-500
-                        @else bg-gray-600 @endif">
-                        <div class="flex items-start justify-between gap-4">
-                            <div>
-                                <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Risk Assessment</p>
-                                <h3 class="mt-1 text-2xl font-extrabold text-white">
-                                    @if($rl === 'HIGH') HIGH RISK
-                                    @elseif($rl === 'LOW') LOW RISK
-                                    @elseif($rl === 'ASSESSMENT INCOMPLETE') ASSESSMENT INCOMPLETE
-                                    @else {{ $rl ?? 'NO ASSESSMENT AVAILABLE' }}
-                                    @endif
-                                </h3>
-                                @if($urgency === 'URGENT_CLINICAL_REVIEW')
-                                <p class="mt-2 inline-block bg-white text-red-700 text-sm font-bold px-3 py-1 rounded-full">URGENT CLINICAL REVIEW</p>
-                                @endif
-                            </div>
-                            <div class="text-right shrink-0">
-                                <p class="text-xs text-white/70">Assessment Date</p>
-                                <p class="mt-1 text-sm font-semibold text-white">{{ $latestAssessment->visit_date ? \Carbon\Carbon::parse($latestAssessment->visit_date)->format('M d, Y') : '—' }}</p>
-                            </div>
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                            </svg>
+                            Risk Assessment
+                        </div>
+                        <span class="text-sm text-gray-500">Assessment Date: {{ $latestAssessment->visit_date ? \Carbon\Carbon::parse($latestAssessment->visit_date)->format('M d, Y') : '—' }}</span>
+                    </div>
+                    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4 flex-wrap
+                        @if($rl === 'HIGH') bg-red-50
+                        @elseif($rl === 'LOW') bg-green-50
+                        @elseif($rl === 'ASSESSMENT INCOMPLETE') bg-amber-50
+                        @else bg-gray-50 @endif">
+                        <div class="flex items-center gap-3 flex-wrap">
+                            @if($rl === 'HIGH')
+                                <x-status-badge variant="danger">HIGH RISK</x-status-badge>
+                            @elseif($rl === 'LOW')
+                                <x-status-badge variant="success">LOW RISK</x-status-badge>
+                            @elseif($rl === 'ASSESSMENT INCOMPLETE')
+                                <x-status-badge variant="warning">ASSESSMENT INCOMPLETE</x-status-badge>
+                            @else
+                                <x-status-badge variant="neutral">{{ $rl ?? 'NO ASSESSMENT AVAILABLE' }}</x-status-badge>
+                            @endif
+                            @if($urgency === 'URGENT_CLINICAL_REVIEW')
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-red-600 text-white">URGENT CLINICAL REVIEW</span>
+                            @endif
                         </div>
                     </div>
 
@@ -1686,15 +1687,22 @@
                     </div>
                 </div>
                 @else
-                <div class="rounded-2xl shadow-md border border-gray-200 bg-white overflow-hidden">
-                    <div class="bg-gray-600 p-6">
-                        <p class="text-xs font-semibold uppercase tracking-widest text-white/70">Risk Assessment</p>
-                        <h3 class="mt-1 text-2xl font-extrabold text-white">NO ASSESSMENT AVAILABLE</h3>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                            </svg>
+                            Risk Assessment
+                        </div>
+                    </div>
+                    <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 flex items-center gap-3">
+                        <x-status-badge variant="neutral">NO ASSESSMENT AVAILABLE</x-status-badge>
                     </div>
                     <div class="p-6 text-center">
                         <p class="text-gray-600">No prenatal risk assessment has been recorded for this patient.</p>
                         @if($patient->status === 'ONGOING')
-                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="mt-3 inline-block bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">Add first visit</a>
+                        <a href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}" class="btn btn-primary mt-4">Add first visit</a>
                         @else
                         <p class="mt-2 text-sm text-gray-500">Historical pregnancy record.</p>
                         @endif
@@ -1702,111 +1710,33 @@
                 </div>
                 @endif
 
-                <!-- Pregnancy Summary Card -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center space-x-2">
-                            <svg class="w-5 h-5 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-                            </svg>
-                            <h3 class="font-semibold text-gray-800">Pregnancy Summary</h3>
-                        </div>
-                    </div>
-                    <div class="p-6 space-y-3">
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-600">Gravida</span>
-                            <span class="text-lg font-semibold text-gray-800">{{ $patient->gravida }}</span>
-                        </div>
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-600">Para</span>
-                            <span class="text-lg font-semibold text-gray-800">{{ $patient->para }}</span>
-                        </div>
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-600">Previous CS</span>
-                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ $patient->previous_cs ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800' }}">
-                                {{ $patient->previous_cs ? 'Yes' : 'No' }}
-                            </span>
-                        </div>
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-600">Miscarriage</span>
-                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ $patient->miscarriage ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
-                                {{ $patient->miscarriage ? 'Yes' : 'No' }}
-                            </span>
-                        </div>
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-600">LMP</span>
-                            <span class="text-sm font-medium text-gray-800">{{ $patient->lmp }}</span>
-                        </div>
-                        <div class="flex justify-between items-center pt-2">
-                            <span class="text-sm text-gray-600">EDD</span>
-                            <span class="text-sm font-bold text-pink-600">{{ $patient->edd }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Info Card -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center space-x-2">
-                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <h3 class="font-semibold text-gray-800">Quick Information</h3>
-                        </div>
-                    </div>
-                    <div class="p-6 space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600">Birthdate</span>
-                            <span class="text-sm text-gray-800">{{ $patient->birthdate }}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600">Civil Status</span>
-                            <span class="text-sm text-gray-800">{{ $patient->civil_status }}</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-gray-600">PhilHealth Member</span>
-                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ $patient->philhealth_member ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' }}">
-                                {{ $patient->philhealth_member ? 'Yes' : 'No' }}
-                            </span>
-                        </div>
-                        @if($patient->philhealth_number)
-                        <div class="flex justify-between items-center pt-2 border-t border-gray-100">
-                            <span class="text-sm text-gray-600">PhilHealth Number</span>
-                            <span class="text-sm font-mono text-gray-800">{{ $patient->philhealth_number }}</span>
-                        </div>
-                        @endif
-                    </div>
-                </div>
-
                 <!-- Referral Card (16E) -->
                 @php
                     $referrals = $patient->referrals->sortByDesc(fn ($r) => [$r->referral_date?->timestamp ?? 0, $r->id]);
                     $latestReferral = $referrals->first();
                 @endphp
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div class="border-b border-gray-100 px-6 py-4 bg-gray-50">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 {{ $latestReferral && $latestReferral->status === 'Pending' ? 'text-orange-600' : 'text-blue-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
-                                </svg>
-                                <h3 class="font-semibold text-gray-800">Referral Follow-through</h3>
-                            </div>
-                            <a href="{{ route('referrals.index') }}" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Manage</a>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                            </svg>
+                            Referral Follow-through
                         </div>
+                        <a href="{{ route('referrals.index') }}" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Manage</a>
                     </div>
-                    <div class="p-6 space-y-3">
-                        <div class="flex justify-between items-center pb-2 border-b border-gray-100">
-                            <span class="text-sm text-gray-600">Latest Referral</span>
+                    <div class="panel-body space-y-3">
+                        <div class="kv-row">
+                            <span class="kv-label">Latest Referral</span>
                             @if($latestReferral)
                                 @if($latestReferral->status === 'Pending')
-                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">Pending Referral</span>
+                                    <x-status-badge variant="warning">Pending Referral</x-status-badge>
                                 @elseif($latestReferral->status === 'Completed')
-                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Completed</span>
+                                    <x-status-badge variant="success">Completed</x-status-badge>
                                 @elseif($latestReferral->status === 'Refused')
-                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-orange-800">Refused</span>
+                                    <x-status-badge variant="danger">Refused</x-status-badge>
                                 @else
-                                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">Cancelled</span>
+                                    <x-status-badge variant="neutral">Cancelled</x-status-badge>
                                 @endif
                             @else
                                 <span class="text-sm text-gray-400">None</span>
@@ -1814,7 +1744,7 @@
                         </div>
 
                         @if($latestReferral)
-                        <div class="py-2">
+                        <div class="py-2 border-t border-gray-100">
                             <p class="text-sm font-semibold text-gray-800">{{ $latestReferral->referred_to }}</p>
                             <p class="text-xs text-gray-500">{{ $latestReferral->referral_date?->format('M d, Y') }}</p>
                             <span class="mt-1.5 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold
@@ -1830,7 +1760,7 @@
                         @endif
 
                         <a href="{{ route('referrals.show', $latestReferral->id) }}"
-                            class="inline-flex items-center justify-center w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
+                            class="btn btn-primary w-full justify-center">
                             View Referral
                         </a>
 
@@ -1951,10 +1881,10 @@
             <form method="POST" action="{{ route('patients.deliver', $patient->id) }}">
                 @csrf
                 
-                <div class="bg-gradient-to-r from-green-50 to-green-100 px-6 py-4 border-b border-green-200">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
                     <div class="flex items-center justify-between">
                         <div class="flex items-center space-x-3">
-                            <div class="bg-green-600 rounded-full p-2">
+                            <div class="bg-blue-600 rounded-full p-2">
                                 <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                                 </svg>
@@ -1997,7 +1927,7 @@
                                value="{{ now()->format('Y-m-d') }}"
                                max="{{ now()->format('Y-m-d') }}"
                                required
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         <p class="text-xs text-gray-500 mt-1">Date of delivery</p>
                         @error('delivery_date')
                             <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
@@ -2009,7 +1939,7 @@
                             Delivery Location <span class="text-red-500">*</span>
                         </label>
                         <select name="delivery_location" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             <option value="" disabled hidden>Select delivery location</option>
                             <option value="THIS_CLINIC" {{ old('delivery_location') === 'THIS_CLINIC' ? 'selected' : '' }}>This clinic</option>
                             <option value="ANOTHER_FACILITY" {{ old('delivery_location') === 'ANOTHER_FACILITY' ? 'selected' : '' }}>Another facility</option>
@@ -2026,7 +1956,7 @@
                             Confirmation Source <span class="text-red-500">*</span>
                         </label>
                         <select name="confirmation_source" required
-                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                             <option value="" disabled hidden>Select how the delivery was confirmed</option>
                             <option value="CLINIC_RECORD" {{ old('confirmation_source') === 'CLINIC_RECORD' ? 'selected' : '' }}>Clinic record</option>
                             <option value="PATIENT_REPORT" {{ old('confirmation_source') === 'PATIENT_REPORT' ? 'selected' : '' }}>Patient report</option>
@@ -2045,7 +1975,7 @@
                         <textarea name="outcome_notes"
                                   rows="3"
                                   placeholder="Optional note about how or where the delivery was confirmed."
-                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500">{{ old('outcome_notes') }}</textarea>
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ old('outcome_notes') }}</textarea>
                         @error('outcome_notes')
                             <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
                         @enderror
@@ -2077,15 +2007,15 @@
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">First Name</label>
-                                        <input type="text" name="babies[0][first_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                        <input type="text" name="babies[0][first_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Middle Name</label>
-                                        <input type="text" name="babies[0][middle_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                        <input type="text" name="babies[0][middle_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
-                                        <input type="text" name="babies[0][last_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                        <input type="text" name="babies[0][last_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                 </div>
 
@@ -2093,7 +2023,7 @@
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Sex</label>
-                                        <select name="babies[0][sex]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                        <select name="babies[0][sex]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                             <option value="">Select Sex</option>
                                             <option value="Male">Male</option>
                                             <option value="Female">Female</option>
@@ -2102,11 +2032,11 @@
                                     <div class="grid grid-cols-2 gap-2">
                                         <div>
                                             <label class="block text-xs font-medium text-gray-600 mb-1">Date of Birth <span class="text-red-500">*</span></label>
-                                            <input type="date" name="babies[0][date_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                            <input type="date" name="babies[0][date_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-gray-600 mb-1">Time of Birth <span class="text-red-500">*</span></label>
-                                            <input type="time" name="babies[0][time_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                            <input type="time" name="babies[0][time_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                         </div>
                                     </div>
                                 </div>
@@ -2115,11 +2045,11 @@
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Weight (kg)</label>
-                                        <input type="number" name="babies[0][birth_weight]" step="0.01" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                        <input type="number" name="babies[0][birth_weight]" step="0.01" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Length (cm)</label>
-                                        <input type="number" name="babies[0][birth_length]" step="0.1" min="0" max="100" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                                        <input type="number" name="babies[0][birth_length]" step="0.1" min="0" max="100" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                 </div>
                             </div>
@@ -2128,10 +2058,10 @@
                 </div>
                 
                 <div class="bg-gray-50 px-6 py-4 flex flex-col sm:flex-row justify-end gap-3">
-                    <button type="button" onclick="closeDeliveryModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                    <button type="button" onclick="closeDeliveryModal()" class="btn btn-secondary">
                         Cancel
                     </button>
-                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+                    <button type="submit" class="btn btn-primary">
                         Confirm Delivery
                     </button>
                 </div>
@@ -2355,15 +2285,15 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">First Name</label>
-                        <input type="text" name="babies[${babyIndex}][first_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                        <input type="text" name="babies[${babyIndex}][first_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Middle Name</label>
-                        <input type="text" name="babies[${babyIndex}][middle_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                        <input type="text" name="babies[${babyIndex}][middle_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Last Name</label>
-                        <input type="text" name="babies[${babyIndex}][last_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                        <input type="text" name="babies[${babyIndex}][last_name]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     </div>
                 </div>
 
@@ -2371,7 +2301,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Sex</label>
-                        <select name="babies[${babyIndex}][sex]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                        <select name="babies[${babyIndex}][sex]" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                             <option value="">Select Sex</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
@@ -2380,11 +2310,11 @@
                     <div class="grid grid-cols-2 gap-2">
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">Date of Birth <span class="text-red-500">*</span></label>
-                            <input type="date" name="babies[${babyIndex}][date_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                            <input type="date" name="babies[${babyIndex}][date_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">Time of Birth <span class="text-red-500">*</span></label>
-                            <input type="time" name="babies[${babyIndex}][time_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                            <input type="time" name="babies[${babyIndex}][time_of_birth]" required class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                         </div>
                     </div>
                 </div>
@@ -2393,11 +2323,11 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Weight (kg)</label>
-                        <input type="number" name="babies[${babyIndex}][birth_weight]" step="0.01" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                        <input type="number" name="babies[${babyIndex}][birth_weight]" step="0.01" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Length (cm)</label>
-                        <input type="number" name="babies[${babyIndex}][birth_length]" step="0.1" min="0" max="100" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-green-500 focus:border-green-500">
+                        <input type="number" name="babies[${babyIndex}][birth_length]" step="0.1" min="0" max="100" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     </div>
                 </div>
             `;

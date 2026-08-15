@@ -3,14 +3,11 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
             {{-- Header --}}
-            <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 class="text-3xl font-bold text-gray-900">Archived Patients</h1>
-                    <p class="text-gray-500 mt-1 text-sm">Review deleted patient records and restore them back to the active list.</p>
-                </div>
-                <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                    <a href="{{ route('patients.index') }}"
-                        class="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition font-medium">
+            <x-app-header class="mb-8">
+                <x-slot name="title">Archived Patients</x-slot>
+                <x-slot name="subtitle">Review deleted patient records and restore them back to the active list.</x-slot>
+                <x-slot name="actions">
+                    <a href="{{ route('patients.index') }}" class="btn btn-secondary">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                         </svg>
@@ -20,17 +17,10 @@
                         <span class="text-blue-600">{{ $patients->count() }}</span>
                         <span>archived patients</span>
                     </div>
-                </div>
-            </div>
+                </x-slot>
+            </x-app-header>
 
-            @if(session('success'))
-                <div class="mb-6 flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 text-sm" role="alert">
-                    <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>{{ session('success') }}</span>
-                </div>
-            @endif
+            <x-flash type="success" :message="session('success')" class="mb-6" />
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center gap-4">

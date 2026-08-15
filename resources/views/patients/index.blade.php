@@ -1,46 +1,30 @@
 <x-app-layout>
     
-@if(session('success'))
-    <div class="mb-4 p-4 rounded-lg bg-green-100 border border-green-300 text-green-700">
-        {{ session('success') }}
-    </div>
-@endif
 <div class="min-h-screen bg-gray-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {{-- Header --}}
-        <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-gray-900">Patient Records</h1>
-                <p class="text-gray-500 mt-1 text-sm">Manage and monitor all registered prenatal patients</p>
-            </div>
-            <div class="flex items-center gap-3">
-                <a href="{{ route('patients.trashed') }}"
-                    class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition font-medium">
+        <x-app-header class="mb-8">
+            <x-slot name="title">Patient Records</x-slot>
+            <x-slot name="subtitle">Manage and monitor all registered prenatal patients</x-slot>
+            <x-slot name="actions">
+                <a href="{{ route('patients.trashed') }}" class="btn btn-secondary">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4m4-4v4"/>
                     </svg>
                     Archived
                 </a>
-                <a href="{{ route('patients.create') }}"
-                    class="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition shadow-md text-sm font-semibold">
+                <a href="{{ route('patients.create') }}" class="btn btn-primary">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                     </svg>
                     Add New Patient
                 </a>
-            </div>
-        </div>
+            </x-slot>
+        </x-app-header>
 
         {{-- Flash --}}
-        @if(session('success'))
-            <div class="mb-6 flex items-center gap-3 bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3 text-sm" role="alert">
-                <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                {{ session('success') }}
-            </div>
-        @endif
+        <x-flash type="success" :message="session('success')" class="mb-6" />
 
         <div id="successModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
             <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
@@ -263,7 +247,7 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
 
 <script>
     setTimeout(() => {
-        const alert = document.querySelector('.bg-green-100');
+        const alert = document.querySelector('.alert-success');
         if(alert){
             alert.style.display = 'none';
         }

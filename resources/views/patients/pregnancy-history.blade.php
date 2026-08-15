@@ -95,7 +95,7 @@
                     @php
                         $latestVisit = $pregnancy->prenatalVisits->sortByDesc('visit_date')->first();
                         $riskLevel = $latestVisit?->risk_level ?: 'N/A';
-                        $riskClass = $riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' : ($riskLevel === 'LOW' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700');
+                        $riskVariant = $riskLevel === 'HIGH' ? 'danger' : ($riskLevel === 'LOW' ? 'success' : 'warning');
                         $outcome = $pregnancy->pregnancyOutcome;
                         $confirmed = $outcome && $outcome->hasConfirmedOutcome();
                     @endphp
@@ -120,11 +120,11 @@
                                 </div>
                                 <div>
                                     <div class="text-xs text-gray-500">Risk Level</div>
-                                    <span class="inline-flex rounded-md px-2 py-0.5 text-xs font-semibold {{ $riskClass }}">{{ Str::title(strtolower($riskLevel)) }}</span>
+                                    <x-status-badge :variant="$riskVariant">{{ Str::title(strtolower($riskLevel)) }}</x-status-badge>
                                 </div>
                                 <div>
                                     <div class="text-xs text-gray-500">Status</div>
-                                    <span class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">Delivered</span>
+                                    <x-status-badge variant="success">Delivered</x-status-badge>
                                 </div>
                                 <div class="flex items-center">
                                     <a href="{{ route('patients.delivered.babies', $pregnancy->id) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">

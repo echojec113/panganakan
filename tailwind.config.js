@@ -12,7 +12,36 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['DM Sans', 'Figtree', ...defaultTheme.fontFamily.sans],
+                display: ['Lora', 'ui-serif', 'Georgia', 'serif'],
+            },
+
+            colors: {
+                primary: {
+                    DEFAULT: '#2563eb',
+                    hover: '#1d4ed8',
+                    soft: '#eff6ff',
+                },
+                success: {
+                    DEFAULT: '#16a34a',
+                    soft: '#f0fdf4',
+                },
+                warning: {
+                    DEFAULT: '#d97706',
+                    soft: '#fffbeb',
+                },
+                danger: {
+                    DEFAULT: '#dc2626',
+                    soft: '#fef2f2',
+                },
+                info: {
+                    DEFAULT: '#0284c7',
+                    soft: '#f0f9ff',
+                },
+                neutral: {
+                    DEFAULT: '#64748b',
+                    soft: '#f1f5f9',
+                },
             },
         },
     },

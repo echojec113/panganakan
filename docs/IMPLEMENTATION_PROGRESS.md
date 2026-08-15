@@ -1294,3 +1294,335 @@ Polish the staff-facing Pregnancy Outcome follow-up workflow without changing an
 - No migration/schema/clinical-threshold/service-behavior/vocabulary changes.
 
 PHASE 17E UI/UX FINALIZATION COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Phase 1 — UI/UX Visual Foundation (Design Tokens + Shared Components)
+
+Status: Complete
+
+Scope (incremental, per design rules): Phase 1 is visual-system work only. Define one shared design-token source of truth and standardize the existing reusable Blade components so every later page restyle draws from a single foundation. No controllers, routes, database, ML, risk, referral, export, or permission logic was touched. No major page was redesigned.
+
+### Design tokens (single source of truth)
+- `resources/css/app.css` - added `@layer base` `:root` tokens mirroring the app-shell variables in `layouts/app.blade.php`: semantic colors (`--color-primary`, `--color-primary-hover`, `--color-success`, `--color-warning`, `--color-danger`, `--color-info`, `--color-neutral` plus soft variants, page/card background, borders, muted text), radius (`--radius-card` 16px, `--radius-btn` 10px, `--radius-input` 8px, `--radius-badge` 9999px, `--radius-modal` 16px), one subtle card shadow (`--shadow-card`) plus a single popover shadow, spacing scale (`--space-page/card/section/form/modal`, `--cell-pad`), and typography (`--font-sans` DM Sans-first, `--font-serif` Lora).
+- `@layer components` in `app.css` - foundational classes used by the shared components: `.card`, `.btn` base + `.btn-primary/.btn-secondary/.btn-danger/.btn-link`, `.status-badge` + five variants (`.status-badge-success/warning/danger/info/neutral`), `.alert` + four variants (`.alert-success/error/warning/info`). Badge classes are named `status-badge` to avoid colliding with the existing `.badge` utility already used by the topbar notification dot and dashboard KPI badges.
+- `tailwind.config.js` - extended theme: `fontFamily.sans` now DM Sans-first, new `font-display` (Lora) for titles, and semantic `colors.{primary,success,warning,danger,info,neutral}` with `DEFAULT` + `hover` + `soft` shades so pages/utilities like `bg-primary`, `focus:ring-primary/30`, `bg-primary-soft` are available without new color families.
+
+### Shared components standardized
+- `resources/views/components/primary-button.blade.php` - now `.btn .btn-primary` (blue, white text, 40px height, 10px radius, normal-case). Previously Breeze `bg-gray-800` + uppercase/tracking-widest.
+- `resources/views/components/secondary-button.blade.php` - now `.btn .btn-secondary` (white, border, normal-case).
+- `resources/views/components/danger-button.blade.php` - now `.btn .btn-danger` (red, normal-case).
+- `resources/views/components/text-input.blade.php` - unified input appearance: `h-10 px-3 text-sm rounded-lg border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/30`. Indigo focus and `rounded-md` removed; dark-mode-only classes dropped (app is light-only).
+- `resources/views/components/input-label.blade.php` - `text-slate-700` label (was gray-700).
+- `resources/views/components/modal.blade.php` - overlay `bg-slate-900/60` (was gray-500/75), panel `rounded-2xl` + `shadow-lg` (was `rounded-lg` + `shadow-xl`). All Alpine/trap-focus/escape behavior untouched.
+- `resources/views/components/input-error.blade.php` - unchanged (already matched tokens: red-600 text-sm).
+
+### New shared components
+- `resources/views/components/status-badge.blade.php` - `x-status-badge`, `variant` prop (success/warning/danger/info/neutral), renders `.status-badge` pill. One badge language for later phases.
+- `resources/views/components/flash.blade.php` - `x-flash`, `type` + optional `message` prop or slot, renders `.alert` variants.
+- `resources/views/components/error-summary.blade.php` - `x-error-summary`, renders `$errors->all()` in a `.alert-error` box.
+- `resources/views/components/icon-title.blade.php` - `x-icon-title`, soft primary icon tile + title + subtitle header block.
+- `resources/views/components/app-header.blade.php` - `x-app-header`, shared page-header structure with title/subtitle and an `$actions` named slot.
+
+These new components are created but intentionally not wired into major pages yet (Phase 3+). They are the adoption target for the audit's repeated page-header/badge/flash patterns.
+
+### Visual differences introduced
+- Auth/profile pages that use the shared components now show blue primary buttons, bordered secondary buttons, rounded inputs with a blue focus ring, and a darker modal overlay with `rounded-2xl` panels. No uppercase/tracking-widest anywhere in the shared set.
+- Major pages (Patient Profile, dashboards, login, records, visits, risk, referrals, delivered, audit logs) were not restyled; no page-specific markup was edited.
+
+### Tests / results
+- `npm run build`: succeeded (vite 7.3.1); compiled CSS confirmed to contain token vars, `.status-badge*`, `.btn*`, `.alert*`, `.card`, and the `focus:border-primary` / `focus:ring-primary/30` utilities.
+- `php artisan view:cache`: clean (all Blade incl. 5 new components compile).
+- `php artisan test`: 704 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete) - verified identical on the stashed baseline.
+- No migrations, schema, clinical thresholds, service behavior, vocabulary, routes, or permissions changed.
+
+Design defense: tokens live in one place (`app.css` + Tailwind config) so later page restyles reference a single palette instead of per-page hex values; the app-shell variables in `layouts/app.blade.php` are mirrored (not replaced) so the inline shell styles keep working with zero behavioral risk. `status-badge` naming avoids overriding the existing `.badge` notification dot used in the topbar on every authenticated page.
+
+PHASE 1 UI/UX VISUAL FOUNDATION COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Phase 2 — Page-Level UI/UX Standardization (Headers, Badges, Flashes, Error Summaries)
+
+Status: Complete
+
+Scope (incremental, per design rules): Phase 2 adopts the Phase 1 shared components (`x-app-header`, `x-icon-title`, `x-status-badge`, `x-flash`, `x-error-summary`) across the module pages listed below, removes decorative "AI-looking" elements (gradient headers, emojis, random indigo/purple/pink accents), and standardizes flash/error handling. Patient Profile arrangement, dashboards, sidebar/IA, backend logic, clinical thresholds, vocabulary, routes, and permissions were NOT changed. All page copy used by tests was kept byte-identical; tests assert text, not badge classes.
+
+### Error summary component enhancement
+- `resources/views/components/error-summary.blade.php` - added an optional `title` prop (e.g. "Please fix the following errors:"); content wrapped in `<div class="flex-1">`, list is `list-disc pl-5 space-y-1` with `mt-1` spacing when a title is present. Existing no-title usage (auth/profile) unaffected.
+
+### Modules migrated (view-only)
+- `referrals/index`: self-contained `$sourceVariant`/`$statusVariant` mappings (PHP closures do NOT auto-capture parent scope - the first draft threw "Undefined variable $sourceIndigo" and was fixed by inlining the mapping inside the closure), `x-app-header` with analytics actions, `x-flash` success/error, source + status badges to `x-status-badge`.
+- `referrals/show`: `$pregnancyVariant`/`$statusVariant`/`$riskVariant` badges, `x-flash`, `x-app-header` (patient name title, destination/doctor/date subtitle, Back + Print `btn` actions), "Referral Details" pill removed.
+- `referrals/create`: `x-app-header`, `x-error-summary` with title, Assessment panel indigo→blue, risk badge, Manual Referral badge.
+- `patients/delivered`: `x-icon-title` header + monitoring `btn btn-secondary`, `x-flash`/`x-error-summary`, Total Babies/Confirmed/Historical badges, row buttons → `btn btn-secondary`/`btn btn-primary`, modal header `bg-indigo-50`→`bg-gray-50`.
+- `pregnancy-outcomes/index`: `x-icon-title`, indigo→blue accents/focus/hover, info box blue, `x-flash`/`x-error-summary`, filter pills active `bg-primary text-white`, state badges wrapped in `x-status-badge` (controller-provided `state_badge_class` passed through so colors win and the pill shape is gained).
+- `patients/pregnancy-history`: risk badge → `x-status-badge` (danger/success/warning), Delivered badge → success.
+- `audit_logs/index`: 📜 emoji removed, `x-app-header`, filter card `shadow-sm` + focus states, `btn btn-primary`, action/module badges → `x-status-badge` (CREATE→success, UPDATE→info, DELETE→danger, module→neutral).
+- `patients/index`: duplicate top flash removed, `x-app-header` (Archived + Add New Patient actions), `x-flash`, auto-hide script retargeted from `.bg-green-100` to `.alert-success`.
+- `patients/trashed`: `x-app-header` + `x-flash`.
+- `patients/create` + `patients/edit`: gradient headers → `bg-gray-50` card header with `x-icon-title`, `shadow-lg`→`shadow-sm`, errors → `x-error-summary`.
+- `prenatal_visits/index`: `x-app-header` (Add Prenatal Visit action), purple stat icon→blue, risk badges → `x-status-badge` (danger/success/warning).
+- `prenatal_visits/create` + `edit`: gradient headers → clean `x-icon-title` headers, errors → `x-error-summary`, purple section icon→blue, edit risk badge → `x-status-badge`.
+- `ultrasounds/create` + `edit`: gradient purple-pink/amber-yellow headers → clean `x-icon-title` headers, errors → `x-error-summary`, all `focus:ring-purple-500`→blue, pink/yellow icons→blue, purple submit buttons→blue.
+- `birth_plans/create`: header → `x-app-header` (Back to Patient Profile action).
+- `medical_histories/create`: header → `x-app-header`, session info/error → `x-flash` info/error.
+- `staff/index`: header → `x-app-header` in white bar, flash → `x-flash`, `shadow-md`→`shadow-sm`.
+- `staff/create` + `staff/edit`: `shadow`→`shadow-sm border-gray-100`, `x-app-header`, standardized inputs, submit → `btn btn-primary`, emoji code comments removed.
+- `risk/monitoring`: header normalized to `x-icon-title` (blue soft tile) only; badge system left as-is (dashboards out of redesign scope).
+
+### Emoji cleanup
+- User-facing `⚠️` prefixes removed from JS warning strings in `ultrasounds/create`, `prenatal_visits/create`, `prenatal_visits/edit` (`showWarning(...)` + `gaHint.innerHTML`). Not asserted by tests.
+
+### Badge semantic mapping applied
+HIGH→danger, LOW→success, ASSESSMENT INCOMPLETE→warning, ONGOING→info, DELIVERED→success; referral Pending→warning, Completed→success, Refused→danger, Cancelled→neutral; Assessment-linked→info, Manual Referral→neutral.
+
+### Tests / results
+- `npm run build`: succeeded; compiled CSS confirmed to contain `bg-primary`, `status-badge-*`, `alert-*`, `btn-*` classes.
+- `php artisan view:cache`: clean (all Blade compiles).
+- `php artisan test`: 704 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete) - identical to the Phase 1 baseline. A regression (undefined `$sourceIndigo` closure in `referrals/index`) surfaced during the run, was fixed by making the closure self-contained, and the affected suites (`ReferralAnalyticsTest`, `Phase16EUiTest`, `Phase16FFinalAcceptanceTest`) re-ran green.
+- `git diff --check`: clean.
+- No controllers, routes, migrations, schema, clinical thresholds, service behavior, vocabulary, or permissions changed.
+
+Design defense: `x-status-badge` provides one pill language while keeping semantic coloring (danger=high risk, success=low/delivered, warning=incomplete/pending, info=ongoing/linked); gradient headers were replaced with clean card headers so the blue primary color reads as the single interactive accent; all flash/error surfaces route through the shared alert components so future tone changes happen in one place. Risk Monitoring dashboard badges were intentionally left untouched (dashboards and Patient Profile are out of the current redesign scope).
+
+PHASE 2 PAGE-LEVEL UI/UX STANDARDIZATION COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Phase 3 — Patient Profile UI/UX Redesign (resources/views/patients/show.blade.php)
+
+Status: Complete
+
+Scope: View-only redesign of the Patient Profile page. No controllers, routes, migrations, schema, services, clinical thresholds, vocabulary, referral/export/risk logic, permissions, or queries changed. Dashboards and auth pages untouched (out of scope until approved). All test-asserted page copy preserved byte-identical; tests assert text, not markup.
+
+### Shared CSS patterns added (`resources/css/app.css`, `@layer components`)
+- `.panel`, `.panel-header`, `.panel-title` (with svg sizing), `.panel-body` - standardized white card with clean gray header bar and blue icon.
+- `.kv-row`, `.kv-label`, `.kv-value` - definition-list rows used by the priority strip and Birth Plan.
+- `.stat-label`, `.stat-value` - small-stat cells used by the Latest Prenatal Visit strip and Baby Information.
+- `.th-cell`, `.td-cell` - table cell spacing replacing repeated `px-4 py-3` utility strings on the profile tables.
+
+### Header + priority strip
+- Patient header now a `panel` wrapping `x-app-header` (name title, `age years · contact · address` subtitle, actions slot). Actions standardized: Edit Profile / Complete Records First (disabled w/ tooltip) / View Pregnancy History / Download = `btn btn-secondary`; Add Record / Refer Patient / Start New Pregnancy = `btn btn-primary`; Mark as Delivered = `btn btn-danger`. Status badge row shows Completed Pregnancy / Pending Referral / Assigned Staff.
+- New full-width priority strip: "Current Pregnancy" panel (status `x-status-badge`, Gravida/Para/Previous CS/Miscarriage/LMP/EDD `kv-row`s) + "Basic Information" panel (Birthdate/Age/Civil Status/Contact/Address/PhilHealth Member/Number).
+- New "Latest Prenatal Visit" panel using `$patient->prenatalVisits->first()` (no new queries) with stat cells (Visit Date, BP, Weight, Temperature, Gestational Age, Fetal Heart Tone) and a "View all visits ->" anchor to `#prenatal-visits-section`.
+- Old right-column "Pregnancy Summary" and "Quick Information" cards removed; their data now lives in the top strip.
+
+### Sections (left column, `lg:w-2/3`)
+- Baby Information: card per baby with `sex-badge` class added to the static sex pill (fixes duplicate-badge quirk in `updateBabyDisplay` JS), display grid keeps 4 `p` value cells in DOB/time/weight/length order for the JS selectors, edit form focus rings pink->blue. `baby-card`, `data-baby-id`, `.baby-display-mode`, `.baby-edit-mode`, `.baby-edit-form`, `.edit-baby-btn` preserved.
+- Prenatal Visits: wrapper now has `id="prenatal-visits-section"` (anchor target), risk cells use `x-status-badge` (danger/success/warning/neutral) with unchanged High/Low/Assessment Incomplete/Unknown labels, `#visit-details-{id}` toggle rows and edit/delete actions preserved.
+- Ultrasound Records: `panel` header with `btn btn-primary` Add action; lightbox thumbnails/`us-lightbox-trigger`/`#usLightbox` untouched.
+- Medical History: condition grid replaced by chip rows; present = blue pill + "Yes", absent = muted bordered pill. Group titles/notes, the Diabetes/Anemia scope note, and the "condition recorded during a visit" amber box preserved.
+- Birth Plan: six fields as `kv-row` definition list; Edit/Add actions standardized.
+- Risk Assessment panel: hero replaced by `panel-header` + tinted status band with `x-status-badge` (HIGH->danger "HIGH RISK", LOW->success "LOW RISK", ASSESSMENT INCOMPLETE->warning) and a red "URGENT CLINICAL REVIEW" chip. All inner explainability blocks (B-K, interaction section, linked-referral entry 16C, "NO ASSESSMENT AVAILABLE" fallback) preserved unchanged.
+
+### Referral card + modals
+- Referral Follow-through card: `panel` with `x-status-badge` for Pending/Completed/Refused/Cancelled; detail text, Assessment-linked/Manual Referral label, View Referral action preserved.
+- Delivery modal: green gradient header -> clean gray header with blue icon, green focus rings -> blue, footer buttons -> `btn btn-secondary`/`btn btn-primary`. `#deliveryModal` id, delivery_date/delivery_location/confirmation_source/outcome_notes and `babies[]` inputs preserved (server fields unchanged).
+- Download modals (validation/format/confirm/success) kept as-is (already Phase 2 neutral). Baby edit focus rings pink->blue in both static markup and the `addAnotherBaby()` JS template.
+
+### JS
+- All inline JS preserved (visit details toggle, delivery/download modals, lightbox, baby edit/display sync). Only class strings inside JS templates (blue focus rings) were updated. `.flex.items-center.justify-between` baby header kept for sex-badge insertion; `.sex-badge` static pill now carries the class.
+
+### Tests / results
+- `npm run build`: succeeded (vite 7.3.1).
+- `php artisan view:cache`: clean (all Blade compiles).
+- `php artisan test`: 704 passed, 2 pre-existing unrelated failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete) - identical to the Phase 1/Phase 2 baseline. Profile-related suites green: PatientProfileRiskPanelTest, LegacyPatientShowRenderingTest, ExplainabilitySprint7Test, MedicalHistoryScopeTest, PregnancyOutcomePhase17ETest, Phase16EUiTest, Sprint15InteractionUiTest, PatientExportConsistencyTest.
+- `git diff --check`: clean.
+- No controllers, routes, migrations, schema, clinical thresholds, service behavior, vocabulary, permissions, or queries changed.
+
+Design defense: the profile now follows a clinical hierarchy (identity -> pregnancy status -> attention items -> latest visit -> records -> actions) instead of burying the risk panel above summary cards; the risk panel keeps its full explainability surface but the status reads as a clean badge band; all shared patterns (panel, kv-row, stat-cell, th/td-cell) were added to `app.css` so other pages can adopt them without repeating utility strings. The monitoring outcome panel and REFERRED banner were kept as tinted banners (attention items) rather than neutral cards so clinical flags stay visible. Inline JS was left in the view (not extracted) to keep the change risk-free for the baby-edit and download flows; only CSS classes inside templates changed.
+
+PHASE 3 PATIENT PROFILE UI/UX REDESIGN COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Sprint 17F — Pregnancy Outcome Monitoring List: Active vs Completed/Historical Split
+
+Status: Complete
+
+Scope: Presentation-layer improvement of the Pregnancy Outcome Monitoring list (Sprint 17D/17E). The monitoring page is split into an "Active Monitoring" queue (CONFIRMATION_REQUIRED, STILL_PREGNANT_CONFIRMED, UNABLE_TO_CONTACT, NOT_YET_DUE) and a "Completed & Historical" section (RESOLVED, LEGACY_DELIVERED, LEGACY_REFERRED, INVARIANT_VIOLATION) collapsed by default; the filter chips now cover every derived state; a legend explains Status vs Monitoring State and the follow-up buttons. No clinical behavior, `deriveState()`, thresholds, vocabulary, routes, permissions, schema, or write flows changed. Derivation is untouched; only presentation of derived state changed.
+
+### Backend
+- `app/Services/PregnancyOutcomeMonitoringService.php`:
+  - Added `ACTIONABLE_STATES` and `HISTORY_STATES` constants (single source of truth for the two buckets).
+  - Extended `STATE_FILTERS` with 4 new slugs: `not-yet-due`, `legacy-delivered`, `legacy-referred`, `needs-review` (INVARIANT_VIOLATION).
+  - Added `STATE_FILTER_GROUPS` (slug groups `actionable` / `history`) so the controller and Blade agree on chip grouping.
+  - `deriveState()` and every derivation helper left byte-identical.
+- `app/Http/Controllers/PregnancyOutcomeController.php` (`index()`):
+  - After search/state-filter/sort, `$rows` are split into `$actionable` and `$history` by state membership.
+  - `$paginator` keeps its previous semantics (the active queue, 15/page) so the existing pagination contract (`total()`/`perPage()`) is unchanged; a new `$historyPaginator` paginates the historical bucket.
+  - `$showActive`/`$showHistory` flags: no chip -> both; an actionable chip -> active only; a history chip -> history only (expanded). `stateFilterSlug` passed to the view so the search form preserves the active chip.
+
+### UI/UX (`resources/views/pregnancy-outcomes/`)
+- `index.blade.php`:
+  - Chips now render in two labeled groups ("Actionable" with the All reset, "History & Review"), covering all 8 derived states.
+  - Body renders two stacked sections: **Active Monitoring** (always visible, own pagination) and **Completed & Historical** (native `<details>` collapsed by default, auto-opened when a history chip is selected, own count + pagination).
+  - Info box expanded into a legend: Status (lifecycle) vs Monitoring State (action), follow-up buttons record observations only (never delivery), and the Completed & Historical grouping note.
+  - Search form preserves the `state` param via a hidden input so search/chips don't drop context.
+- New `_monitoring-rows.blade.php` partial: the desktop table + mobile cards extracted into a single renderer shared by both sections (single source of markup; includes the "Historical — not part of active monitoring" hint on dimmed legacy rows). No row content, labels, actions, or routes changed.
+
+### Tests / results
+- `tests/Feature/PregnancyOutcomeMonitoringUiTest.php`: 8 new tests (BB-BH) covering the 4 new chips, default-collapsed history section, history-chip expansion hiding Active Monitoring, and the active/history paginator split. All 50+ pre-existing assertions pass unchanged (the history section stays in the DOM so AG/AH/AI `assertSee` still resolve; AN's `$paginator` contract is preserved).
+- `php artisan test`: green aside from the 2 pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete).
+- `npm run build`: succeeded (vite 7.3.1).
+- `php artisan view:cache`: clean.
+- `git diff --check`: clean.
+- No clinical logic, derivation, thresholds, vocabulary, routes, permissions, schema, or write flows changed.
+
+Design defense: the page is an action queue, so the actionable states keep the primary, always-visible section, while terminal/diagnostic rows (RESOLVED, LEGACY_*, INVARIANT_VIOLATION) are grouped into a collapsed native `<details>` so the queue stays uncluttered without moving records off-page (history stays reachable and testable in one request). The buckets and chips are driven by service constants (`ACTIONABLE_STATES`/`HISTORY_STATES`/`STATE_FILTER_GROUPS`) so presentation never re-implements derivation. Keeping `$paginator` as the active queue preserves the existing pagination contract and minimizes test churn. Grouping by mother identity was intentionally deferred (Phase D) as a higher-risk change that would alter pagination/search semantics.
+
+PHASE 17F MONITORING LIST ACTIVE/HISTORY SPLIT COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Sprint 17G — Pregnancy Outcome Monitoring List: UI Simplification (Revert 17F Grouping)
+
+Status: Complete
+
+Scope: UI simplification of the Pregnancy Outcome Monitoring list. The Sprint 17F "Active Monitoring vs Completed & Historical" split was judged too complicated for daily use and was reverted. The page returns to the original single-queue layout: one filter row, one monitoring table, original row actions, and the concise explanation. Only the 17F UI-specific grouping/filter additions were removed; every earlier UI/UX improvement (Phase 1/2 standardization of this page, 17D/17E monitoring feature) and ALL clinical/monitoring logic is preserved byte-for-byte.
+
+### Removed (only the 17F UI additions)
+- `app/Services/PregnancyOutcomeMonitoringService.php`: removed `ACTIONABLE_STATES`, `HISTORY_STATES`, `STATE_FILTER_GROUPS`, and the 4 added filter slugs (`not-yet-due`, `legacy-delivered`, `legacy-referred`, `needs-review`). `STATE_FILTERS` restored to the original 4 slugs (confirmation-required, still-pregnant, unable-to-contact, resolved). `deriveState()` and all derivation helpers untouched.
+- `app/Http/Controllers/PregnancyOutcomeController.php` (`index()`): removed the actionable/history bucket split, `$historyPaginator`, and `$showActive`/`$showHistory`/`stateFilterSlug`. Restored the original single `$paginator` over all rows (15/page). `rowFor()` unchanged.
+- `resources/views/pregnancy-outcomes/index.blade.php`: restored the single-queue layout — search -> 4 summary cards -> concise "How to read this page" box -> one chip row (All + 4 filters) -> one desktop table + mobile cards -> pagination. Removed the hidden `state` input in the search form, the 4-bullet legend, the "Actionable"/"History & Review" chip groups, the Active Monitoring / Completed & Historical sections, and the `<details>` collapse. Phase 1/2 standardization (x-icon-title, x-flash, x-error-summary, x-status-badge, blue accents, `bg-primary` active chips) preserved.
+- Deleted `resources/views/pregnancy-outcomes/_monitoring-rows.blade.php` (17F-only partial, no longer referenced).
+
+### Restored original behavior
+- One clean filter row: All, Outcome Confirmation Required, Still Pregnant — Confirmed, Unable to Contact, Confirmed Delivery. The remaining derived states (NOT_YET_DUE, LEGACY_DELIVERED, LEGACY_REFERRED, INVARIANT_VIOLATION) still render with their friendly labels in the table but no longer have filter chips.
+- One monitoring table: historical/completed records (RESOLVED, LEGACY_*) appear dimmed and sort below actionable rows via the existing `STATE_ORDER`, so they never dominate the queue; the "Confirmed Delivery" chip filters resolved deliveries.
+- Row actions unchanged: Confirm Still Pregnant, Unable to Contact, Open Profile / View Record (plus Pregnancy History for resolved/legacy-delivered), same routes and modal flow.
+- `tests/Feature/PregnancyOutcomeMonitoringUiTest.php`: removed the 7 Sprint 17F tests (BB-BH); restored the original 25 tests (AB-AU), which all pass against the original behavior.
+
+### Tests / results
+- `php artisan test`: green aside from the 2 pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete).
+- `npm run build`: succeeded (vite 7.3.1).
+- `php artisan view:cache`: clean.
+- `git diff --check`: clean.
+- Confirmed via `git diff HEAD` that the controller, service, and tests diffs contain zero non-17F changes, and the view diff contains only the Phase 1/2 standardization (no 17F grouping artifacts).
+
+Design defense: the monitoring page is scanned by staff in seconds; the 17F two-section model added cognitive load (group labels, extra chips, a collapsed history panel) for marginal benefit, and the original single-queue ordering already pushes actionable rows to the top. Reverting only the 17F additions keeps the earlier Phase 1/2 standardization and the 17D/17E feature intact. No clinical thresholds, derivation logic, routes, permissions, schema, or write flows were touched.
+
+PHASE 17G MONITORING LIST UI SIMPLIFICATION COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Sprint 17H — Prenatal Visits & Referral Management UI Cleanup
+
+Status: Complete
+
+Scope: UI-only (Blade/styling) cleanup of the Prenatal Visits index and the Referral Management index pages. No backend logic, controllers, services, models, routes, database schema, queries, calculations, or status behavior was changed.
+
+### Prenatal Visits index (resources/views/prenatal_visits/index.blade.php)
+- Visit Date and Next Visit now render on one straight line (whitespace-nowrap on the date cells); date formatting and the underlying date values are untouched.
+- GA column: suffix changed from `wks` to `weeks` (e.g. `38 weeks`). When gestational_age is missing (it is a nullable field), the cell shows `—` instead of a bare `weeks`, so the suffix is never orphaned.
+- Risk column: HIGH and LOW badges continue to use the shared `x-status-badge` component (consistent height, padding, font, and nowrap via the `.status-badge` base class). HIGH = danger/red, LOW = success/green, ASSESSMENT INCOMPLETE (a real risk_level value) = warning/amber. Badge alignment was tightened by making the cell nowrap so badges cannot wrap unpredictably. Risk values and assessment logic are unchanged.
+- Table alignment: Patient column given a sensible min-width; Visit Date, BP, Weight, GA, Risk, Next Visit, and Actions headers/cells marked whitespace-nowrap so dates and GA never wrap. Column order and design are unchanged. BP cells additionally kept nowrap and mono font.
+
+### Referral Management index (resources/views/referrals/index.blade.php)
+- Removed the visible TOTAL summary card (``$total`` rendering removed from the UI only; the controller still passes the total and the backend count is untouched).
+- The top status summary was rebuilt as 4 balanced, equal cells in a 2x2 grid (lg: 4-across): Pending (amber count, warning accent), Completed (green), Refused (orange), Cancelled (gray). Identical container, padding, alignment, and spacing for all four.
+- Pending keeps a slight emphasis: amber count plus a small `Action Required` pill only when pending referrals exist (``$hasPendingAny``). The Pending cell uses the same card structure as the other three.
+- The referral table, search box, status dropdown, View Referral, Print, Referral Analytics panel, charts, and month filter were not redesigned.
+
+### Tests / results
+- php artisan test: 704 passed, 2 failed — both are the pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete). No new failures.
+- npm run build: succeeded (vite 7.3.1).
+- php artisan view:cache: clean.
+- git diff --check: clean.
+
+Design defense: both pages now rely on the Phase 1/2 design tokens and the shared status-badge component, so badges render identically to the rest of the system. Keeping dates and GA on single lines prevents mid-value wrapping that can be misread during a quick scan, while a one-line `Aug 14, 2026` format is consistent with the rest of the UI. The GA fallback guard preserves the nullable gestational_age contract. On referrals, removing the TOTAL card and balancing the four status cells makes the queue state legible at a glance; Pending retains a subtle warning emphasis (pill) without a structurally distinct card, so the summary is uniform. No clinical thresholds, calculations, referral statuses, routes, or write flows were touched; this sprint was strictly presentational.
+
+## Sprint 17H.1 — Prenatal Visits: Long Risk Text Wrapping Fix
+
+Status: Complete
+
+Scope: Small UI fix in the Prenatal Visits desktop table only. A long/unexpected risk value (e.g. ``THE SYSTEM CANNOT FIND THE PATH SPECIFIED.``) used to force the Risk cell onto one line and push the Actions column off-screen.
+
+### Change
+- Added a dedicated wrap variant to the shared badge CSS: ``.status-badge.status-badge-wrap`` (white-space normal, max-width 13rem, line-height 1.4, overflow-wrap break-word). Normal values (HIGH, LOW, ASSESSMENT INCOMPLETE) fit within the max-width, so they still render as one-line badges and their appearance is unchanged.
+- The desktop Risk cell now applies ``status-badge-wrap`` to the badge and aligns it ``align-middle``, so long values wrap vertically inside the capped column instead of stretching the table.
+- The Actions cell is pinned with ``whitespace-nowrap align-middle`` so the View/Edit/Delete icons stay on one row and remain visible.
+- No truncation, no hidden values, no changes to stored risk_level, risk assessment, ML, controller, service, or database.
+
+### Verification
+- New regression test ``tests/Feature/PrenatalVisitsLongRiskUiTest.php`` (2 tests): confirms the long value renders in full with the wrap class, and View/Edit/Delete icons are all present for that row; and that HIGH/LOW/ASSESSMENT INCOMPLETE keep their normal badge variants.
+- ``php artisan test``: 706 passed, 2 failed — the 2 are the pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete).
+- ``npm run build``: succeeded. ``php artisan view:cache``: clean. ``git diff --check``: clean.
+
+Design defense: capping the Risk badge width keeps the table from growing to fit an abnormal value, and wrapping (not truncating) preserves full clinical information. The wrap variant is opt-in via a single extra class on the shared badge, so the design-system badge behavior elsewhere is untouched. No clinical logic was modified.
+
+PHASE 17H.1 PRENATAL VISITS LONG RISK WRAP FIX COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Sprint 17I — Pregnancy Outcome Monitoring: Remove Pregnancy History Button from Confirmed Delivery Rows
+
+Status: Complete
+
+Scope: One UI-only change on the Pregnancy Outcome Monitoring page. The "Pregnancy History" button was removed from the Actions column of "Confirmed Delivery" (STATE_RESOLVED) rows in the desktop table. Those rows now show only "View Record".
+
+### Change
+- `resources/views/pregnancy-outcomes/index.blade.php`: the Pregnancy History button's visibility condition was narrowed from `STATE_RESOLVED` or `STATE_LEGACY_DELIVERED` to `STATE_LEGACY_DELIVERED` only. Confirmed Delivery (RESOLVED) rows therefore render only the "View Record" action; "Historical Delivered Record" (LEGACY_DELIVERED) rows keep the Pregnancy History button; every other monitoring state and its actions are untouched.
+- No change to the Pregnancy History feature, its route (`patients.delivered.history`), controller, or page. No change to monitoring logic, deriveState(), confirmed-delivery logic, database, or backend behavior. No row/table redesign. Mobile cards were already without the button and are unchanged.
+
+### Verification
+- New regression tests in `tests/Feature/PregnancyOutcomeMonitoringUiTest.php` (BA, BB):
+  - BA: a Confirmed Delivery row shows "View Record" with the `patients.show` link and does NOT show "Pregnancy History" or the `patients.delivered.history` link.
+  - BB: a Historical Delivered Record row keeps the "Pregnancy History" button and its link.
+- Monitoring UI suite: 27 passed (25 original + 2 new).
+- `php artisan test`: 708 passed, 2 failed — the 2 are the pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete).
+- `npm run build`: succeeded. `php artisan view:cache`: clean. `git diff --check`: clean.
+
+Design defense: the Pregnancy History destination remains fully accessible from the delivered-history workflow and patient profile; the monitoring queue simply stops duplicating it on confirmed deliveries, where the View Record link is the primary action. Keeping the button for legacy delivered records preserves the historical presentation. This was a strictly presentational change; no clinical or routing behavior was modified.
+
+PHASE 17I PREGNANCY OUTCOME MONITORING CONFIRMED DELIVERY ACTIONS COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Sprint 17J — Patient Profile Context-Aware Back Button (from Pregnancy Outcome Monitoring)
+
+Status: Complete
+
+Scope: Navigation/UI improvement only. The hardcoded "View Monitoring Page" button on the patient profile's Pregnancy Outcome card is now a context-aware "Back" button that restores the exact Pregnancy Outcome Monitoring view the user came from (state filter, search, pagination page). The redundant "Pregnancy History" button inside the same card was removed for confirmed-delivery records. No monitoring logic, deriveState(), delivery logic, database, clinical rules, or assessment logic was touched.
+
+### How the return URL is passed
+- `resources/views/pregnancy-outcomes/index.blade.php`: the page builds one return URL per request — `route('pregnancy-outcomes.index', request()->query())` — which preserves every current monitoring query parameter (state slug, search, page, etc.). All four profile-opening links (desktop patient name, desktop "View Record"/"Open Profile", mobile patient name, mobile "View Record"/"Open Profile") now append it as `?return=<encoded monitoring URL>`.
+
+### How it is validated
+- `app/Http/Controllers/PatientController.php` (`show()`): the `return` query parameter is resolved through a new private helper `resolveMonitoringReturnUrl()`. It is accepted only when: it is a non-empty string; its scheme is http/https; its host matches the application host (from `route('pregnancy-outcomes.index')`); and its path is `/pregnancy-outcomes` (or the monitoring root). Anything else — missing, malformed, external, `javascript:`/non-http scheme, or an internal-but-wrong-path URL — is ignored and the safe fallback is used. No open-redirect vector is possible.
+
+### What query/filter state is preserved
+- `state` (e.g. `resolved`, `confirmation-required`, `still-pregnant`, `unable-to-contact`), `search`, `page`, and any other current monitoring query parameters survive the round trip and are restored when "Back" is clicked.
+
+### Safe fallback
+- `resources/views/patients/show.blade.php`: when no valid return URL is present (profile opened directly, or the return was rejected), the Back button falls back to the base `route('pregnancy-outcomes.index')` — the plain monitoring page, matching the previous hardcoded destination. The button is never broken.
+
+### UI changes in the Pregnancy Outcome card
+- The "Pregnancy History" button inside the card was removed (confirmed-delivery records now show only "Back"); the separate "View Pregnancy History" action in the normal patient header is unchanged, and the delivered-history page/route is untouched.
+- The button label is simply "Back" using the existing `btn btn-secondary` style.
+
+### Verification (tests/Feature/PregnancyOutcomeProfileBackNavigationTest.php, 12 tests)
+- Monitoring links carry the full context (state + search + page) as a return URL; page 2 verified with a 20-patient dataset.
+- Back restores each monitoring view: Confirmed Delivery (`resolved`), Outcome Confirmation Required (`confirmation-required`), Still Pregnant — Confirmed (`still-pregnant`), Unable to Contact (`unable-to-contact`).
+- Search query and pagination page survive the profile round trip.
+- Direct profile open uses the plain monitoring page fallback.
+- External domain, `javascript:` scheme, and internal-but-wrong-path return URLs are all rejected with the fallback used.
+- The card's Pregnancy History button is gone (delivered-history link appears exactly once — the header) while the header's "View Pregnancy History" remains; the delivered-history page still renders.
+- `php artisan test`: 720 passed, 2 failed — the 2 are the pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete).
+- `npm run build`: succeeded. `php artisan view:cache`: clean. `git diff --check`: clean.
+
+Design defense: browser-history-only back links are unreliable (refresh, new tab, direct URL); an application-controlled return URL guarantees the exact monitoring context is restored. The validator keeps the return strictly internal and monitoring-scoped, so there is no open-redirect surface and direct profile access always gets a sensible destination. This sprint was purely navigational; no clinical or routing behavior changed.
+
+PHASE 17J PATIENT PROFILE CONTEXT-AWARE BACK COMPLETE - AWAITING HUMAN ACCEPTANCE
+
+## Sprint 17K — Risk Monitoring Dashboard Risk Type Selector and Analytics Reorder
+
+Status: Complete
+
+Scope: Dashboard analytics selection/display improvement only. The Risk Analytics section on the Risk Monitoring page now has a compact "Risk Type" selector (High Risk default / Low Risk) sitting beside the existing Month selector. The same single trend chart is reused to show either the monthly HIGH or monthly LOW assessment trend, and its title changes dynamically to "High-Risk Patients" or "Low-Risk Patients". The Risk Analytics section (selectors + trend chart + Highest High-Risk Month / Most Common Condition summary cards) now sits above the other analytics graphs, which were moved into their own "Risk Analytics Breakdown" section below it. No clinical rules, classification, ML behavior, assessment completeness, decision-source logic, patient/prenatal records, database schema, or migrations were touched.
+
+### Backend changes
+- `app/Services/RiskAnalyticsService.php` (`get()`): now accepts an optional `?string $riskType`. Only `HIGH`/`LOW` are allowed; anything else (including `null`) defaults to `HIGH`. The response gains `riskType`, `riskTrend` (the series for the selected type), and `lowRiskTrend`. Existing keys (`highRiskTrend`, `riskDistribution`, `conditions`, `bpFollowUp`, `summary`) are preserved unchanged so the breakdown charts and summary cards behave exactly as before.
+- `app/Http/Controllers/RiskMonitoringController.php`: new private `riskTypeFilter()` helper — only `LOW` is honored, everything else defaults to `HIGH`. Both `index()` and the JSON `analytics()` endpoint read `risk_type` and forward it to the service.
+
+### Frontend changes (`resources/views/risk/monitoring.blade.php`)
+- Risk Analytics header now holds `Risk Type [High Risk ▼]` beside `Month [All Months ▼]`, sharing the same form/select styling and wrapping together on small screens.
+- The trend chart title is dynamic (`High-Risk Patients` / `Low-Risk Patients`; the fixed "by Month" suffix is gone) and the line color follows the selected type (red for HIGH, emerald for LOW).
+- The trend chart + summary cards stay in the main "Risk Analytics" section; Risk Distribution by Month, Maternal Conditions by Month, and BP Follow-Up by Month now render below in a new "Risk Analytics Breakdown" panel — still above the patient list.
+- The Month selector keeps working and composes with Risk Type; both fire the same `loadAnalytics()` fetch (now sending `risk_type` too).
+- The HIGH/LOW/ASSESSMENT INCOMPLETE summary cards, the statistics counters, the patient list, and the system-info card are unchanged.
+
+### Verification (tests/Feature/RiskAnalyticsRiskTypeTest.php, 7 tests)
+- Default risk type is HIGH and `riskTrend` equals `highRiskTrend`; LOW returns the low trend; any other value (e.g. `MEDIUM`) is rejected and defaults to HIGH.
+- Month + risk type compose correctly in the service and via the JSON endpoint.
+- The monitoring page renders the selector defaulting to High Risk, the dynamic title, and the reordered sections (trend before breakdown; breakdown contains the distribution/BP charts).
+- Summary cards and counters remain present.
+- `php artisan test`: 727 passed, 2 failed — the 2 are the pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete). Full RiskAnalyticsTest suite still green.
+- `npm run build`: succeeded. `php artisan view:cache`: clean. `git diff --check`: clean.
+
+Design defense: reusing the single trend chart with a data/type switch keeps the dashboard uncluttered and avoids duplicating Chart.js instances, while limiting `risk_type` to HIGH/LOW keeps the selector strictly a visualization choice — it can never affect risk classification or assessment output. Keeping the summary cards on the HIGH series preserves their existing meaning ("Highest High-Risk Month"), and isolating the other graphs into their own section lets the primary trend chart surface first without removing any existing analytics.

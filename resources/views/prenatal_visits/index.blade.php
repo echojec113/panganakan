@@ -3,18 +3,18 @@
         
 
         <!-- Header with Actions -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div>
-                <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Prenatal Visits</h2>
-                <p class="text-sm text-gray-600 mt-1">Record of all prenatal check-ups and risk assessments</p>
-            </div>
-            <a href="{{ route('prenatal-visits.create') }}" class="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm font-medium text-sm sm:text-base">
-                <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-                Add Prenatal Visit
-            </a>
-        </div>
+        <x-app-header class="mb-6">
+            <x-slot name="title">Prenatal Visits</x-slot>
+            <x-slot name="subtitle">Record of all prenatal check-ups and risk assessments</x-slot>
+            <x-slot name="actions">
+                <a href="{{ route('prenatal-visits.create') }}" class="btn btn-primary">
+                    <svg class="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Add Prenatal Visit
+                </a>
+            </x-slot>
+        </x-app-header>
 
         <!-- Stats Cards -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -66,8 +66,8 @@
                         <p class="text-gray-500 text-sm">This Month</p>
                         <p class="text-2xl font-bold text-gray-800">{{ $visits->where('visit_date', '>=', now()->startOfMonth())->count() }}</p>
                     </div>
-                    <div class="bg-purple-100 rounded-lg p-2">
-                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="bg-blue-100 rounded-lg p-2">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                         </svg>
                     </div>
@@ -110,16 +110,15 @@
                             </p>
 
                         </div>
-                        <span class="px-2 py-1 rounded-full text-xs font-semibold
-                            {{ $visit->risk_level == 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
+                        <x-status-badge :variant="$visit->risk_level == 'HIGH' ? 'danger' : ($visit->risk_level == 'LOW' ? 'success' : 'warning')">
                             {{ $visit->risk_level ?? 'LOW' }}
-                        </span>
+                        </x-status-badge>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-xs text-gray-600 mb-3">
-                        <div><span class="font-medium">Visit Date:</span> {{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</div>
-                        <div><span class="font-medium">BP:</span> {{ $visit->bp_sys }}/{{ $visit->bp_dia }}</div>
-                        <div><span class="font-medium">Weight:</span> {{ $visit->weight }} kg</div>
-                        <div><span class="font-medium">GA:</span> {{ $visit->gestational_age }} wks</div>
+                        <div><span class="font-medium">Visit Date:</span> <span class="whitespace-nowrap">{{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</span></div>
+                        <div><span class="font-medium">BP:</span> <span class="whitespace-nowrap">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</span></div>
+                        <div><span class="font-medium">Weight:</span> <span class="whitespace-nowrap">{{ $visit->weight }} kg</span></div>
+                        <div><span class="font-medium">GA:</span> <span class="whitespace-nowrap">{{ $visit->gestational_age !== null ? $visit->gestational_age . ' weeks' : '—' }}</span></div>
                     </div>
                     <td class="px-6 py-4">
                                 <x-action-buttons 
@@ -144,14 +143,14 @@
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Visit Date</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">BP</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GA</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Risk</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Visit</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[11rem]">Patient</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Visit Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">BP</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Weight</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">GA</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Risk</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Next Visit</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200" id="visitsTableBody">
@@ -163,18 +162,17 @@
                                     <p class="text-xs text-gray-500">Age: {{ $visit->patient->age }} | G{{ $visit->patient->gravida }} P{{ $visit->patient->para }}</p>
                                 </div>
                             </td>
-                            <td class="px-6 py-4 text-sm text-gray-600">{{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</td>
-                            <td class="px-6 py-4 text-sm font-mono">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</td>
-                            <td class="px-6 py-4 text-sm">{{ $visit->weight }} kg</td>
-                            <td class="px-6 py-4 text-sm">{{ $visit->gestational_age }} wks</td>
-                            <td class="px-6 py-4">
-                                <span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold
-                                    {{ $visit->risk_level == 'HIGH' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800' }}">
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">{{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</td>
+                            <td class="px-6 py-4 text-sm font-mono whitespace-nowrap">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</td>
+                            <td class="px-6 py-4 text-sm whitespace-nowrap">{{ $visit->weight }} kg</td>
+                            <td class="px-6 py-4 text-sm whitespace-nowrap">{{ $visit->gestational_age !== null ? $visit->gestational_age . ' weeks' : '—' }}</td>
+                            <td class="px-6 py-4 align-middle">
+                                <x-status-badge :variant="$visit->risk_level == 'HIGH' ? 'danger' : ($visit->risk_level == 'LOW' ? 'success' : 'warning')" class="status-badge-wrap">
                                     {{ $visit->risk_level ?? 'LOW' }}
-                                </span>
+                                </x-status-badge>
                             </td>
-                            <td class="px-6 py-4 text-sm">{{ $visit->next_visit_date ? \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') : '-' }}</td>
-                            <td class="px-6 py-4">
+                            <td class="px-6 py-4 text-sm whitespace-nowrap">{{ $visit->next_visit_date ? \Carbon\Carbon::parse($visit->next_visit_date)->format('M d, Y') : '-' }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap align-middle">
                                 <x-action-buttons 
                                     :viewRoute="route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits'])"
                                     :editRoute="route('prenatal-visits.edit', $visit->id)"

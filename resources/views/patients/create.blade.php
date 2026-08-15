@@ -12,20 +12,16 @@
         </div>
 
         <!-- Main Card -->
-        <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5">
-                <div class="flex items-center gap-3">
-                    <div class="bg-white/20 rounded-lg p-2">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="bg-gray-50 border-b border-gray-100 px-6 py-5">
+                <x-icon-title title="Add New Patient" subtitle="Enter the patient's information below">
+                    <x-slot name="icon">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
                         </svg>
-                    </div>
-                    <div>
-                        <h2 class="text-2xl font-bold text-white">Add New Patient</h2>
-                        <p class="text-blue-100 text-sm mt-1">Enter the patient's information below</p>
-                    </div>
-                </div>
+                    </x-slot>
+                </x-icon-title>
             </div>
 
             <!-- Form -->
@@ -33,21 +29,7 @@
                 @csrf
 
                 <!-- Error Summary -->
-                @if ($errors->any())
-                    <div class="mb-6 bg-red-50 border-l-4 border-red-500 rounded-lg p-4">
-                        <div class="flex items-center gap-2 mb-2">
-                            <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <span class="font-semibold text-red-700">Please fix the following errors:</span>
-                        </div>
-                        <ul class="list-disc list-inside text-sm text-red-600">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+                <x-error-summary :errors="$errors" title="Please fix the following errors:" class="mb-6" />
 
                 <!-- ================= PATIENT INFO ================= -->
                 <div class="mb-8">

@@ -4,43 +4,39 @@
         
 
         <!-- HEADER -->
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                📜 Audit Logs
-            </h1>
-            <p class="text-sm text-gray-500">
-                Track all system activities and user actions
-            </p>
-        </div>
+        <x-app-header
+            title="Audit Logs"
+            subtitle="Track all system activities and user actions"
+            class="mb-6"
+        />
 
         <!-- FILTERS (UNCHANGED DESIGN, RESPONSIVE LANG) -->
-        <form method="GET" class="bg-white p-4 rounded-2xl shadow border flex flex-col md:flex-row md:items-center gap-3 mb-6">
+        <form method="GET" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center gap-3 mb-6">
 
             <input type="text" name="search" value="{{ request('search') }}"
                 placeholder="Search description..."
-                class="border rounded-lg px-4 py-2 text-sm w-full md:w-auto">
+                class="border rounded-lg px-4 py-2 text-sm w-full md:w-auto focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
 
-            <select name="action" class="border rounded-lg px-4 py-2 text-sm w-full md:w-auto">
+            <select name="action" class="border rounded-lg px-4 py-2 text-sm w-full md:w-auto focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="">All Actions</option>
                 <option value="CREATE" {{ request('action') == 'CREATE' ? 'selected' : '' }}>Create</option>
                 <option value="UPDATE" {{ request('action') == 'UPDATE' ? 'selected' : '' }}>Update</option>
                 <option value="DELETE" {{ request('action') == 'DELETE' ? 'selected' : '' }}>Delete</option>
             </select>
 
-            <select name="module" class="border rounded-lg px-4 py-2 text-sm w-full md:w-auto">
+            <select name="module" class="border rounded-lg px-4 py-2 text-sm w-full md:w-auto focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 <option value="">All Modules</option>
                 <option value="STAFF" {{ request('module') == 'STAFF' ? 'selected' : '' }}>Staff</option>
                 <option value="PATIENT" {{ request('module') == 'PATIENT' ? 'selected' : '' }}>Patient</option>
             </select>
 
-            <button type="submit"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl shadow w-full md:w-auto">
+            <button type="submit" class="btn btn-primary">
                 Apply Filters
             </button>
         </form>
 
         <!-- TABLE CARD -->
-        <div class="bg-white rounded-2xl shadow border overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
             <div class="px-4 md:px-6 py-4 border-b bg-gray-50">
                 <h2 class="text-lg font-semibold text-gray-800">Activity Records</h2>
@@ -70,19 +66,15 @@
                                 </td>
 
                                 <td class="px-4 md:px-6 py-4">
-                                    <span class="px-3 py-1 text-xs rounded-full
-                                        @if($log->action == 'CREATE') bg-green-100 text-green-700
-                                        @elseif($log->action == 'UPDATE') bg-blue-100 text-blue-700
-                                        @elseif($log->action == 'DELETE') bg-red-100 text-red-700
-                                        @endif">
+                                    <x-status-badge :variant="$log->action == 'CREATE' ? 'success' : ($log->action == 'UPDATE' ? 'info' : 'danger')">
                                         {{ $log->action }}
-                                    </span>
+                                    </x-status-badge>
                                 </td>
 
                                 <td class="px-4 md:px-6 py-4">
-                                    <span class="px-3 py-1 text-xs rounded-full bg-gray-100 text-gray-700">
+                                    <x-status-badge variant="neutral">
                                         {{ $log->module }}
-                                    </span>
+                                    </x-status-badge>
                                 </td>
 
                                 <td class="px-4 md:px-6 py-4 text-gray-700">

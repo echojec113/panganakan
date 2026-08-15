@@ -10,34 +10,17 @@
             </a>
         </div>
 
-        <div class="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
-                <h2 class="text-xl sm:text-2xl font-bold text-gray-800">Add Prenatal Visit</h2>
-                <p class="text-xs sm:text-sm text-gray-600 mt-1">Record a new prenatal check-up with risk assessment</p>
+            <div class="bg-gray-50 border-b border-gray-100 px-4 sm:px-6 py-4 sm:py-5">
+                <x-icon-title title="Add Prenatal Visit" subtitle="Record a new prenatal check-up with risk assessment" />
             </div>
 
             <form action="{{ route('prenatal-visits.store') }}" method="POST" id="prenatalForm" class="p-4 sm:p-6">
                 @csrf
 
                 <!-- Error Summary -->
-                @if($errors->any())
-                    <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-                        <div class="flex items-start gap-2">
-                            <svg class="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <div>
-                                <p class="font-semibold text-red-700 text-sm">Please fix the following errors:</p>
-                                <ul class="list-disc list-inside text-sm text-red-600 mt-1">
-                                    @foreach($errors->all() as $error)
-                                        <li>{{ $error }}</li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                @endif
+                <x-error-summary :errors="$errors" title="Please fix the following errors:" class="mb-6" />
 
                 <!-- CDSS Input Guide -->
                 <details class="mb-6 rounded-lg border border-blue-100 bg-blue-50/50 overflow-hidden">
@@ -304,7 +287,7 @@
                 <!-- Clinical Examination -->
                 <div class="mb-6">
                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
-                        <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
                         </svg>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Clinical Examination</h3>
@@ -521,9 +504,9 @@
                     
                     // Severe hypertension warning
                     if (sys >= 160 || dia >= 110) {
-                        showWarning('⚠️ Severe hypertension detected! Immediate medical evaluation required.', 'bp_warning');
+                        showWarning('Severe hypertension detected! Immediate medical evaluation required.', 'bp_warning');
                     } else if (sys >= 140 || dia >= 90) {
-                        showWarning('⚠️ Elevated blood pressure. Monitor closely.', 'bp_warning');
+                        showWarning('Elevated blood pressure. Monitor closely.', 'bp_warning');
                     } else {
                         clearWarning('bp_warning');
                     }
@@ -577,7 +560,7 @@
                     return false;
                 }
                 if (temp && temp >= 38) {
-                    showWarning('⚠️ Fever detected! Monitor for infection.', 'temp_warning');
+                    showWarning('Fever detected! Monitor for infection.', 'temp_warning');
                 } else {
                     clearWarning('temp_warning');
                 }
@@ -600,7 +583,7 @@
                     
                     if (Math.abs(expectedWeeks - ga) > 3) {
                         showError(gestationalAge, `Based on LMP (${lmp}), expected GA is ${expectedWeeks.toFixed(1)} weeks. Current GA should be within ±3 weeks.`);
-                        gaHint.innerHTML = `⚠️ Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
+                        gaHint.innerHTML = `Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
                         gaHint.classList.add('text-orange-600');
                         return false;
                     } else {

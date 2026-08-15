@@ -34,6 +34,20 @@ class RiskMonitoringController extends Controller
         return $month;
     }
 
+    /**
+     * Normalize the analytics risk type filter: only HIGH and LOW are
+     * allowed. Anything else defaults to HIGH so invalid input never reaches
+     * the analytics queries.
+     */
+    private function riskTypeFilter($value): string
+    {
+        if ($value === 'LOW') {
+            return 'LOW';
+        }
+
+        return 'HIGH';
+    }
+
     private function latestVisitSubquery(): \Illuminate\Database\Query\Builder
     {
         return DB::table('prenatal_visits')
@@ -100,7 +114,10 @@ class RiskMonitoringController extends Controller
         $pendingRepeatCount = (clone $baseLatest)->where('bp_verification_status', 'PENDING_REPEAT')->count();
         $totalPatients = Patient::count();
 
-        $analytics = $this->riskAnalytics->get($this->monthFilter($request->month));
+        $analytics = $this->riskAnalytics->get(
+            $this->monthFilter($request->month),
+            $this->riskTypeFilter($request->risk_type)
+        );
 
         return view('risk.monitoring', compact(
             'visits',
@@ -115,10 +132,14 @@ class RiskMonitoringController extends Controller
     }
 
     /**
-     * JSON analytics payload for the month filter (aggregated totals only).
+     * JSON analytics payload for the month/risk-type filters (aggregated
+     * totals only).
      */
     public function analytics(Request $request)
     {
-        return response()->json($this->riskAnalytics->get($this->monthFilter($request->month)));
+        return response()->json($this->riskAnalytics->get(
+            $this->monthFilter($request->month),
+            $this->riskTypeFilter($request->risk_type)
+        ));
     }
 }

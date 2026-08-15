@@ -3,21 +3,22 @@
         <div class="mb-6">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div class="flex items-start gap-3">
-                    <div class="h-12 w-12 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
-                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-semibold text-gray-800">Pregnancy Outcome Monitoring</h1>
-                        <p class="mt-1 text-sm text-gray-500">Track pregnancies nearing their expected delivery date, follow-up observations, and confirmed outcomes. A passed due date never marks a pregnancy as delivered.</p>
-                    </div>
+                    <x-icon-title
+                        title="Pregnancy Outcome Monitoring"
+                        subtitle="Track pregnancies nearing their expected delivery date, follow-up observations, and confirmed outcomes. A passed due date never marks a pregnancy as delivered."
+                    >
+                        <x-slot name="icon">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </x-slot>
+                    </x-icon-title>
                 </div>
                 <form method="GET" action="{{ route('pregnancy-outcomes.index') }}" class="w-full lg:w-72">
                     <div class="flex gap-2">
                         <div class="relative flex-1">
-                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search patient..." class="w-full rounded-xl border-gray-200 pr-10 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <button class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-indigo-600" type="submit">
+                            <input type="text" name="search" value="{{ request('search') }}" placeholder="Search patient..." class="w-full rounded-xl border-gray-200 pr-10 text-sm focus:border-blue-500 focus:ring-blue-500">
+                            <button class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-blue-600" type="submit">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                 </svg>
@@ -65,42 +66,21 @@
                     </div>
                 </div>
 
-                <div class="mt-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs leading-relaxed text-indigo-900">
+                <div class="mt-4 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-relaxed text-blue-900">
                     <span class="font-semibold">How to read this page:</span>
                     Passing the EDD never marks a pregnancy as delivered. Once the EDD has passed and no outcome is confirmed, the pregnancy enters <span class="font-semibold">Outcome Confirmation Required</span> — record whether the patient is still pregnant or could not be reached. Delivery is confirmed only through the explicit delivery workflow in the patient profile.
                 </div>
             </div>
         </div>
 
-        @if(session('success'))
-            <div class="mb-4 flex items-start gap-2 rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-                <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-                <span>{{ session('success') }}</span>
-            </div>
-        @endif
-
-        @if($errors->any())
-            <div class="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                <div class="flex items-start gap-2">
-                    <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <ul class="list-disc space-y-1 pl-1">
-                        @foreach($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            </div>
-        @endif
+        <x-flash type="success" :message="session('success')" class="mb-4" />
+        <x-error-summary :errors="$errors" class="mb-6" />
 
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="border-b border-gray-100 px-6 py-4 bg-gray-50 flex flex-wrap items-center gap-2">
-                <a href="{{ route('pregnancy-outcomes.index') }}" class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium {{ $stateFilter === '' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">All</a>
+                <a href="{{ route('pregnancy-outcomes.index') }}" class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium {{ $stateFilter === '' ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">All</a>
                 @foreach(\App\Services\PregnancyOutcomeMonitoringService::STATE_FILTERS as $slug => $stateKey)
-                    <a href="{{ route('pregnancy-outcomes.index', ['state' => $slug, 'search' => request('search')]) }}" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium {{ $stateFilter === $stateKey ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">
+                    <a href="{{ route('pregnancy-outcomes.index', ['state' => $slug, 'search' => request('search')]) }}" class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium {{ $stateFilter === $stateKey ? 'bg-primary text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50' }}">
                         {{ \App\Services\PregnancyOutcomeMonitoringService::stateLabel($stateKey) }}
                     </a>
                 @endforeach
@@ -113,6 +93,8 @@
                     </div>
                 @else
                     <div class="mb-4 hidden lg:block text-xs font-semibold uppercase tracking-wide text-gray-400">Desktop view</div>
+
+                    @php($monitoringReturnUrl = route('pregnancy-outcomes.index', request()->query()))
 
                     {{-- Desktop table --}}
                     <div class="hidden lg:block overflow-x-auto">
@@ -139,7 +121,7 @@
                                                     </svg>
                                                 </div>
                                                 <div>
-                                                    <a href="{{ route('patients.show', $patient->id) }}" class="text-sm font-semibold text-gray-900 hover:text-indigo-700">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
+                                                    <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="text-sm font-semibold text-gray-900 hover:text-blue-600">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
                                                     <div class="mt-0.5 text-xs text-gray-500">G{{ $patient->gravida }} P{{ $patient->para }} &bull; {{ $patient->contact_number ?: 'No contact' }}</div>
                                                 </div>
                                             </div>
@@ -158,7 +140,7 @@
                                         </td>
                                         <td class="px-4 py-4 text-sm text-gray-900">{{ $row['status_label'] }}</td>
                                         <td class="px-4 py-4">
-                                            <span class="inline-flex rounded-full px-3 py-1 text-sm font-semibold {{ $row['state_badge_class'] }}">{{ $row['state_label'] }}</span>
+                                            <x-status-badge class="{{ $row['state_badge_class'] }}">{{ $row['state_label'] }}</x-status-badge>
                                         </td>
                                         <td class="px-4 py-4 text-sm text-gray-700">
                                             @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_RESOLVED)
@@ -206,13 +188,13 @@
                                                         Unable to Contact
                                                     </button>
                                                 @endif
-                                                @if(in_array($row['state'], [\App\Services\PregnancyOutcomeMonitoringService::STATE_RESOLVED, \App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED], true))
+                                                @if($row['state'] === \App\Services\PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED)
                                                     <a href="{{ route('patients.delivered.history', $patient->id) }}"
                                                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                                                         Pregnancy History
                                                     </a>
                                                 @endif
-                                                <a href="{{ route('patients.show', $patient->id) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                                <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                                                     {{ $patient->status === 'DELIVERED' ? 'View Record' : 'Open Profile' }}
                                                 </a>
                                             </div>
@@ -235,10 +217,10 @@
                                         </svg>
                                     </div>
                                     <div class="min-w-0 flex-1">
-                                        <a href="{{ route('patients.show', $patient->id) }}" class="text-sm font-semibold text-gray-900 hover:text-indigo-700">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
+                                        <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="text-sm font-semibold text-gray-900 hover:text-blue-600">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</a>
                                         <div class="mt-0.5 text-xs text-gray-500">G{{ $patient->gravida }} P{{ $patient->para }}</div>
                                     </div>
-                                    <span class="shrink-0 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $row['state_badge_class'] }}">{{ $row['state_label'] }}</span>
+                                    <x-status-badge class="{{ $row['state_badge_class'] }}">{{ $row['state_label'] }}</x-status-badge>
                                 </div>
                                 <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
                                     <div>
@@ -287,7 +269,7 @@
                                             Unable to Contact
                                         </button>
                                     @endif
-                                    <a href="{{ route('patients.show', $patient->id) }}" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                    <a href="{{ route('patients.show', ['patient' => $patient->id, 'return' => $monitoringReturnUrl]) }}" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                                         {{ $patient->status === 'DELIVERED' ? 'View Record' : 'Open Profile' }}
                                     </a>
                                 </div>

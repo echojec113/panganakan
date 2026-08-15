@@ -5,15 +5,16 @@
         <!-- Page Header - Responsive -->
         <div class="mb-6 sm:mb-8">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                    <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 flex items-center gap-2">
-                        <svg class="w-6 h-6 sm:w-8 sm:h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <x-icon-title
+                    title="Risk Monitoring Dashboard"
+                    subtitle="Clinical risk assessments with decision-source explainability"
+                >
+                    <x-slot name="icon">
+                        <svg class="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
                         </svg>
-                        Risk Monitoring Dashboard
-                    </h1>
-                    <p class="text-sm sm:text-base text-gray-600 mt-1">Clinical risk assessments with decision-source explainability</p>
-                </div>
+                    </x-slot>
+                </x-icon-title>
                 <div class="text-xs sm:text-sm text-gray-500">
                     Last updated: {{ now()->format('M d, Y g:i a') }}
                 </div>
@@ -239,6 +240,11 @@
                         <p id="riskAnalyticsSubtitle" class="text-xs sm:text-sm text-gray-500">Showing risk analytics for {{ $analytics['year'] ?? now()->year }}</p>
                     </div>
                     <div class="flex items-center gap-2 flex-wrap">
+                        <label for="riskAnalyticsType" class="text-xs sm:text-sm text-gray-600 font-medium">Risk Type</label>
+                        <select id="riskAnalyticsType" class="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                            <option value="HIGH" {{ ($analytics['riskType'] ?? 'HIGH') === 'HIGH' ? 'selected' : '' }}>High Risk</option>
+                            <option value="LOW" {{ ($analytics['riskType'] ?? 'HIGH') === 'LOW' ? 'selected' : '' }}>Low Risk</option>
+                        </select>
                         <label for="riskAnalyticsMonth" class="text-xs sm:text-sm text-gray-600 font-medium">Month</label>
                         <select id="riskAnalyticsMonth" class="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
                             <option value="">All Months</option>
@@ -252,10 +258,10 @@
             </div>
 
             <div class="p-4 sm:p-6 space-y-6">
-                <!-- High-Risk Trend (full width) -->
+                <!-- Risk Trend (full width) -->
                 <div>
                     <div class="flex items-center justify-between mb-2">
-                        <p class="text-sm font-semibold text-gray-700">High-Risk Patients by Month</p>
+                        <p id="riskTrendTitle" class="text-sm font-semibold text-gray-700">{{ ($analytics['riskType'] ?? 'HIGH') === 'LOW' ? 'Low-Risk Patients' : 'High-Risk Patients' }}</p>
                         <span id="riskTrendEmpty" class="text-xs text-gray-400" style="display:none;">No risk assessment data available.</span>
                     </div>
                     <div class="chart-wrap" style="height:260px;">
@@ -275,7 +281,19 @@
                         <p id="riskSummaryCondition" class="text-xl font-bold text-gray-800 mt-1">—</p>
                     </div>
                 </div>
+            </div>
+        </div>
 
+        <!-- Risk Analytics Breakdown -->
+        <div class="mb-6 sm:mb-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="border-b border-gray-100 px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-gray-50 to-white">
+                <div>
+                    <h3 class="text-base sm:text-lg font-semibold text-gray-800">Risk Analytics Breakdown</h3>
+                    <p class="text-xs sm:text-sm text-gray-500">Monthly risk distribution, maternal conditions, and BP follow-up</p>
+                </div>
+            </div>
+
+            <div class="p-4 sm:p-6 space-y-6">
                 <!-- Bar Charts -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     <div class="rounded-xl border border-gray-100 p-4">
@@ -834,7 +852,17 @@
 
             setText('riskSummaryCondition', summary.mostCommonCondition ? summary.mostCommonCondition.name : null);
 
-            const trendTotal = (analytics.highRiskTrend || []).reduce((a, b) => a + b, 0);
+            const isLowRisk = analytics.riskType === 'LOW';
+            const trendSeries = analytics.riskTrend || analytics.highRiskTrend || [];
+            const trendTitleEl = document.getElementById('riskTrendTitle');
+
+            if (trendTitleEl) {
+                trendTitleEl.textContent = isLowRisk ? 'Low-Risk Patients' : 'High-Risk Patients';
+            }
+
+            const trendColor = isLowRisk ? palette.emerald : palette.red;
+            const trendFill = isLowRisk ? 'rgba(5,150,102,0.14)' : 'rgba(220,38,38,0.14)';
+            const trendTotal = trendSeries.reduce((a, b) => a + b, 0);
             const hasTrend = isSingleMonth ? trendTotal > 0 : (analytics.labels || []).length > 0;
             toggleEmpty('riskHighRiskTrendChart', 'riskTrendEmpty', hasTrend);
             if (hasTrend) {
@@ -843,13 +871,13 @@
                     data: {
                         labels: analytics.labels,
                         datasets: [{
-                            label: 'High Risk',
-                            data: analytics.highRiskTrend,
-                            borderColor: palette.red,
+                            label: isLowRisk ? 'Low Risk' : 'High Risk',
+                            data: trendSeries,
+                            borderColor: trendColor,
                             backgroundColor: (c) => {
                                 const g = c.chart.ctx.createLinearGradient(0, 0, 0, 260);
-                                g.addColorStop(0, 'rgba(220,38,38,0.14)');
-                                g.addColorStop(1, 'rgba(220,38,38,0)');
+                                g.addColorStop(0, trendFill);
+                                g.addColorStop(1, isLowRisk ? 'rgba(5,150,102,0)' : 'rgba(220,38,38,0)');
                                 return g;
                             },
                             borderWidth: 2.5,
@@ -1003,14 +1031,16 @@
         renderAnalytics(initialAnalytics);
 
         const monthSelect = document.getElementById('riskAnalyticsMonth');
+        const riskTypeSelect = document.getElementById('riskAnalyticsType');
         const loading = document.getElementById('riskAnalyticsLoading');
 
         function loadAnalytics() {
-            if (!monthSelect) return;
+            if (!monthSelect || !riskTypeSelect) return;
             const month = monthSelect.value;
+            const riskType = riskTypeSelect.value;
             if (loading) loading.style.display = 'inline';
 
-            fetch('{{ route('risk.monitoring.analytics') }}?month=' + encodeURIComponent(month))
+            fetch('{{ route('risk.monitoring.analytics') }}?month=' + encodeURIComponent(month) + '&risk_type=' + encodeURIComponent(riskType))
                 .then((r) => r.json())
                 .then(renderAnalytics)
                 .catch(() => { /* keep previous charts on failure */ })
@@ -1018,6 +1048,7 @@
         }
 
         if (monthSelect) monthSelect.addEventListener('change', loadAnalytics);
+        if (riskTypeSelect) riskTypeSelect.addEventListener('change', loadAnalytics);
     });
     </script>
 </x-app-layout>

@@ -18,8 +18,10 @@ class RiskAnalyticsService extends AnalyticsService
     private const CLEARED_SYS_THRESHOLD = 140;
     private const CLEARED_DIA_THRESHOLD = 90;
 
-    public function get(?int $month = null): array
+    public function get(?int $month = null, ?string $riskType = null): array
     {
+        $riskType = in_array($riskType, [self::RISK_HIGH, self::RISK_LOW], true) ? $riskType : self::RISK_HIGH;
+
         $year = (int) Carbon::now()->year;
         $rows = $this->latestAssessments($year, $month);
 
@@ -35,6 +37,7 @@ class RiskAnalyticsService extends AnalyticsService
         }
 
         $highRiskTrend = [];
+        $lowRiskTrend = [];
         $distribution = ['high' => [], 'low' => [], 'incomplete' => []];
         $conditions = ['Hypertension' => [], 'Diabetes' => [], 'Anemia' => []];
         $bpFollowUp = ['urgent' => [], 'pendingRepeat' => [], 'cleared' => []];
@@ -89,6 +92,7 @@ class RiskAnalyticsService extends AnalyticsService
             }
 
             $highRiskTrend[] = $high;
+            $lowRiskTrend[] = $low;
             $distribution['high'][] = $high;
             $distribution['low'][] = $low;
             $distribution['incomplete'][] = $incomplete;
@@ -103,8 +107,11 @@ class RiskAnalyticsService extends AnalyticsService
         return [
             'year' => $year,
             'month' => $month,
+            'riskType' => $riskType,
             'labels' => $labels,
+            'riskTrend' => $riskType === self::RISK_LOW ? $lowRiskTrend : $highRiskTrend,
             'highRiskTrend' => $highRiskTrend,
+            'lowRiskTrend' => $lowRiskTrend,
             'riskDistribution' => $distribution,
             'conditions' => $conditions,
             'bpFollowUp' => $bpFollowUp,

@@ -7,74 +7,54 @@
             ? 'Assessment-linked'
             : 'Manual Referral';
     };
-    $sourceIndigo = function ($referral) {
-        return ($referral->prenatal_visit_id && is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0);
+    $sourceVariant = function ($referral) {
+        return ($referral->prenatal_visit_id && is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0)
+            ? 'info'
+            : 'neutral';
     };
-    $statusColor = [
-        'Pending'   => 'bg-amber-50 text-amber-700 ring-amber-200',
-        'Completed' => 'bg-green-50 text-green-700 ring-green-200',
-        'Refused'   => 'bg-orange-50 text-orange-700 ring-orange-200',
-        'Cancelled' => 'bg-gray-100 text-gray-600 ring-gray-200',
-    ];
+    $statusVariant = function ($status) {
+        return match ($status) {
+            'Pending'   => 'warning',
+            'Completed' => 'success',
+            'Refused'   => 'danger',
+            default     => 'neutral',
+        };
+    };
 @endphp
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
     {{-- Header --}}
-    <div class="mb-8">
-        <h1 class="text-2xl font-bold text-gray-800">Referral Management</h1>
-        <p class="mt-1 text-sm text-gray-500">Track referral decisions and clinical follow-through.</p>
-    </div>
+    <x-app-header
+        title="Referral Management"
+        subtitle="Track referral decisions and clinical follow-through."
+        class="mb-8"
+    />
 
-    @if(session('success'))
-        <div class="mb-6 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {{ session('success') }}
-        </div>
-    @endif
+    <x-flash type="success" :message="session('success')" class="mb-6" />
+    <x-flash type="error" :message="session('error')" class="mb-6" />
 
-    @if(session('error'))
-        <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {{ session('error') }}
-        </div>
-    @endif
-
-    {{-- Action Required Summary (Pending is the visual lead; others quiet) --}}
+    {{-- Referral Status Summary --}}
     <div class="mb-8 rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-        <div class="flex flex-col sm:flex-row sm:items-stretch divide-y sm:divide-y-0 sm:divide-x divide-gray-100">
-            <div class="flex-1 p-6 sm:p-5">
+        <div class="grid grid-cols-2 lg:grid-cols-4">
+            <div class="p-6 text-center border-r border-b lg:border-b-0 border-gray-100">
+                <p class="text-2xl font-bold leading-none text-amber-700">{{ $pending }}</p>
+                <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Pending</p>
                 @if($hasPendingAny)
-                    <div class="text-xs font-semibold uppercase tracking-widest text-amber-600">Action Required</div>
-                    <p class="mt-2 text-2xl font-bold leading-none text-amber-700">{{ $pending }}</p>
-                    <p class="mt-1 text-sm font-medium text-gray-700">Pending Referrals</p>
-                    <p class="mt-2 text-xs text-gray-400">Referrals awaiting clinic follow-through.</p>
-                @else
-                    <div class="text-xs font-semibold uppercase tracking-widest text-green-600">No Action Required</div>
-                    <p class="mt-2 text-2xl font-bold leading-none text-green-700">0</p>
-                    <p class="mt-1 text-sm font-medium text-gray-700">Pending Referrals</p>
-                    <p class="mt-2 text-xs text-gray-400">No referrals awaiting follow-through.</p>
+                    <p class="mt-1.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Action Required</p>
                 @endif
             </div>
-
-            <div class="flex-1 p-6 sm:p-5">
-                <div class="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                        <p class="text-xl font-semibold text-green-600">{{ $completed }}</p>
-                        <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Completed</p>
-                    </div>
-                    <div>
-                        <p class="text-xl font-semibold text-orange-600">{{ $refused }}</p>
-                        <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Refused</p>
-                    </div>
-                    <div>
-                        <p class="text-xl font-semibold text-gray-500">{{ $cancelled }}</p>
-                        <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Cancelled</p>
-                    </div>
-                </div>
+            <div class="p-6 text-center border-r border-b lg:border-b-0 border-gray-100">
+                <p class="text-2xl font-bold leading-none text-green-600">{{ $completed }}</p>
+                <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Completed</p>
             </div>
-
-            <div class="w-full sm:w-40 p-6 sm:p-5 flex items-center justify-between sm:justify-center gap-4">
-                <span class="text-xs font-medium uppercase tracking-wide text-gray-400">Total</span>
-                <span class="text-xl font-semibold text-gray-600">{{ $total }}</span>
+            <div class="p-6 text-center border-r border-gray-100">
+                <p class="text-2xl font-bold leading-none text-orange-600">{{ $refused }}</p>
+                <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Refused</p>
+            </div>
+            <div class="p-6 text-center">
+                <p class="text-2xl font-bold leading-none text-gray-500">{{ $cancelled }}</p>
+                <p class="mt-1 text-xs font-medium uppercase tracking-wide text-gray-500">Cancelled</p>
             </div>
         </div>
     </div>
@@ -133,17 +113,17 @@
                                 <p class="text-[11px] text-gray-400 mt-0.5">Visit: {{ $referral->prenatalVisit?->visit_date?->format('M d, Y') ?? $referral->referral_date->format('M d, Y') }}</p>
                             @endif
                         </div>
-                        <span class="inline-flex items-center rounded-full ring-1 ring-inset px-2.5 py-0.5 text-[11px] font-semibold shrink-0 {{ $statusColor[$referral->status] ?? 'bg-gray-100 text-gray-600 ring-gray-200' }}">
+                        <x-status-badge :variant="$statusVariant($referral->status)" class="shrink-0">
                             {{ $referral->status }}
-                        </span>
+                        </x-status-badge>
                     </div>
 
                     <p class="mt-2 text-xs text-gray-600 line-clamp-2">{{ \Str::limit($referral->reason, 50) }}</p>
 
                     <div class="mt-2 flex items-center gap-2">
-                        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold {{ $sourceIndigo($referral) ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
+                        <x-status-badge :variant="$sourceVariant($referral)">
                             {{ $sourceLabel($referral) }}
-                        </span>
+                        </x-status-badge>
                         @if($referral->status === 'Refused' && $referral->refusal_recorded_at)
                             <span class="text-[11px] text-gray-400">Recorded {{ $referral->refusal_recorded_at->format('M d') }}</span>
                         @elseif($referral->status === 'Completed' && $referral->completed_at)
@@ -196,14 +176,14 @@
                             <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{{ $referral->referral_date->format('M d, Y') }}</td>
                             <td class="px-4 py-3 text-sm text-gray-500">{{ \Str::limit($referral->reason, 50) }}</td>
                             <td class="px-4 py-3">
-                                <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold {{ $sourceIndigo($referral) ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600' }}">
+                                <x-status-badge :variant="$sourceVariant($referral)">
                                     {{ $sourceLabel($referral) }}
-                                </span>
+                                </x-status-badge>
                             </td>
                             <td class="px-4 py-3">
-                                <span class="inline-flex items-center rounded-full ring-1 ring-inset px-2.5 py-0.5 text-[11px] font-semibold {{ $statusColor[$referral->status] ?? 'bg-gray-100 text-gray-600 ring-gray-200' }}">
+                                <x-status-badge :variant="$statusVariant($referral->status)">
                                     {{ $referral->status }}
-                                </span>
+                                </x-status-badge>
                                 @if($referral->status === 'Refused' && $referral->refusal_recorded_at)
                                     <div class="text-[11px] text-gray-400 mt-0.5">Recorded {{ $referral->refusal_recorded_at->format('M d') }}</div>
                                 @elseif($referral->status === 'Completed' && $referral->completed_at)

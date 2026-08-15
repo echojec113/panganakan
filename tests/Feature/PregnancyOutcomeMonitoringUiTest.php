@@ -407,3 +407,28 @@ it('AU — Start New Pregnancy still works and does not inherit follow-up/outcom
     expect($newPregnancy->pregnancyOutcome)->toBeNull();
     expect($newPregnancy->gravida)->toBe(3);
 });
+
+it('BA — a Confirmed Delivery row shows View Record only (no Pregnancy History button)', function () {
+    $user = monitoringUiUser();
+    $patient = monitoringUiPatient(['status' => 'DELIVERED', 'delivery_date' => now()->subDays(2)->toDateString()]);
+    monitoringUiConfirmedDelivery($patient);
+
+    $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
+
+    $response->assertSee('Confirmed Delivery');
+    $response->assertSee('View Record');
+    $response->assertSee(route('patients.show', $patient->id));
+    $response->assertDontSee('Pregnancy History');
+    $response->assertDontSee(route('patients.delivered.history', $patient->id));
+});
+
+it('BB — a Historical Delivered Record row keeps the Pregnancy History button', function () {
+    $user = monitoringUiUser();
+    $patient = monitoringUiPatient(['status' => 'DELIVERED', 'delivery_date' => now()->subMonths(2)->toDateString()]);
+
+    $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
+
+    $response->assertSee('Historical Delivered Record');
+    $response->assertSee('Pregnancy History');
+    $response->assertSee(route('patients.delivered.history', $patient->id));
+});
