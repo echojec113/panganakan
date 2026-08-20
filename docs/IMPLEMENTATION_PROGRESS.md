@@ -1626,3 +1626,88 @@ Scope: Dashboard analytics selection/display improvement only. The Risk Analytic
 - `npm run build`: succeeded. `php artisan view:cache`: clean. `git diff --check`: clean.
 
 Design defense: reusing the single trend chart with a data/type switch keeps the dashboard uncluttered and avoids duplicating Chart.js instances, while limiting `risk_type` to HIGH/LOW keeps the selector strictly a visualization choice — it can never affect risk classification or assessment output. Keeping the summary cards on the HIGH series preserves their existing meaning ("Highest High-Risk Month"), and isolating the other graphs into their own section lets the primary trend chart surface first without removing any existing analytics.
+
+## Sprint 18 — In-App Notifications for Clinical Events + Profile Access/Header Hardening
+
+Status: Complete
+
+Scope: Notification infrastructure + two defensive work streams. Part 1 adds a database-backed in-app notification system driven by real persisted clinical events: an urgent BP visit, a repeat-BP-pending visit, referral creation, and referral closure each generate exactly one notification per recipient — never on page render. Part 2 hardens the authenticated header so the user-menu link always resolves to the logged-in user's own profile (with explicit regression tests that staff cannot escalate to admin via profile/password tampering).
+
+### Backend changes
+- `database/migrations/2026_08_20_000001_create_notifications_table.php`: the standard `notifications` table (id, type, notifiable morph, data, read_at, timestamps) with indexes on `notifiable_type`/`notifiable_id`/`read_at`.
+- `app/Notifications/{UrgentBloodPressureNotification,PendingRepeatBloodPressureNotification,ReferralCreatedNotification,ReferralClosedNotification}.php`: database-channel (`['database']`) notifications only; each builds a structured `data` payload (`type`, `title`, `message`, `action_label`, `destination` route name + parameters) so tray links are resolved at render time with current routing, never stored absolute URLs.
+- `app/Services/SystemNotificationService.php`: single entry point for generating notifications strictly from post-persistence events. `adminRecipients()` targets all active admins; `clinicalRecipients()` targets the patient's assigned staff (when assigned) plus admins. Fix: recipient builder returns `Illuminate\Support\Collection` (the original `Eloquent\Collection` return type caused a live `TypeError` — `collect()->unique()` yields a base collection — that silently aborted the send; surfaced by the trigger tests and corrected).
+- `app/Http/Controllers/NotificationController.php`: `markAsRead` and `markAllAsRead` are self-scoped — they operate only on the authenticated user's own notifications via `where('id', ...)->where('notifiable...')` guards. Both under `auth` middleware; unauthorized/foreign targets 404.
+- `app/Http/Controllers/PrenatalVisitController.php` (`store`): after the transaction commits, a visit with `urgency === 'URGENT_CLINICAL_REVIEW'` fires `notifyUrgentBloodPressure` and a `bp_verification_status === 'PENDING_REPEAT'` fires `notifyPendingRepeatBloodPressure`. Firing only in `store` (never from `update`, which already guards each state, and never from any render) keeps the one-event guarantee.
+- `app/Http/Controllers/ReferralController.php`: `store` notifies admins of a newly created pending referral (`notifyReferralCreated`, acting staff excluded); `complete`/`refuse`/`cancel` notify admins of terminal closure (`notifyReferralClosed`).
+- `app/View/Composers/NotificationComposer.php` + `app/Providers/AppServiceProvider.php`: registers the generic (non-cached) View Composer so the dashboard tray gets `notifications` (latest 8) and `unreadNotificationCount` without per-sprint controller leaks. Reverted from cached (`view()->composer`) because cached profiles/dashboard record stale models.
+
+### Frontend changes
+- `resources/views/layouts/app.blade.php` header: the dead notification `<a href="#">` was replaced with a real `<button id="notifBell">` (no scroll-to-top fake). The profile dropdown "Account" link now always points to the current user (no fixed `/users/<id>` or `href="#"` placeholders), keeping admins and staff signed in to their own profile.
+
+### Verification (tests/Feature/NotificationTest.php 13 tests, ProfileAccessHeaderTest.php 11 tests)
+- Display/scoping: users see only their own unread count, own tray rows, and read/read-all mutations affect only the authenticated user; guest access to notification routes redirects to login; zero-notification state renders safely; dashboard renders never create/duplicate notifications.
+- Event triggers: urgent 165/110 visit POST notifies assigned staff + admins exactly once (both urgent and pending-repeat); non-urgent visit notifies nobody; an already-urgent `update` does not duplicate; referral creation notifies admins but not the acting staff; referral closure notifies admins.
+- Profile access: admin/staff reach their own profile; guest blocked; profile and password updates preserve the caller's role and cannot escalate a staff user to admin; profile update changes only the current authenticated user; email uniqueness preserves the user's own address; header links to the authenticated user's profile; logout behavior unchanged.
+- Found and fixed during testing: the `SystemNotificationService` collection return-type `TypeError` described above.
+- `php artisan test`: 751 passed, 2 failed — the 2 are the pre-existing unrelated baseline failures (ExampleTest guest 302-vs-200, ProfileTest soft-delete), unchanged and documented since Sprint 17K. `php artisan view:cache`: clean. `php -l` clean on every touched file.
+
+Design defense: notifications are written only from post-persist hooks so the dashboard is a pure read path — re-renders can never multiply notifications and `Notification::fake()` unit tests can assert exact-once semantics. Tray links store route names + parameters (not URLs) so destinations stay correct if routing changes. The bell stays an inert-but-visible button (no client behavior) rather than a fake link, and the user menu resolves the profile URL at render from the authenticated user to remove any staff->admin or wrong-user navigation path. All recipients are server-derived (assigned staff + role-checked admins), so acting staff and foreign users can never be targeted or forged.
+
+## Sprint 19 — Staff Account Ownership / Administration Boundary
+
+Status: Complete
+
+Scope: Enforce and prove the Admin-only account lifecycle. Staff never administers accounts — it can only manage its own name/email/password on `/profile`. All Manage Staff routes (index/create/store/edit/update/destroy) are Admin-only at the controller level; self-service account deletion through the generic profile page is removed at both the UI and route layers; staff creation keeps `role` pinned server-side to `staff`; staff edit cannot touch role; and profile updates cannot modify role or account-administration fields.
+
+### Backend changes
+- `app/Http/Controllers/StaffController.php`: already guarded — every route (`index`, `create`, `store`, `edit`, `update`, `destroy`) begins with `checkAdmin()` (guest or non-admin → `403`). Re-verified unchanged. `store()` validates name/email, password `min:6`, hashes with `Hash::make`, and hard-codes `role => 'staff'` (never reads `role` from the request); `update()` only applies `name`/`email` (with uniqueness ignoring the current id) and never exposes a role field; `destroy()` is Admin-only and soft-deletes.
+- `app/Http/Controllers/ProfileController.php`: `destroy()` (the Breeze self-delete endpoint) removed; the unused `Auth` import dropped.
+- `routes/web.php`: `DELETE /profile` (`profile.destroy`) removed. The `/profile` path still serves GET (edit) and PATCH (update); a DELETE request now returns `405 Method Not Allowed`, so neither Staff nor Admin can self-delete through the generic profile page, and no legitimate feature depends on that route.
+- `app/Http/Controllers/Auth/AuthenticatedSessionController.php`: unchanged — login still routes admin/staff to the dashboard.
+- Self-service password change remains available only through the existing Breeze `PUT /password` (`PasswordController`), which acts strictly on the authenticated user and cannot touch role.
+
+### Frontend changes
+- `resources/views/profile/partials/delete-user-form.blade.php`: partial deleted.
+- `resources/views/profile/edit.blade.php`: the "Delete Account" card removed entirely; the profile page now offers only Update Profile Information and Update Password.
+- Sidebar: the "Manage Staff" item was already admin-only (`auth()->user()->role === 'admin'`); kept as-is — the controller `checkAdmin()` is the authoritative control, the hidden sidebar link is only cosmetic.
+
+### Verification (tests/Feature/StaffAccountAdministrationBoundaryTest.php, 13 tests; ProfileTest reworked)
+1. Admin can open Manage Staff (`staff.index` → 200, renders staff rows).
+2. Staff receives `403` opening Manage Staff.
+3. Admin can create a Staff account (`staff.store` → 302 + persisted `role = staff`).
+4. Submitted `role=admin` during staff creation still yields a `staff` account and does not increase the admin count.
+5. Created password is hashed (`Hash::check` passes; plaintext ≠ stored).
+6. Duplicate email is rejected (`assertSessionHasErrors('email')`, count unchanged).
+7. Staff cannot access `staff.create` (403).
+8. Staff cannot call `staff.store` (403, and the attacker's user row is never created).
+9. Staff cannot edit another staff account (403 on GET and PUT; target unchanged).
+10. Staff cannot delete another staff account (403; target still exists).
+11. Staff cannot delete their own account through `/profile` (`405`, still authenticated, row intact).
+12. Admin can still remove Staff through Manage Staff (`staff.destroy` → 302 + `assertSoftDeleted`).
+13. Profile update cannot modify role or account-administration fields (`role=admin`/`approved`/`is_administrator` posted → role stays `staff`, admin count stays 0).
+- `ProfileTest` reworked: the two stock Breeze delete tests replaced with "self-service account deletion disabled at the route layer" (staff) and "disabled for admins too" — both assert `405`, still authenticated, row intact. This also removes the long-standing ProfileTest soft-delete baseline failure.
+- `php artisan test`: 765 passed, 1 failed — the single remaining failure is the pre-existing unrelated `ExampleTest` (guest `GET /` 302-vs-200), unchanged since earlier sprints. `php artisan view:cache`: clean. `php -l` clean on every touched file.
+
+Design defense: the boundary is enforced at the controller (authorization) and route (method) layers, never by hiding menu links — a direct request from a staff session to any staff resource route hits `checkAdmin()` and returns `403`. Staff creation pins `role => 'staff'` server-side and only reads `name`/`email`/`password` from the request, so privileged-field tampering is structurally impossible; `create()` uses explicit attribute arrays instead of mass assignment of arbitrary request data. Because self-deletion is not part of the intended account lifecycle (removal is exclusive to Admin via Manage Staff), removing the endpoint entirely is safer than guarding it: there is no reachable code path by which Staff — or an Admin distracted on the generic profile page — could self-delete, while Admin's authorized Manage Staff deletion is untouched and covered by a test. Profile updates go through `ProfileUpdateRequest`, which validates only `name`/`email`, so roles and any future account-administration columns can never be written from profile/password requests.
+
+## Sprint 19B — Profile UI/UX Redesign (Presentation Only)
+
+Status: Complete
+
+Scope: UI/UX redesign of `/profile` only. The Sprint 18/19 backend and security behavior is untouched — the same routes, controllers, forms, and validation handle the same submissions exactly as before. The default Laravel/Breeze appearance (dark charcoal cards, generic spacing) was replaced with the application's light, centered design language.
+
+### Backend / Route / Database / Security changes
+None. No controller, route, model, middleware, migration, service, or authorization logic changed. The self-scoped profile update (`PATCH /profile`), password update (`PUT /password`), role-escalation protection, and Admin-only staff administration remain byte-for-byte identical.
+
+### Frontend changes (3 Blade presentation files only)
+- `resources/views/profile/edit.blade.php`: sets the layout header to `Profile` (topbar title + `Home › Profile` breadcrumb), centers the workspace in a `max-w-3xl` column, and adds a display-only Profile Summary card (initials avatar, full name, email, and a subtle `STAFF`/`ADMIN` status badge). A small vanilla-JS block drives the show/hide password toggles for all three password fields (independent, `type="button"`, keyboard accessible with `aria-label`/`aria-pressed`).
+- `resources/views/profile/partials/update-profile-information-form.blade.php`: card restyled to the system language (`bg-white rounded-2xl border-gray-100 shadow-sm`, `bg-gray-50` section header) — "Account Information / Update your personal account details." Full Name + Email Address sit side-by-side on desktop (`sm:grid-cols-2`) and stack on mobile. Inputs use the app's `h-10`, focus ring, and per-field error state (subtle red border + readable error text + `aria-describedby`). Button relabelled to "Save Changes". Success shows a green "✓ Profile information updated successfully." chip using the existing `session('status')` and an Alpine fade, never `alert()`.
+- `resources/views/profile/partials/update-password-form.blade.php`: card restyled as "Password & Security / Keep your account protected with a secure password." Current Password occupies a full row; New Password and Confirm New Password share a row on desktop and stack on mobile. All three inputs get an inline eye toggle that switches `password` ↔ `text` independently without submitting. Button relabelled to "Update Password". Success chip "✓ Password updated successfully." The dead Breeze email-verification block (User does not implement `MustVerifyEmail`) was dropped.
+
+### Verification
+- Relevant suites green: ProfileTest (5), ProfileAccessHeaderTest (11), StaffAccountAdministrationBoundaryTest (13), NotificationTest (13) — 42 passed, 126 assertions.
+- `php artisan test`: 765 passed, 1 failed — the single failure is the pre-existing unrelated `ExampleTest` (guest `GET /` 302-vs-200), identical to the Sprint 19 baseline; not touched.
+- `php artisan view:cache`: clean. `git diff --check`: clean. No migrations run.
+
+Design defense: the redesign reuses the application's own tokens and components (`bg-white`/`border-gray-100` cards, `bg-gray-50` card headers, `status-badge`, `btn-primary`, `input-label`/`input-error`, primary `#2563eb` focus ring) rather than inventing a new system. The page stays a read/self-service surface: role is rendered as a badge only (no role input), self-deletion remains absent, and every form still posts to its existing named route (`profile.update`, `password.update`) with unchanged validation. Password visibility is pure client-side presentation — the backend still receives the same `type="password"` field values — so no validation or security behavior changes. Inputs are intentionally explicit (controlled error-border classes) so the required field-level validation UX is deterministic, while labels/errors still come from the shared components.

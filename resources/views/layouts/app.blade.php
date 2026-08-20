@@ -382,6 +382,101 @@
             font-weight: 700;
         }
 
+        /* ── Notification tray ── */
+        .notif-wrap { position: relative; }
+
+        .notif-dropdown {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 360px;
+            max-width: calc(100vw - 28px);
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: 0 18px 45px rgba(30,70,140,0.16);
+            overflow: hidden;
+            z-index: 120;
+            display: none;
+        }
+
+        .notif-dropdown.open { display: block; }
+
+        .notif-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 14px;
+            border-bottom: 1px solid #f1f3f7;
+            background: #fafcff;
+        }
+
+        .notif-head-title {
+            font-size: 13px; font-weight: 700; color: var(--text-primary);
+        }
+
+        .notif-mark-all {
+            font-size: 12px; font-weight: 600; color: var(--blue-accent);
+            background: none; border: none; cursor: pointer; padding: 0;
+            font-family: inherit;
+        }
+
+        .notif-mark-all:hover { text-decoration: underline; }
+
+        .notif-list { max-height: 340px; overflow-y: auto; }
+
+        .notif-item {
+            display: flex;
+            gap: 10px;
+            padding: 12px 14px;
+            border-bottom: 1px solid #f7f8fa;
+            text-decoration: none;
+            color: var(--text-primary);
+            transition: background 0.15s;
+        }
+
+        .notif-item:hover { background: #f6f9ff; }
+
+        .notif-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            margin-top: 6px; flex-shrink: 0;
+            background: var(--blue-accent);
+        }
+
+        .notif-item.read .notif-dot { background: transparent; border: 1px solid #cbd5e1; }
+
+        .notif-body { min-width: 0; flex: 1; }
+
+        .notif-title {
+            font-size: 12.5px; font-weight: 600; color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .notif-item.read .notif-title { color: var(--text-muted); font-weight: 500; }
+
+        .notif-msg {
+            font-size: 12px; color: var(--text-muted); line-height: 1.4; margin-top: 2px;
+            overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        }
+
+        .notif-meta {
+            display: flex; align-items: center; gap: 8px; margin-top: 6px;
+            font-size: 11px; color: #94a3b8;
+        }
+
+        .notif-meta .notif-action-label { color: var(--blue-accent); font-weight: 600; }
+
+        .notif-inline-mark .notif-mark-all { font-size: 11px; }
+
+        .notif-empty {
+            padding: 28px 16px; text-align: center;
+        }
+
+        .notif-empty-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+        .notif-empty-sub { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+        @media (max-width: 480px) {
+            .notif-dropdown { width: 300px; }
+        }
+
         /* User chip */
         .user-menu {
             display: flex;
@@ -391,8 +486,15 @@
             border-radius: 12px;
             background: var(--bg-base);
             border: 1px solid var(--border);
-            cursor: default;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
             transition: all 0.17s;
+        }
+
+        .user-menu:hover {
+            background: #dce8fb;
+            border-color: var(--blue-accent);
         }
 
         .user-avatar {
@@ -664,16 +766,89 @@
             </div>
 
             {{-- Notifications --}}
-            <a href="#" class="icon-btn" title="Notifications">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
-                <span class="badge">3</span>
-            </a>
+            <div class="notif-wrap">
+                <button type="button" class="icon-btn" id="notifBell" title="Notifications" aria-haspopup="true" aria-expanded="false" aria-label="Notifications">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    @if($unreadNotificationCount > 0)
+                        <span class="badge">{{ $unreadNotificationCount }}</span>
+                    @endif
+                </button>
+
+                <div class="notif-dropdown" id="notifDropdown">
+                    @if($notifications->isNotEmpty())
+                        <div class="notif-head">
+                            <span class="notif-head-title">Notifications</span>
+                            @if($unreadNotificationCount > 0)
+                                <form method="POST" action="{{ route('notifications.markAllRead') }}">
+                                    @csrf
+                                    <button type="submit" class="notif-mark-all">Mark all as read</button>
+                                </form>
+                            @endif
+                        </div>
+                        <div class="notif-list">
+                            @foreach($notifications as $notification)
+                                @php
+                                    $nRead = $notification->read_at !== null;
+                                    $nData = $notification->data ?? [];
+                                    $nUrl = null;
+                                    if (isset($nData['destination']['route'])) {
+                                        $nUrl = route($nData['destination']['route'], $nData['destination']['parameters'] ?? []);
+                                    }
+                                @endphp
+                                @if($nUrl)
+                                    <a href="{{ $nUrl }}"
+                                       class="notif-item @if($nRead) read @endif"
+                                       data-notif-id="{{ $notification->id }}"
+                                       @if(!$nRead) data-notif-unread="1" @endif>
+                                        <span class="notif-dot"></span>
+                                        <span class="notif-body">
+                                            <span class="notif-title">{{ $nData['title'] ?? 'Notification' }}</span>
+                                            <span class="notif-msg">{{ $nData['message'] ?? '' }}</span>
+                                            <span class="notif-meta">
+                                                <span>{{ $notification->created_at->diffForHumans() }}</span>
+                                                @if(isset($nData['action_label']))
+                                                    <span class="notif-action-label">{{ $nData['action_label'] }}</span>
+                                                @endif
+                                            </span>
+                                        </span>
+                                    </a>
+                                @else
+                                    <div class="notif-item @if($nRead) read @endif">
+                                        <span class="notif-dot"></span>
+                                        <span class="notif-body">
+                                            <span class="notif-title">{{ $nData['title'] ?? 'Notification' }}</span>
+                                            <span class="notif-msg">{{ $nData['message'] ?? '' }}</span>
+                                            <span class="notif-meta">
+                                                <span>{{ $notification->created_at->diffForHumans() }}</span>
+                                                @if(!$nRead)
+                                                    <form class="notif-inline-mark" method="POST" action="{{ route('notifications.read', $notification->id) }}">
+                                                        @csrf
+                                                        <button type="submit" class="notif-mark-all">Mark as read</button>
+                                                    </form>
+                                                @endif
+                                            </span>
+                                        </span>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="notif-head">
+                            <span class="notif-head-title">Notifications</span>
+                        </div>
+                        <div class="notif-empty">
+                            <div class="notif-empty-title">No notifications</div>
+                            <div class="notif-empty-sub">You're all caught up.</div>
+                        </div>
+                    @endif
+                </div>
+            </div>
 
             {{-- User --}}
-            <div class="user-menu">
+            <a href="{{ route('profile.edit') }}" class="user-menu" title="My Profile">
                 <div class="user-avatar">
                     {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
                 </div>
@@ -681,7 +856,7 @@
                     <div class="user-name">{{ auth()->user()->name }}</div>
                     <div class="user-role">{{ auth()->user()->role ?? 'Staff' }}</div>
                 </div>
-            </div>
+            </a>
 
             {{-- Logout --}}
             <form method="POST" action="{{ route('logout') }}">
@@ -754,6 +929,62 @@
             closeSidebar();
         }
     });
+
+    // ── Notification tray ──
+    const notifBell     = document.getElementById('notifBell');
+    const notifDropdown = document.getElementById('notifDropdown');
+
+    function closeNotifTray() {
+        if (!notifDropdown) return;
+        notifDropdown.classList.remove('open');
+        if (notifBell) notifBell.setAttribute('aria-expanded', 'false');
+    }
+
+    if (notifBell && notifDropdown) {
+        notifBell.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const wasOpen = notifDropdown.classList.contains('open');
+            closeNotifTray();
+            if (!wasOpen) {
+                notifDropdown.classList.add('open');
+                notifBell.setAttribute('aria-expanded', 'true');
+            }
+        });
+
+        // Close when clicking anywhere outside the tray
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.notif-wrap')) closeNotifTray();
+        });
+
+        // Close with Escape and return focus to the bell
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && notifDropdown.classList.contains('open')) {
+                closeNotifTray();
+                notifBell.focus();
+            }
+        });
+
+        // Opening an actionable notification marks it read (fetch) then
+        // navigates. Non-actionable rows use their inline form instead.
+        document.querySelectorAll('#notifDropdown a.notif-item[data-notif-unread]').forEach(link => {
+            link.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                const id   = this.getAttribute('data-notif-id');
+                const href = this.getAttribute('href');
+                const csrf = document.querySelector('meta[name="csrf-token"]');
+                fetch("{{ route('notifications.read', '__NOTIF_ID__') }}".replace('__NOTIF_ID__', id), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrf ? csrf.getAttribute('content') : '',
+                        'Accept': 'application/json',
+                    },
+                }).finally(() => {
+                    window.location.href = href;
+                });
+            });
+        });
+    }
 </script>
 
 </body>

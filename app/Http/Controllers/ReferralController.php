@@ -8,6 +8,7 @@ use App\Models\PrenatalVisit;
 use App\Services\ReferralAnalyticsService;
 use App\Services\ReferralAssessmentSnapshotService;
 use App\Services\ReferralFollowThroughService;
+use App\Services\SystemNotificationService;
 use DomainException;
 use Illuminate\Http\Request;
 
@@ -16,7 +17,8 @@ class ReferralController extends Controller
     public function __construct(
         private ReferralAnalyticsService $referralAnalytics,
         private ReferralAssessmentSnapshotService $snapshotService,
-        private ReferralFollowThroughService $followThrough
+        private ReferralFollowThroughService $followThrough,
+        private SystemNotificationService $notifications
     ) {
     }
 
@@ -264,6 +266,10 @@ class ReferralController extends Controller
             'REFERRAL',
             $description
         );
+
+        // Notify admins that a new pending referral requires follow-through.
+        $this->notifications->notifyReferralCreated($referral);
+
         return redirect()
             ->route('referrals.index')
             ->with('success', 'Referral created successfully.');
@@ -298,6 +304,8 @@ class ReferralController extends Controller
             'Completed referral #' . $referral->id . ' for patient: ' . $referral->patient->first_name . ' ' . $referral->patient->last_name
                 . ' (Pending -> Completed)'
         );
+
+        $this->notifications->notifyReferralClosed($referral);
 
         return redirect()->back()
             ->with('success', 'Referral marked as completed.');
@@ -345,6 +353,8 @@ class ReferralController extends Controller
                 . ' (Pending -> Refused)' . ($referral->waiver_signed ? ' — physical waiver signed/recorded' : ' — no waiver signed')
         );
 
+        $this->notifications->notifyReferralClosed($referral);
+
         return redirect()->back()
             ->with('success', 'Referral refusal recorded.');
     }
@@ -382,6 +392,8 @@ class ReferralController extends Controller
             'Cancelled referral #' . $referral->id . ' for patient: ' . $referral->patient->first_name . ' ' . $referral->patient->last_name
                 . ' (Pending -> Cancelled)'
         );
+
+        $this->notifications->notifyReferralClosed($referral);
 
         return redirect()->back()
             ->with('success', 'Referral cancelled.');

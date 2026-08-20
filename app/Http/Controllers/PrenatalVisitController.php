@@ -17,6 +17,7 @@ use App\Services\AssessmentMetadataSerializer;
 use App\Services\MedicalHistoryConditionSyncService;
 use App\Services\PatientAssessmentRecalculationService;
 use App\Services\RiskAssessmentService;
+use App\Services\SystemNotificationService;
 use App\ValueObjects\AssessmentContext;
 
 class PrenatalVisitController extends Controller
@@ -26,19 +27,22 @@ class PrenatalVisitController extends Controller
     private MedicalHistoryConditionSyncService $medicalHistorySyncService;
     private AssessmentMetadataSerializer $metadataSerializer;
     private AssessmentContextBuilder $contextBuilder;
+    private SystemNotificationService $notifications;
 
     public function __construct(
         RiskAssessmentService $riskAssessmentService,
         PatientAssessmentRecalculationService $recalculationService,
         MedicalHistoryConditionSyncService $medicalHistorySyncService,
         AssessmentMetadataSerializer $metadataSerializer,
-        AssessmentContextBuilder $contextBuilder
+        AssessmentContextBuilder $contextBuilder,
+        SystemNotificationService $notifications
     ) {
         $this->riskAssessmentService = $riskAssessmentService;
         $this->recalculationService = $recalculationService;
         $this->medicalHistorySyncService = $medicalHistorySyncService;
         $this->metadataSerializer = $metadataSerializer;
         $this->contextBuilder = $contextBuilder;
+        $this->notifications = $notifications;
     }
 
 
@@ -275,6 +279,20 @@ class PrenatalVisitController extends Controller
 
             return $visit;
         });
+
+        // Persisted clinical state transitions -> in-app notifications.
+        // A freshly stored visit is one event: each new urgent / pending-repeat
+        // state is notified exactly once (never on later page renders).
+        // Persisted clinical state transitions -> in-app notifications.
+        // A freshly stored visit is one event: each new urgent / pending-repeat
+        // state is notified exactly once (never on later page renders).
+        if ($visit->urgency === 'URGENT_CLINICAL_REVIEW') {
+            $this->notifications->notifyUrgentBloodPressure($visit);
+        }
+
+        if ($visit->bp_verification_status === 'PENDING_REPEAT') {
+            $this->notifications->notifyPendingRepeatBloodPressure($visit);
+        }
 
         // Log repeat BP recording only after the visit persisted successfully
         if ($repeatBpInputs) {
@@ -553,6 +571,12 @@ class PrenatalVisitController extends Controller
 
         $bpVerificationStatus = $riskAssessment['bp_assessment']['verification_status'] ?? BloodPressureAssessmentService::VERIFICATION_NOT_REQUIRED;
 
+        // Capture the pre-update clinical state so notifications fire only on
+        // a real transition (e.g. NORMAL -> URGENT), never on every re-save
+        // while a state is already active.
+        $originalUrgency = $visit->getOriginal('urgency');
+        $originalBpVerificationStatus = $visit->getOriginal('bp_verification_status');
+
         // ======================
         // APPLY SINGLE COHERENT PERSISTENCE UPDATE
         // ======================
@@ -641,6 +665,16 @@ class PrenatalVisitController extends Controller
                 );
             }
         });
+
+        // Persisted clinical state transitions -> in-app notifications.
+        // Fires only when a state actually transitioned into the active value.
+        if ($visit->urgency === 'URGENT_CLINICAL_REVIEW' && $originalUrgency !== 'URGENT_CLINICAL_REVIEW') {
+            $this->notifications->notifyUrgentBloodPressure($visit);
+        }
+
+        if ($visit->bp_verification_status === 'PENDING_REPEAT' && $originalBpVerificationStatus !== 'PENDING_REPEAT') {
+            $this->notifications->notifyPendingRepeatBloodPressure($visit);
+        }
 
         // ======================
         // AUDIT LOGS (only after successful persistence)

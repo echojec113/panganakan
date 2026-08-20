@@ -14,6 +14,7 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\RiskMonitoringController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\PregnancyOutcomeController;
+use App\Http\Controllers\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -51,7 +52,20 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    /*
+    |--------------------------------------------------------------------------
+    | In-app Notifications (authenticated user only, self-scoped)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])
+        ->middleware('auth')
+        ->name('notifications.markAllRead');
+
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])
+        ->middleware('auth')
+        ->name('notifications.read');
 
     /*
     |--------------------------------------------------------------------------

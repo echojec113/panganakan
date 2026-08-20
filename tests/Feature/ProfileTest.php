@@ -50,7 +50,7 @@ test('email verification status is unchanged when the email address is unchanged
     $this->assertNotNull($user->refresh()->email_verified_at);
 });
 
-test('user can delete their account', function () {
+test('self-service account deletion is disabled at the route layer', function () {
     $user = User::factory()->create();
 
     $response = $this
@@ -59,27 +59,24 @@ test('user can delete their account', function () {
             'password' => 'password',
         ]);
 
-    $response
-        ->assertSessionHasNoErrors()
-        ->assertRedirect('/');
+    // Account lifecycle deletion is Admin-only via Manage Staff; the generic
+    // profile page no longer exposes a self-delete endpoint.
+    $response->assertMethodNotAllowed();
 
-    $this->assertGuest();
-    $this->assertNull($user->fresh());
+    $this->assertAuthenticated();
+    $this->assertNotNull($user->fresh());
 });
 
-test('correct password must be provided to delete account', function () {
-    $user = User::factory()->create();
+test('self-service account deletion is disabled for admins too', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
 
     $response = $this
-        ->actingAs($user)
-        ->from('/profile')
+        ->actingAs($admin)
         ->delete('/profile', [
-            'password' => 'wrong-password',
+            'password' => 'password',
         ]);
 
-    $response
-        ->assertSessionHasErrorsIn('userDeletion', 'password')
-        ->assertRedirect('/profile');
-
-    $this->assertNotNull($user->fresh());
+    $response->assertMethodNotAllowed();
+    $this->assertAuthenticated();
+    $this->assertNotNull($admin->fresh());
 });
