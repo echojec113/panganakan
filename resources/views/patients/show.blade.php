@@ -432,7 +432,6 @@
                     </svg>
                     Latest Prenatal Visit
                 </div>
-                <a href="#prenatal-visits-section" class="text-sm font-medium text-blue-700 hover:text-blue-900">View all visits &rarr;</a>
             </div>
             <div class="panel-body">
                 <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">

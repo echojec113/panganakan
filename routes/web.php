@@ -23,7 +23,10 @@ use App\Http\Controllers\NotificationController;
 */
 
 Route::get('/', function () {
-    return redirect()->route('login');
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+    return view('landing');
 });
 
 /*

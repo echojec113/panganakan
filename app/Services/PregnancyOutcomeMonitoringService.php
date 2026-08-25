@@ -173,12 +173,12 @@ class PregnancyOutcomeMonitoringService
     /**
      * @return array<string, int> State counts for a set of pregnancy episodes.
      */
-    public function countByState(iterable $patients): array
+    public function countByState(iterable $patients, ?CarbonInterface $asOf = null): array
     {
         $states = [];
 
         foreach ($patients as $patient) {
-            $state = $patient instanceof Patient ? $this->deriveState($patient) : 'UNKNOWN';
+            $state = $patient instanceof Patient ? $this->deriveState($patient, $asOf) : 'UNKNOWN';
             $states[$state] = ($states[$state] ?? 0) + 1;
         }
 

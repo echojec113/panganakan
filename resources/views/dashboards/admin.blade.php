@@ -4,32 +4,43 @@
 
     .dash-root { font-family: 'DM Sans', sans-serif; background: #f8f9fc; min-height: 100vh; }
 
+    /* ---- Visual Tokens (landing/login-inspired) ---- */
+    :root {
+        --dnav-primary: #19355F;
+        --dnav-green: #55B85A;
+        --dnav-dark: #367E4B;
+        --dwhite-warm: #FCFBF8;
+        --dcream-light: #F6F4EE;
+        --dtext-body: #657083;
+        --dborder-subtle: #E7E9E5;
+    }
+
     /* ---- KPI Cards ---- */
     .kpi-card {
         background: #ffffff;
         border: 1px solid #e8eaf0;
         border-radius: 16px;
-        padding: 24px;
+        padding: 20px;
         transition: box-shadow 0.2s ease, transform 0.2s ease;
         position: relative;
         overflow: hidden;
     }
-    .kpi-card:hover { box-shadow: 0 8px 32px rgba(30,41,59,0.10); transform: translateY(-2px); }
+    .kpi-card:hover { box-shadow: 0 4px 12px rgba(30,41,59,0.08); transform: none; }
     .kpi-card::before {
         content: '';
         position: absolute;
         top: 0; left: 0; right: 0;
-        height: 3px;
+        height: 2px;
         border-radius: 16px 16px 0 0;
     }
-    .kpi-blue::before   { background: linear-gradient(90deg, #2563eb, #60a5fa); }
-    .kpi-emerald::before{ background: linear-gradient(90deg, #059669, #34d399); }
-    .kpi-amber::before  { background: linear-gradient(90deg, #d97706, #fbbf24); }
-    .kpi-violet::before { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+    .kpi-blue::before   { background: #19355F; }
+    .kpi-emerald::before{ background: #55B85A; }
+    .kpi-amber::before  { background: #d97706; }
+    .kpi-violet::before { background: #7c3aed; }
 
     .kpi-icon {
-        width: 44px; height: 44px;
-        border-radius: 12px;
+        width: 40px; height: 40px;
+        border-radius: 10px;
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0;
     }
@@ -42,7 +53,7 @@
         overflow: hidden;
     }
     .dash-card-header {
-        padding: 20px 24px 16px;
+        padding: 16px 20px 12px;
         border-bottom: 1px solid #f1f3f7;
         display: flex; align-items: center; justify-content: space-between;
     }
@@ -50,7 +61,7 @@
     /* ---- Priority List ---- */
     .priority-row {
         display: flex; align-items: center; justify-content: space-between;
-        padding: 14px 20px;
+        padding: 12px 16px;
         border-bottom: 1px solid #f7f8fa;
         text-decoration: none;
         transition: background 0.15s;
@@ -58,50 +69,42 @@
     .priority-row:hover { background: #f8f9fc; }
     .priority-row:last-child { border-bottom: none; }
     .priority-badge {
-        font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
-        padding: 3px 8px; border-radius: 20px;
+        font-size: 10px; font-weight: 600; letter-spacing: 0.04em;
+        padding: 2px 6px; border-radius: 16px;
         background: #fef3c7; color: #92400e;
     }
 
     /* ---- Progress bar ---- */
-    .progress-track { background: #f1f3f7; border-radius: 99px; height: 6px; overflow: hidden; }
+    .progress-track { background: #f1f3f7; border-radius: 99px; height: 4px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 99px; transition: width 0.6s cubic-bezier(.4,0,.2,1); }
 
     /* ---- Insight Items ---- */
     .insight-item {
-        display: flex; align-items: flex-start; gap: 12px;
-        padding: 14px 0;
+        display: flex; align-items: flex-start; gap: 8px;
+        padding: 10px 0;
         border-bottom: 1px solid #f1f3f7;
     }
     .insight-item:last-child { border-bottom: none; }
-    .insight-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .insight-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
 
     /* ---- Condition Bars ---- */
-    .cond-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-    .cond-label { font-size: 13px; font-weight: 500; color: #374151; width: 110px; flex-shrink: 0; }
+    .cond-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .cond-label { font-size: 12px; font-weight: 500; color: #657083; width: 100px; flex-shrink: 0; }
     .cond-bar-wrap { flex: 1; }
-    .cond-count { font-size: 13px; font-weight: 600; color: #1e293b; width: 28px; text-align: right; }
+    .cond-count { font-size: 12px; font-weight: 600; color: #1e293b; width: 24px; text-align: right; }
 
     /* ---- Stat Pills ---- */
     .stat-pill {
-        background: #f8f9fc; border: 1px solid #e8eaf0; border-radius: 12px;
-        padding: 18px 20px; text-align: center;
-    }
-
-    /* ---- Header sticky ---- */
-    .dash-header {
-        background: rgba(255,255,255,0.95);
-        backdrop-filter: blur(12px);
-        border-bottom: 1px solid #e8eaf0;
-        position: sticky; top: 64px; z-index: 20;
+        background: #f8f9fc; border: 1px solid #e8eaf0; border-radius: 10px;
+        padding: 12px 16px; text-align: center;
     }
 
     /* ---- Alert Banner ---- */
     .alert-banner {
-        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        background: #fef3c7;
         border: 1px solid #fde68a;
-        border-radius: 14px;
-        padding: 20px 24px;
+        border-radius: 12px;
+        padding: 16px 20px;
     }
 
     .mono { font-family: 'DM Mono', monospace; }
@@ -180,7 +183,7 @@
                     </div>
                     <div class="kpi-icon bg-violet-50">
                         <svg width="20" height="20" fill="none" stroke="#7c3aed" stroke-width="1.8" viewBox="0 0 24 24">
-                            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                            <path d="M12 19l9 2-9-2l9-2-2-7-2 8-9 2-8 7 2 7z"/>
                         </svg>
                     </div>
                 </div>
@@ -188,91 +191,91 @@
         </div>
 
         {{-- ======= EXPLAINABLE RISK SUMMARY CARDS ======= --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+            <div class="kpi-card" style="border-left: 4px solid #dc2626; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">HIGH Risk</p>
-                        <p data-testid="admin-high-count" class="text-2xl font-bold text-red-600 mono">{{ $highRisk }}</p>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">HIGH Risk</p>
+                        <p data-testid="admin-high-count" class="text-xl font-bold text-red-600 mono">{{ $highRisk }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
                             Patients whose latest assessment identified elevated-risk findings and require clinic review.
                         </p>
-                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'HIGH']) }}" class="inline-block mt-2 text-xs font-semibold text-red-600 hover:text-red-800 underline">
+                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'HIGH']) }}" class="inline-block mt-1 text-xs font-semibold text-red-600 hover:text-red-800 underline">
                             View all HIGH &rarr;
                         </a>
                     </div>
                 </div>
             </div>
 
-            <div class="kpi-card" style="border-left: 4px solid #16a34a;">
+            <div class="kpi-card" style="border-left: 4px solid #16a34a; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">LOW Risk</p>
-                        <p data-testid="admin-low-count" class="text-2xl font-bold text-green-600 mono">{{ $lowRisk }}</p>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">LOW Risk</p>
+                        <p data-testid="admin-low-count" class="text-xl font-bold text-green-600 mono">{{ $lowRisk }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
                             Patients whose latest completed assessment found no deterministic HIGH-risk rule and received a valid LOW model result.
                         </p>
-                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'LOW']) }}" class="inline-block mt-2 text-xs font-semibold text-green-600 hover:text-green-800 underline">
+                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'LOW']) }}" class="inline-block mt-1 text-xs font-semibold text-green-600 hover:text-green-800 underline">
                             View all LOW &rarr;
                         </a>
                     </div>
                 </div>
             </div>
 
-            <div class="kpi-card" style="border-left: 4px solid #d97706;">
+            <div class="kpi-card" style="border-left: 4px solid #d97706; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assessment Incomplete</p>
-                        <p data-testid="admin-incomplete-count" class="text-2xl font-bold text-amber-600 mono">{{ $incompleteCount }}</p>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Assessment Incomplete</p>
+                        <p data-testid="admin-incomplete-count" class="text-xl font-bold text-amber-600 mono">{{ $incompleteCount }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
                             Patients whose latest assessment could not be finalized because required data or a valid model result was unavailable.
                         </p>
-                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'ASSESSMENT INCOMPLETE']) }}" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">
+                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'ASSESSMENT INCOMPLETE']) }}" class="inline-block mt-1 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">
                             View incomplete &rarr;
                         </a>
                     </div>
                 </div>
             </div>
 
-            <div class="kpi-card" style="border-left: 4px solid #7c3aed;">
+            <div class="kpi-card" style="border-left: 4px solid #7c3aed; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Follow-ups Overdue</p>
-                        <p class="text-2xl font-bold text-violet-600 mono">{{ $overdueCount }}</p>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Follow-ups Overdue</p>
+                        <p class="text-xl font-bold text-violet-600 mono">{{ $overdueCount }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
                             Patients with an overdue return visit date who require scheduling follow-up.
                         </p>
-                        <a href="{{ route('risk.monitoring') }}" class="inline-block mt-2 text-xs font-semibold text-violet-600 hover:text-violet-800 underline">
+                        <a href="{{ route('risk.monitoring') }}" class="inline-block mt-1 text-xs font-semibold text-violet-600 hover:text-violet-800 underline">
                             View all patients &rarr;
                         </a>
                     </div>
                 </div>
             </div>
 
-            <div class="kpi-card" style="border-left: 4px solid #dc2626;">
+            <div class="kpi-card" style="border-left: 4px solid #dc2626; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Urgent BP Alerts</p>
-                        <p class="text-2xl font-bold text-red-700 mono">{{ $urgentBpCount ?? 0 }}</p>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Urgent BP Alerts</p>
+                        <p class="text-xl font-bold text-red-700 mono">{{ $urgentBpCount ?? 0 }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
                             Patients with BP-URG requiring immediate clinical review.
                         </p>
-                        <a href="{{ route('risk.monitoring', ['urgency' => 'URGENT_CLINICAL_REVIEW']) }}" class="inline-block mt-2 text-xs font-semibold text-red-700 hover:text-red-900 underline">
+                        <a href="{{ route('risk.monitoring', ['urgency' => 'URGENT_CLINICAL_REVIEW']) }}" class="inline-block mt-1 text-xs font-semibold text-red-700 hover:text-red-900 underline">
                             View urgent BP cases &rarr;
                         </a>
                     </div>
                 </div>
             </div>
 
-            <div class="kpi-card" style="border-left: 4px solid #d97706;">
+            <div class="kpi-card" style="border-left: 4px solid #d97706; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Pending Repeat BP</p>
-                        <p class="text-2xl font-bold text-amber-600 mono">{{ $pendingRepeatCount ?? 0 }}</p>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">Pending Repeat BP</p>
+                        <p class="text-xl font-bold text-amber-600 mono">{{ $pendingRepeatCount ?? 0 }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
                             Patients awaiting repeat BP measurement for verification.
                         </p>
-                        <a href="{{ route('risk.monitoring', ['bp_verification_status' => 'PENDING_REPEAT']) }}" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">
+                        <a href="{{ route('risk.monitoring', ['bp_verification_status' => 'PENDING_REPEAT']) }}" class="inline-block mt-1 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">
                             View pending repeats &rarr;
                         </a>
                     </div>
@@ -281,14 +284,14 @@
         </div>
 
         {{-- ======= ROW 2: Priority Monitoring + Smart Insights ======= --}}
-        <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
             {{-- Priority Monitoring (3/5) --}}
             <div class="lg:col-span-3 dash-card">
                 <div class="dash-card-header">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">Priority Monitoring</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Patients requiring immediate attention</p>
+                        <p class="text-xs text-slate-400 mt-0">Patients requiring immediate attention</p>
                     </div>
                     <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
                         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
@@ -298,24 +301,24 @@
 
                 {{-- Care Indicators --}}
                 @if($hypertensionCount > 0 || $diabetesCount > 0 || $anemiaCount > 0)
-                <div class="alert-banner mx-4 mt-4">
-                    <p class="text-xs font-bold text-amber-800 uppercase tracking-wider mb-3">Care Indicators</p>
-                    <div class="grid grid-cols-3 gap-3">
+                <div class="alert-banner mx-3 mt-2">
+                    <p class="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">Care Indicators</p>
+                    <div class="grid grid-cols-3 gap-2">
                         @if($hypertensionCount > 0)
                         <div class="text-center">
-                            <p class="text-xl font-bold text-amber-700 mono">{{ $hypertensionCount }}</p>
+                            <p class="text-lg font-bold text-amber-700 mono">{{ $hypertensionCount }}</p>
                             <p class="text-xs text-amber-600 mt-0.5 font-medium">Hypertension</p>
                         </div>
                         @endif
                         @if($diabetesCount > 0)
                         <div class="text-center">
-                            <p class="text-xl font-bold text-amber-700 mono">{{ $diabetesCount }}</p>
+                            <p class="text-lg font-bold text-amber-700 mono">{{ $diabetesCount }}</p>
                             <p class="text-xs text-amber-600 mt-0.5 font-medium">Diabetes</p>
                         </div>
                         @endif
                         @if($anemiaCount > 0)
                         <div class="text-center">
-                            <p class="text-xl font-bold text-amber-700 mono">{{ $anemiaCount }}</p>
+                            <p class="text-lg font-bold text-amber-700 mono">{{ $anemiaCount }}</p>
                             <p class="text-xs text-amber-600 mt-0.5 font-medium">Anemia</p>
                         </div>
                         @endif
@@ -443,33 +446,33 @@
                 <div class="dash-card-header">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">Smart Insights</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Recommendations & observations</p>
+                        <p class="text-xs text-slate-400 mt-0">Recommendations & observations</p>
                     </div>
-                    <div class="w-8 h-8 rounded-xl bg-violet-50 flex items-center justify-center">
-                        <svg width="16" height="16" fill="none" stroke="#7c3aed" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    <div class="w-6 h-6 rounded-xl bg-violet-50 flex items-center justify-center">
+                        <svg width="14" height="14" fill="none" stroke="#7c3aed" stroke-width="1.6" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="6" x2="12" y2="6"/><line x1="12" y1="14" x2="12.01" y2="14"/></svg>
                     </div>
                 </div>
-                <div class="p-5">
+                <div class="p-3">
                     @foreach($insights as $i => $insight)
                     <div class="insight-item">
                         <div class="insight-dot {{ ['bg-blue-500','bg-amber-500','bg-emerald-500','bg-violet-500'][$i % 4] }}"></div>
-                        <p class="text-sm text-slate-600 leading-relaxed">{{ $insight }}</p>
+                        <p class="text-xs text-slate-600 leading-relaxed">{{ $insight }}</p>
                     </div>
                     @endforeach
                 </div>
 
                 {{-- Quick Stats --}}
-                <div class="grid grid-cols-2 gap-3 px-5 pb-5">
+                <div class="grid grid-cols-2 gap-2 px-3 pb-3">
                     @php
                         $totalRiskCases = $highRisk + $lowRisk;
                         $riskPercent = $totalRiskCases > 0 ? round(($highRisk / $totalRiskCases) * 100) : 0;
                     @endphp
                     <div class="stat-pill">
-                        <p class="text-xl font-bold text-slate-900 mono">{{ $riskPercent }}%</p>
+                        <p class="text-sm font-bold text-slate-900 mono">{{ $riskPercent }}%</p>
                         <p class="text-xs text-slate-500 mt-0.5">Priority rate</p>
                     </div>
                     <div class="stat-pill">
-                        <p class="text-xl font-bold text-slate-900 mono">{{ $upcomingAppointments }}</p>
+                        <p class="text-sm font-bold text-slate-900 mono">{{ $upcomingAppointments }}</p>
                         <p class="text-xs text-slate-500 mt-0.5">Upcoming visits</p>
                     </div>
                 </div>
@@ -484,7 +487,7 @@
                 <div class="dash-card-header">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">Monthly Visits Trend</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Visit volume over time</p>
+                        <p class="text-xs text-slate-400 mt-0">Visit volume over time</p>
                     </div>
                 </div>
                 <div class="p-5">
@@ -499,7 +502,7 @@
                 <div class="dash-card-header">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">Common Conditions</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Prevalence breakdown</p>
+                        <p class="text-xs text-slate-400 mt-0">Prevalence breakdown</p>
                     </div>
                 </div>
                 <div class="p-5">
@@ -532,7 +535,7 @@
                 <div class="dash-card-header">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">Risk Distribution</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Patient risk stratification</p>
+                        <p class="text-xs text-slate-400 mt-0">Patient risk stratification</p>
                     </div>
                 </div>
                 <div class="p-5 flex flex-col sm:flex-row items-center gap-8">
@@ -577,7 +580,7 @@
                 <div class="dash-card-header">
                     <div>
                         <h2 class="text-base font-bold text-slate-900">Growth Metrics</h2>
-                        <p class="text-xs text-slate-400 mt-0.5">Month-over-month performance</p>
+                        <p class="text-xs text-slate-400 mt-0">Month-over-month performance</p>
                     </div>
                 </div>
                 <div class="p-5 space-y-5">
@@ -591,7 +594,7 @@
                             </span>
                         </div>
                         <div class="progress-track">
-                            <div class="progress-fill {{ $visitGrowthPercent >= 0 ? 'bg-blue-500' : 'bg-red-400' }}"
+                            <div class="progress-fill {{ $visitGrowthPercent >= 0 ? 'bg-emerald-500' : 'bg-red-500' }}"
                                 style="width: {{ min(abs($visitGrowthPercent), 100) }}%"></div>
                         </div>
                         <div class="flex justify-between mt-1.5">
@@ -609,7 +612,7 @@
                             </span>
                         </div>
                         <div class="progress-track">
-                            <div class="progress-fill {{ $patientGrowthPercent >= 0 ? 'bg-emerald-500' : 'bg-red-400' }}"
+                            <div class="progress-fill {{ $patientGrowthPercent >= 0 ? 'bg-emerald-500' : 'bg-red-500' }}"
                                 style="width: {{ min(abs($patientGrowthPercent), 100) }}%"></div>
                         </div>
                     </div>
@@ -623,14 +626,14 @@
                     </div>
 
                     {{-- All-time totals --}}
-                    <div class="pt-2 border-t border-slate-100 grid grid-cols-2 gap-4">
+                    <div class="pt-2 border-t border-slate-100 grid grid-cols-2 gap-3">
                         <div>
-                            <p class="text-xs text-slate-400 mb-1">All-time Visits</p>
-                            <p class="text-2xl font-bold text-slate-900 mono">{{ $visitsThisMonth + 150 }}</p>
+                            <p class="text-xs text-slate-400 mb-0">All-time Visits</p>
+                            <p class="text-xl font-bold text-slate-900 mono">{{ $visitsThisMonth + 150 }}</p>
                         </div>
                         <div>
-                            <p class="text-xs text-slate-400 mb-1">Avg Monthly</p>
-                            <p class="text-2xl font-bold text-slate-900 mono">{{ $totalRiskCases > 0 ? round(($visitsThisMonth + 150) / 12) : 0 }}</p>
+                            <p class="text-xs text-slate-400 mb-0">Avg Monthly</p>
+                            <p class="text-xl font-bold text-slate-900 mono">{{ $totalRiskCases > 0 ? round(($visitsThisMonth + 150) / 12) : 0 }}</p>
                         </div>
                     </div>
                 </div>

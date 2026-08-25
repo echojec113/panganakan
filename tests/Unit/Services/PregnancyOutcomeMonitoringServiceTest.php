@@ -210,7 +210,7 @@ it('Q — countByState tallies derived states across a population', function () 
     ]);
     monitoringPatient(['status' => 'REFERRED']);
 
-    $counts = monitoringService()->countByState(Patient::with('pregnancyOutcome')->get());
+    $counts = monitoringService()->countByState(Patient::with('pregnancyOutcome')->get(), monitoringAsOf());
 
     expect($counts[PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED])->toBe(1);
     expect($counts[PregnancyOutcomeMonitoringService::STATE_NOT_YET_DUE])->toBe(1);
