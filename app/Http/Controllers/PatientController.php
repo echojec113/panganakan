@@ -1,0 +1,857 @@
+<?php
+namespace App\Http\Controllers;
+
+use App\Models\Baby;
+use App\Models\Patient;
+use App\Models\PrenatalVisit;
+use App\Services\PregnancyOutcomeRecordingService;
+use App\Services\PregnancyOutcomeMonitoringService;
+use App\Support\PregnancyOutcomeVocabulary;
+use Carbon\Carbon;
+use DomainException;
+use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Validation\Rule;
+
+class PatientController extends Controller
+{
+    public function __construct(
+        private PregnancyOutcomeRecordingService $pregnancyOutcomeRecordingService,
+        private PregnancyOutcomeMonitoringService $pregnancyOutcomeMonitoringService,
+    ) {
+    }
+
+    /**
+     * Display a listing of the resource.
+     */
+    public function index()
+    {
+        $query = Patient::where('status', 'ONGOING');
+
+        if (request('filter') === 'my') {
+            $query->where('assigned_staff_id', auth()->id());
+        }
+
+        $patients = $query->latest()->get();
+
+        return view('patients.index', compact('patients'));
+    }
+
+    public function trashed()
+    {
+    $patients = Patient::onlyTrashed()->get();
+
+    return view('patients.trashed', compact('patients'));
+    }
+
+    public function restore($id)
+    {
+    $patient = Patient::onlyTrashed()->findOrFail($id);
+
+    $patient->restore(); // 🔥 triggers cascade restore
+
+    return redirect()->route('patients.index')
+        ->with('success', 'Patient restored successfully');
+    }
+
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        return view('patients.create');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+
+    
+   public function store(Request $request)
+{
+    $validated = $request->validate([
+        'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
+        'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:255',
+        'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
+
+        'birthdate' => 'required|date|before:today',
+        'age' => 'required|integer|min:10|max:60',
+
+        'address' => 'required|string|max:255',
+
+        'contact_number' => ['required','regex:/^09\d{9}$/'],
+        'email' => 'nullable|email|max:255',
+        
+
+        'civil_status' => 'required|in:Single,Married,Widowed',
+
+        'philhealth_member' => 'required|in:0,1',
+        'philhealth_number' => 'nullable|required_if:philhealth_member,1|max:255',
+
+        'gravida' => 'required|integer|min:0',
+        'para' => 'required|integer|min:0',
+
+        'previous_cs' => 'required|in:0,1',
+        'miscarriage' => 'required|integer|min:0',
+
+        'lmp' => 'required|date|before_or_equal:today',
+        'edd' => 'required|date|after:lmp',
+    ]);
+
+    // LOGIC VALIDATION
+    if ($request->para > $request->gravida) {
+        return back()->withErrors(['para' => 'Para cannot exceed Gravida'])->withInput();
+    }
+
+    if ($request->miscarriage > $request->gravida) {
+        return back()->withErrors(['miscarriage' => 'Miscarriage cannot exceed Gravida'])->withInput();
+    }
+
+    $data = $validated;
+    $data['philhealth_member'] = $request->boolean('philhealth_member');
+    $data['assigned_staff_id'] = auth()->id();
+
+    if (!$data['philhealth_member']) {
+        $data['philhealth_number'] = null;
+    }
+
+    $patient = Patient::create($data);
+
+    $this->logAction(
+        'CREATE',
+        'PATIENT',
+        'Added patient: ' . $patient->first_name . ' ' . $patient->last_name
+    );
+
+    return redirect()->route('patients.index')
+        ->with('success', 'Patient has been successfully added.');
+}
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(Request $request, string $id)
+    {
+        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals','pregnancyOutcome.followUpRecordedBy','pregnancyOutcome.confirmedBy'])->findOrFail($id);
+
+        // Derived outcome-monitoring state for the profile card. Pure read:
+        // no lifecycle or outcome values are written here.
+        $monitoringState = $this->pregnancyOutcomeMonitoringService->deriveState($patient);
+        $monitoringStateLabel = \App\Services\PregnancyOutcomeMonitoringService::stateLabel($monitoringState);
+        $monitoringEligible = $this->pregnancyOutcomeMonitoringService->isFollowUpEligible($patient);
+        $daysUntilOrPastEdd = $this->pregnancyOutcomeMonitoringService->daysUntilOrPastEdd($patient);
+
+        // Application-controlled "Back" target: the monitoring URL the user
+        // came from, validated as an internal pregnancy-outcomes URL. Null
+        // when the profile was opened directly or the return URL is not safe.
+        $monitoringReturnUrl = $this->resolveMonitoringReturnUrl($request);
+
+        // Newest persisted prenatal visit, deterministically: created_at desc,
+        // then id desc as a tie-breaker for records created in the same second.
+        // Never rely on visit_date alone because multiple visits can share a date.
+        $latestAssessment = $this->latestPrenatalVisit($patient);
+
+        // Visit history table: newest-first, deterministic.
+        $patient->setRelation(
+            'prenatalVisits',
+            $patient->prenatalVisits->sortByDesc(function ($visit) {
+                return [$visit->created_at?->timestamp ?? 0, $visit->id];
+            })->values()
+        );
+
+        // Check for required records before allowing prenatal visit creation
+        $hasMedicalHistory = $patient->medicalHistory !== null;
+        $hasUltrasound = $patient->ultrasounds()->exists();
+        $hasBirthPlan = $patient->birthPlan !== null;
+        $canAddPrenatalVisit = $hasMedicalHistory && $hasUltrasound && $hasBirthPlan;
+
+        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit', 'monitoringState', 'monitoringStateLabel', 'monitoringEligible', 'daysUntilOrPastEdd', 'monitoringReturnUrl'));
+    }
+
+    /**
+     * Resolve the Pregnancy Outcome Monitoring "Back" target from the request.
+     *
+     * Only an internal, application-controlled pregnancy-outcomes URL is
+     * accepted so the profile never opens an arbitrary/external redirect.
+     * Returns null (safe fallback used in the view) when the return URL is
+     * missing, not a URL, external, or not a monitoring page.
+     */
+    private function resolveMonitoringReturnUrl(Request $request): ?string
+    {
+        $candidate = $request->query('return');
+
+        if (! is_string($candidate) || trim($candidate) === '') {
+            return null;
+        }
+
+        $parts = parse_url($candidate);
+        if ($parts === false) {
+            return null;
+        }
+
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        if (! in_array($scheme, ['http', 'https'], true)) {
+            return null;
+        }
+
+        $host = $parts['host'] ?? null;
+        $expectedHost = parse_url(route('pregnancy-outcomes.index'), PHP_URL_HOST);
+        if ($host !== $expectedHost) {
+            return null;
+        }
+
+        $path = $parts['path'] ?? '/';
+        if ($path !== '/' && ! str_starts_with($path, '/pregnancy-outcomes')) {
+            return null;
+        }
+
+        return $candidate;
+    }
+
+    public function download(Request $request, string $id)
+    {
+        $request->validate([
+            'format' => 'required|in:pdf,csv',
+        ]);
+
+        $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','ultrasounds','babies'])->findOrFail($id);
+
+        $missingFields = $this->getPatientDownloadMissingFields($patient);
+
+        if (!empty($missingFields)) {
+            return response()->json([
+                'message' => 'Patient data is incomplete. Please complete required information before downloading.',
+                'missing' => $missingFields,
+            ], 422);
+        }
+
+        if ($request->format === 'csv') {
+            return $this->downloadPatientCsv($patient);
+        }
+
+        return $this->downloadPatientPdf($patient);
+    }
+
+    private function getPatientDownloadMissingFields(Patient $patient): array
+    {
+        $missing = [];
+
+        if (!$patient->first_name) {
+            $missing[] = 'First name';
+        }
+        if (!$patient->last_name) {
+            $missing[] = 'Last name';
+        }
+        if (!$patient->birthdate) {
+            $missing[] = 'Birthdate';
+        }
+        if (!$patient->age) {
+            $missing[] = 'Age';
+        }
+        if (!$patient->address) {
+            $missing[] = 'Address';
+        }
+        if (!$patient->contact_number) {
+            $missing[] = 'Contact number';
+        }
+        if (!$patient->civil_status) {
+            $missing[] = 'Civil status';
+        }
+        if ($patient->philhealth_member === null) {
+            $missing[] = 'PhilHealth membership status';
+        }
+        if ($patient->philhealth_member && !$patient->philhealth_number) {
+            $missing[] = 'PhilHealth number';
+        }
+        if ($patient->gravida === null) {
+            $missing[] = 'Gravida';
+        }
+        if ($patient->para === null) {
+            $missing[] = 'Para';
+        }
+        if (!$patient->lmp) {
+            $missing[] = 'LMP';
+        }
+        if (!$patient->edd) {
+            $missing[] = 'EDD';
+        }
+        if ($patient->status !== 'ONGOING' && !$patient->delivery_date) {
+            $missing[] = 'Delivery date';
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Newest persisted prenatal visit, deterministically: created_at desc,
+     * then id desc as a tie-breaker for records created in the same second.
+     * Never rely on visit_date alone because multiple visits can share a date.
+     */
+    private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
+    {
+        return $patient->prenatalVisits()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+
+    public function startNewPregnancy(Request $request, $id)
+{
+    $oldPatient = Patient::findOrFail($id);
+
+    if ($oldPatient->status !== 'DELIVERED') {
+        return back()->withErrors([
+            'status' => 'New pregnancy can only be started from a delivered patient record.'
+        ])->withInput();
+    }
+
+    $request->validate([
+        'lmp' => 'required|date|before_or_equal:today',
+        'edd' => 'required|date|after:lmp',
+        'address' => 'required|string|max:255',
+        'contact_number' => ['required', 'regex:/^09\d{9}$/'],
+    ]);
+
+    $hasActivePregnancy = Patient::where('first_name', $oldPatient->first_name)
+        ->where('last_name', $oldPatient->last_name)
+        ->where('birthdate', $oldPatient->birthdate)
+        ->where('status', 'ONGOING')
+        ->exists();
+
+    if ($hasActivePregnancy) {
+        return back()->withErrors([
+            'status' => 'This patient already has an active ongoing pregnancy record.'
+        ])->withInput();
+    }
+
+    $newPatient = Patient::create([
+        'first_name' => $oldPatient->first_name,
+        'middle_name' => $oldPatient->middle_name,
+        'last_name' => $oldPatient->last_name,
+        'birthdate' => $oldPatient->birthdate,
+        'age' => Carbon::parse($oldPatient->birthdate)->age,
+
+        'address' => $request->address,
+        'contact_number' => $request->contact_number,
+
+        'email' => $oldPatient->email,
+        'civil_status' => $oldPatient->civil_status,
+        'philhealth_member' => $oldPatient->philhealth_member,
+        'philhealth_number' => $oldPatient->philhealth_number,
+
+        'gravida' => $oldPatient->gravida + 1,
+        'para' => $oldPatient->para,
+        'previous_cs' => $oldPatient->previous_cs,
+        'miscarriage' => $oldPatient->miscarriage,
+
+        'lmp' => $request->lmp,
+        'edd' => $request->edd,
+        'status' => 'ONGOING',
+        'delivery_date' => null,
+    ]);
+
+    $this->logAction(
+        'CREATE',
+        'PATIENT',
+        'Started new pregnancy record for: ' . $oldPatient->first_name . ' ' . $oldPatient->last_name
+    );
+
+    return redirect()->route('patients.show', $newPatient->id)
+        ->with('success', 'New pregnancy record created successfully.');
+}
+
+    private function downloadPatientCsv(Patient $patient)
+    {
+        $latestVisit = $this->latestPrenatalVisit($patient);
+
+        $patientInfo = collect([
+            'Name' => trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name),
+            'Age' => $patient->age,
+            'Birthdate' => $patient->birthdate,
+            'Address' => $patient->address,
+            'Contact Number' => $patient->contact_number,
+            'Civil Status' => $patient->civil_status,
+            'PhilHealth Member' => $patient->philhealth_member ? 'Yes' : 'No',
+            'PhilHealth Number' => $patient->philhealth_number ?: 'N/A',
+        ])->map(fn($value, $key) => "$key: $value")->implode("\n");
+
+        $pregnancyInfo = collect([
+            'Gravida' => $patient->gravida,
+            'Para' => $patient->para,
+            'LMP' => $patient->lmp,
+            'EDD' => $patient->edd,
+            'Pregnancy Status' => $patient->status === 'DELIVERED' ? 'Delivered' : 'Ongoing',
+            'Delivery Date' => $patient->delivery_date ?: 'N/A',
+        ])->map(fn($value, $key) => "$key: $value")->implode("\n");
+
+        $medicalHistory = collect([
+            'Epilepsy' => $patient->medicalHistory->epilepsy ? 'Yes' : 'No',
+            'Severe Headache' => $patient->medicalHistory->severe_headache ? 'Yes' : 'No',
+            'Visual Disturbance' => $patient->medicalHistory->visual_disturbance ? 'Yes' : 'No',
+            'Chest Pain' => $patient->medicalHistory->chest_pain ? 'Yes' : 'No',
+            'Shortness of Breath' => $patient->medicalHistory->shortness_breath ? 'Yes' : 'No',
+            'Breast Mass' => $patient->medicalHistory->breast_mass ? 'Yes' : 'No',
+            'Liver Disease' => $patient->medicalHistory->liver_disease ? 'Yes' : 'No',
+            'Smoking' => $patient->medicalHistory->smoking ? 'Yes' : 'No',
+            'Allergies' => $patient->medicalHistory->allergies ? 'Yes' : 'No',
+            'Drug Intake' => $patient->medicalHistory->drug_intake ? 'Yes' : 'No',
+            'STD History' => $patient->medicalHistory->std_history ? 'Yes' : 'No',
+            'Diabetes' => $patient->medicalHistory->diabetes ? 'Yes' : 'No',
+            'Hypertension' => $patient->medicalHistory->hypertension ? 'Yes' : 'No',
+            'Asthma' => $patient->medicalHistory->asthma ? 'Yes' : 'No',
+            'Thyroid Disease' => $patient->medicalHistory->thyroid_disease ? 'Yes' : 'No',
+            'Heart Disease' => $patient->medicalHistory->heart_disease ? 'Yes' : 'No',
+            'Anemia' => $patient->medicalHistory->anemia ? 'Yes' : 'No',
+            'Mental Health Condition' => $patient->medicalHistory->mental_health_condition ? 'Yes' : 'No',
+        ])->map(fn($value, $key) => "$key: $value")->implode("\n");
+
+        if ($patient->medicalHistory->other_specify) {
+            $medicalHistory .= "\nOther: " . $patient->medicalHistory->other_specify;
+        }
+
+        $latestVisitInfo = 'No visit recorded';
+        $riskData = 'No risk data available';
+
+        if ($latestVisit) {
+            $latestVisitInfo = collect([
+                'Visit Date' => $latestVisit->visit_date,
+                'Blood Pressure' => $latestVisit->bp_sys . '/' . $latestVisit->bp_dia,
+                'Weight' => $latestVisit->weight,
+                'Temperature' => $latestVisit->temperature,
+                'Gestational Age' => $latestVisit->gestational_age,
+                'Assessment' => $latestVisit->assessment,
+                'Risk Level' => $latestVisit->risk_level,
+                'Risk Factors' => $latestVisit->risk_reasons,
+                'Next Visit Date' => $latestVisit->next_visit_date,
+            ])->map(fn($value, $key) => "$key: " . ($value ?: 'N/A'))->implode("\n");
+
+            $riskData = collect([
+                'Current Risk Level' => $latestVisit->risk_level,
+                'Identified Risk Factors' => $latestVisit->risk_reasons ?: 'N/A',
+                'Overdue Status' => $latestVisit->next_visit_date && Carbon::parse($latestVisit->next_visit_date)->isPast() ? 'Overdue' : 'On time',
+            ])->map(fn($value, $key) => "$key: $value")->implode("\n");
+        }
+
+        $csvRows = [];
+        $csvRows[] = ['Patient Info', 'Pregnancy Info', 'Medical History', 'Latest Visit', 'Risk Data'];
+        $csvRows[] = [$patientInfo, $pregnancyInfo, $medicalHistory, $latestVisitInfo, $riskData];
+
+        // Add baby information for delivered patients
+        if ($patient->status === 'DELIVERED' && $patient->babies->count() > 0) {
+            $csvRows[] = ['', '', '', '', '']; // Empty row for separation
+            $csvRows[] = ['Baby Information', '', '', '', ''];
+
+            foreach ($patient->babies as $index => $baby) {
+                $babyNumber = $index + 1;
+                $babyInfo = collect([
+                    'Baby ' . $babyNumber . ' Name' => $baby->full_name,
+                    'Sex' => $baby->sex ?: 'N/A',
+                    'Date of Birth' => $baby->date_of_birth ? Carbon::parse($baby->date_of_birth)->format('M d, Y') : 'N/A',
+                    'Time of Birth' => $baby->time_of_birth ? Carbon::parse($baby->time_of_birth)->format('g:i A') : 'N/A',
+                    'Birth Weight' => $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A',
+                    'Birth Length' => $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A',
+                ])->map(fn($value, $key) => "$key: $value")->implode("\n");
+
+                $csvRows[] = [$babyInfo, '', '', '', ''];
+            }
+        }
+
+        $filename = $this->patientRecordFilename($patient, 'csv');
+        $handle = fopen('php://memory', 'r+');
+
+        foreach ($csvRows as $row) {
+            fputcsv($handle, $row);
+        }
+
+        rewind($handle);
+        $content = stream_get_contents($handle);
+
+        return response($content, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    private function downloadPatientPdf(Patient $patient)
+    {
+        $latestVisit = $this->latestPrenatalVisit($patient);
+
+        $data = [
+            'patient' => $patient,
+            'latestVisit' => $latestVisit,
+        ];
+
+        $pdf = Pdf::loadView('exports.patient-record', $data)->setPaper('letter', 'portrait');
+
+        return $pdf->download($this->patientRecordFilename($patient, 'pdf'));
+    }
+
+    /**
+     * Build a safe, patient-name-based download filename.
+     *
+     * Format: "<Sanitized-Full-Name>-<Patient-ID>-Patient-Record.<ext>"
+     * e.g. Jesa-Pro-79-Patient-Record.pdf. The name is trimmed, sanitized to
+     * ASCII letters/digits (separators become single dashes), and collapses to
+     * a safe "Patient-<ID>" fallback when the name sanitizes to nothing.
+     */
+    private function patientRecordFilename(Patient $patient, string $extension): string
+    {
+        $fullName = trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name);
+
+        $slug = preg_replace('/[^A-Za-z0-9]+/', '-', $fullName);
+        $slug = preg_replace('/-+/', '-', $slug);
+        $slug = trim($slug, '-');
+
+        if ($slug === '') {
+            return 'Patient-' . $patient->id . '-Patient-Record.' . $extension;
+        }
+
+        return $slug . '-' . $patient->id . '-Patient-Record.' . $extension;
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(string $id)
+    {
+        $patient = \App\Models\Patient::findOrFail($id);
+
+    return view('patients.edit', compact('patient'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, string $id)
+{
+    $patient = Patient::findOrFail($id);
+
+     // ======================
+    // VALIDATION
+    // ======================
+    $validated = $request->validate([
+    'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
+    'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:255',
+    'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
+
+    'birthdate' => 'required|date|before:today',
+    'age' => 'required|integer|min:10|max:60',
+
+    'address' => 'required|string|max:255',
+
+    'contact_number' => ['required','regex:/^09\d{9}$/'],
+    'email' => 'nullable|email|max:255',
+
+    'civil_status' => 'required|in:Single,Married,Widowed',
+
+    'philhealth_member' => 'required|in:0,1',
+    'philhealth_number' => 'nullable|required_if:philhealth_member,1|max:255',
+
+    'gravida' => 'required|integer|min:0',
+    'para' => 'required|integer|min:0',
+
+    'previous_cs' => 'required|in:0,1',
+    'miscarriage' => 'required|integer|min:0',
+
+    'lmp' => 'nullable|date|before_or_equal:today',
+    'edd' => 'nullable|date|after:lmp',
+]);
+if ($request->para > $request->gravida) {
+    return back()->withErrors([
+        'para' => 'Para cannot exceed Gravida.'
+    ])->withInput();
+}
+
+if ($request->miscarriage > $request->gravida) {
+    return back()->withErrors([
+        'miscarriage' => 'Miscarriage cannot exceed Gravida.'
+    ])->withInput();
+}
+
+
+    $data = $validated;
+    $data['philhealth_member'] = $request->boolean('philhealth_member');
+
+    if (!$data['philhealth_member']) {
+        $data['philhealth_number'] = null;
+    }
+
+    $patient->update($data);
+
+   
+
+
+
+    // ✅ AUDIT LOG
+$this->logAction(
+    'UPDATE',
+    'PATIENT',
+    'Updated patient: ' . $patient->first_name . ' ' . $patient->last_name
+);
+
+    return redirect()->route('patients.index')
+        ->with('success', 'Patient updated successfully!');
+}
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(string $id)
+{
+    $patient = \App\Models\Patient::findOrFail($id);
+
+    $name = $patient->first_name . ' ' . $patient->last_name;
+
+    $patient->delete();
+
+    // ✅ AUDIT LOG
+    $this->logAction(
+        'DELETE',
+        'PATIENT',
+        'Deleted patient: ' . $name
+    );
+
+    return redirect()->route('patients.index');
+}
+
+public function markDelivered(Request $request, $id)
+{
+    $patient = Patient::findOrFail($id);
+
+    // Validate delivery data
+    $validated = $request->validate([
+        'delivery_date' => 'required|date|before_or_equal:today',
+        'delivery_location' => ['required', Rule::in(PregnancyOutcomeVocabulary::DELIVERY_LOCATIONS)],
+        'confirmation_source' => ['required', Rule::in(PregnancyOutcomeVocabulary::CONFIRMATION_SOURCES)],
+        'outcome_notes' => 'nullable|string|max:2000',
+        'babies' => 'array|min:1',
+        'babies.*.date_of_birth' => 'required|date|before_or_equal:today|same:delivery_date',
+        'babies.*.time_of_birth' => 'required|date_format:H:i',
+        'babies.*.first_name' => 'nullable|string|max:255',
+        'babies.*.middle_name' => 'nullable|string|max:255',
+        'babies.*.last_name' => 'nullable|string|max:255',
+        'babies.*.sex' => 'nullable|in:Male,Female',
+        'babies.*.birth_weight' => 'nullable|numeric|min:0|max:10',
+        'babies.*.birth_length' => 'nullable|numeric|min:0|max:100',
+    ]);
+
+    // Check if at least one baby has required fields
+    $babiesData = $request->babies ?? [];
+    if (empty($babiesData)) {
+        return back()->withErrors(['babies' => 'At least one baby record is required.'])->withInput();
+    }
+
+    // Validate that each baby has date and time of birth
+    foreach ($babiesData as $index => $babyData) {
+        if (empty($babyData['date_of_birth']) || empty($babyData['time_of_birth'])) {
+            return back()->withErrors([
+                "babies.{$index}.date_of_birth" => "Baby " . ($index + 1) . ": Date and time of birth are required."
+            ])->withInput();
+        }
+    }
+
+    // The service owns the entire confirmed-delivery write transaction
+    // (patient lifecycle, outcome record + provenance, babies, para).
+    try {
+        $this->pregnancyOutcomeRecordingService->recordConfirmedDelivery(
+            $patient,
+            $request->user(),
+            $validated['delivery_date'],
+            $validated['delivery_location'],
+            $validated['confirmation_source'],
+            $babiesData,
+            $validated['outcome_notes'] ?? null
+        );
+    } catch (DomainException $e) {
+        return back()->withErrors(['status' => $e->getMessage()])->withInput();
+    }
+
+    // Audit only AFTER the transaction committed.
+    $babyLabel = count($babiesData) === 1 ? 'baby' : 'babies';
+    $this->logAction(
+        'UPDATE',
+        'PATIENT',
+        'Recorded confirmed delivery outcome for ' . $patient->first_name . ' ' . $patient->last_name
+            . ' with ' . count($babiesData) . ' ' . $babyLabel . '.'
+    );
+
+    return redirect()->route('patients.delivered')
+        ->with('success', 'Patient marked as delivered with baby information recorded.');
+}
+public function delivered()
+{
+    $search = trim((string) request('search'));
+
+    $deliveredPatients = Patient::with(['babies', 'pregnancyOutcome.confirmedBy'])
+        ->where('status', 'DELIVERED')
+        ->orderByDesc('delivery_date')
+        ->orderByDesc('created_at')
+        ->get();
+
+    if ($search !== '') {
+        $deliveredPatients = $deliveredPatients->filter(function ($patient) use ($search) {
+            $name = trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name);
+
+            return str_contains(strtolower($name), strtolower($search))
+                || str_contains((string) $patient->contact_number, $search);
+        })->values();
+    }
+
+    $groupedPatients = $deliveredPatients
+        ->groupBy(fn ($patient) => $this->patientHistoryKey($patient))
+        ->map(function ($pregnancies) {
+            $latest = $pregnancies->sortByDesc(fn ($patient) => $patient->delivery_date ?: $patient->created_at)->first();
+            $outcome = $latest->pregnancyOutcome;
+
+            return (object) [
+                'patient' => $latest,
+                'completed_pregnancies' => $pregnancies->count(),
+                'total_babies' => $pregnancies->sum(fn ($patient) => $patient->babies->count()),
+                'last_delivery_date' => $pregnancies->max('delivery_date'),
+                'confirmed' => $outcome && $outcome->hasConfirmedOutcome(),
+            ];
+        })
+        ->sortByDesc('last_delivery_date')
+        ->values();
+
+    $page = LengthAwarePaginator::resolveCurrentPage();
+    $perPage = 10;
+    $patients = new LengthAwarePaginator(
+        $groupedPatients->forPage($page, $perPage)->values(),
+        $groupedPatients->count(),
+        $perPage,
+        $page,
+        ['path' => request()->url(), 'query' => request()->query()]
+    );
+
+    return view('patients.delivered', compact('patients'));
+}
+
+public function pregnancyHistory($id)
+{
+    $patient = Patient::with('babies')->where('status', 'DELIVERED')->findOrFail($id);
+    $pregnancies = $this->completedPregnanciesFor($patient);
+    $latestPatient = $pregnancies->first();
+
+    return view('patients.pregnancy-history', [
+        'patient' => $latestPatient,
+        'pregnancies' => $pregnancies,
+        'totalBabies' => $pregnancies->sum(fn ($pregnancy) => $pregnancy->babies->count()),
+    ]);
+}
+
+public function babyInformation($id)
+{
+    $pregnancy = Patient::with(['babies', 'prenatalVisits', 'pregnancyOutcome.confirmedBy'])
+        ->where('status', 'DELIVERED')
+        ->findOrFail($id);
+
+    return view('patients.baby-information', [
+        'pregnancy' => $pregnancy,
+        'latestVisit' => $pregnancy->prenatalVisits->sortByDesc('visit_date')->first(),
+    ]);
+}
+
+    public function printBabies(Request $request, $id)
+    {
+        $patient = Patient::with('babies')->where('status', 'DELIVERED')->findOrFail($id);
+
+        $pregnancyId = $request->integer('pregnancy_id');
+
+        if ($pregnancyId) {
+            $pregnancies = $this->completedPregnanciesFor($patient)
+                ->where('id', $pregnancyId)
+                ->values();
+        } elseif ($request->boolean('all')) {
+            $pregnancies = $this->completedPregnanciesFor($patient);
+        } else {
+            $pregnancies = collect([$patient->load(['babies', 'prenatalVisits', 'pregnancyOutcome.confirmedBy'])]);
+        }
+
+        $babyId = $request->integer('baby_id');
+
+        if ($babyId) {
+            $pregnancies = $pregnancies->map(function ($pregnancy) use ($babyId) {
+                $pregnancy->setRelation('babies', $pregnancy->babies->where('id', $babyId)->values());
+
+                return $pregnancy;
+            })->filter(fn ($pregnancy) => $pregnancy->babies->isNotEmpty())->values();
+        }
+
+        return view('patients.print-babies', compact('patient', 'pregnancies'));
+    }
+
+private function completedPregnanciesFor(Patient $patient)
+{
+    return Patient::with(['babies', 'prenatalVisits', 'pregnancyOutcome.confirmedBy'])
+        ->where('status', 'DELIVERED')
+        ->where('first_name', $patient->first_name)
+        ->where('last_name', $patient->last_name)
+        ->when($patient->middle_name, fn ($query) => $query->where('middle_name', $patient->middle_name), fn ($query) => $query->whereNull('middle_name'))
+        ->when($patient->birthdate, fn ($query) => $query->where('birthdate', $patient->birthdate), fn ($query) => $query->whereNull('birthdate'))
+        ->orderByDesc('delivery_date')
+        ->orderByDesc('created_at')
+        ->get();
+}
+
+private function patientHistoryKey(Patient $patient): string
+{
+    return strtolower(trim($patient->first_name . '|' . $patient->middle_name . '|' . $patient->last_name . '|' . $patient->birthdate));
+}
+
+public function updateBaby(Request $request, $id)
+{
+    $request->validate([
+        'first_name' => 'nullable|string|max:255',
+        'middle_name' => 'nullable|string|max:255',
+        'last_name' => 'nullable|string|max:255',
+        'sex' => 'nullable|in:Male,Female',
+        'date_of_birth' => 'required|date',
+        'time_of_birth' => 'required|date_format:H:i',
+        'birth_weight' => 'nullable|numeric|min:0|max:10',
+        'birth_length' => 'nullable|numeric|min:0|max:100',
+    ]);
+
+    $baby = Baby::with('patient')->findOrFail($id);
+
+    // Server-side lifecycle safety: baby records on a closed (DELIVERED) or
+    // legacy REFERRED pregnancy are immutable. The UI already hides the edit
+    // controls, but the backend must be authoritative.
+    if ($baby->patient && in_array($baby->patient->status, ['DELIVERED', 'REFERRED'], true)) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Baby information can no longer be edited once the pregnancy is closed.',
+        ], 403);
+    }
+
+    $baby->update([
+        'first_name' => $request->first_name,
+        'middle_name' => $request->middle_name,
+        'last_name' => $request->last_name,
+        'sex' => $request->sex,
+        'date_of_birth' => $request->date_of_birth,
+        'time_of_birth' => $request->time_of_birth,
+        'birth_weight' => $request->birth_weight,
+        'birth_length' => $request->birth_length,
+    ]);
+
+    $this->logAction(
+        'UPDATE',
+        'BABY',
+        'Updated baby information: ' . $baby->full_name
+    );
+
+    return response()->json([
+        'success' => true,
+        'baby' => $baby,
+        'message' => 'Baby information updated successfully.'
+    ]);
+}
+
+
+}   
+
+

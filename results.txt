@@ -1,0 +1,45 @@
+﻿
+   FAIL  Tests\Unit\Services\PregnancyOutcomeMonitoringServiceTest
+  Γ£ô it A ΓÇö a RESOLVED outcome derives from a DELIVERED pregnancy with a confirmed outcome record                 0.89s  
+  Γ£ô it B ΓÇö a LEGACY_DELIVERED record without a confirmed outcome stays a valid historical record                 0.02s  
+  Γ£ô it C ΓÇö a REFERRED legacy record derives LEGACY_REFERRED, never an outcome                                    0.02s  
+  Γ£ô it D ΓÇö ONGOING with EDD in the future is NOT_YET_DUE                                                         0.02s  
+  Γ£ô it E ΓÇö ONGOING with EDD today is still NOT_YET_DUE (today <= EDD)                                            0.02s  
+  Γ£ô it F ΓÇö ONGOING with a NULL EDD is NOT_YET_DUE (never invented)                                               0.02s  
+  Γ£ô it G ΓÇö ONGOING EDD passed with no outcome record is CONFIRMATION_REQUIRED                                    0.02s  
+  Γ£ô it H ΓÇö ONGOING EDD passed with a blank outcome row is CONFIRMATION_REQUIRED                                  0.02s  
+  Γ£ô it I ΓÇö fresh STILL_PREGNANT follows within the 7-day window stay STILL_PREGNANT_CONFIRMED                    0.03s  
+  Γ£ô it J ΓÇö fresh UNABLE_TO_CONTACT follows within the 7-day window stay UNABLE_TO_CONTACT                        0.02s  
+  Γ£ô it K ΓÇö an observation recorded exactly on the 7-day window edge is still fresh                               0.02s  
+  Γ£ô it L ΓÇö a stale follow-up (8 days old) expires back to CONFIRMATION_REQUIRED                                  0.02s  
+  Γ£ô it M ΓÇö a confirmed outcome on an ONGOING patient surfaces an INVARIANT diagnostic                            0.02s  
+  Γ£ô it N ΓÇö an out-of-range patient status derives the INVARIANT diagnostic, never a fake value                   0.02s  
+  Γ£ô it O ΓÇö daysUntilOrPastEdd reports days to and past EDD                                                       0.02s  
+  Γ£ô it P ΓÇö stateLabel maps every derived state to a friendly label                                               0.01s  
+  Γ¿» it Q ΓÇö countByState tallies derived states across a population                                               0.03s  
+  Γ£ô it R ΓÇö only ONGOING without a confirmed outcome and with a passed EDD is follow-up eligible                  0.02s  
+  Γ£ô it R2 ΓÇö a future EDD derives NOT_YET_DUE and is not follow-up eligible                                       0.01s  
+  Γ£ô it R3 ΓÇö an EDD today derives NOT_YET_DUE and is not follow-up eligible                                       0.02s  
+  Γ£ô it R4 ΓÇö a null EDD derives NOT_YET_DUE and is not follow-up eligible                                         0.01s  
+  Γ£ô it R5 ΓÇö an EDD yesterday/passed is follow-up eligible when ONGOING and no confirmed outcome                  0.02s  
+  ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ  
+   FAILED  Tests\Unit\Services\PregnancyOutcomeMonitoringServiceTest > it Q ΓÇö countByState tallies derived states acΓÇª   
+  Failed asserting that 2 is identical to 1.
+
+  at tests\Unit\Services\PregnancyOutcomeMonitoringServiceTest.php:215
+    211Γûò     monitoringPatient(['status' => 'REFERRED']);
+    212Γûò 
+    213Γûò     $counts = monitoringService()->countByState(Patient::with('pregnancyOutcome')->get());
+    214Γûò 
+  Γ₧£ 215Γûò     expect($counts[PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED])->toBe(1);
+    216Γûò     expect($counts[PregnancyOutcomeMonitoringService::STATE_NOT_YET_DUE])->toBe(1);
+    217Γûò     expect($counts[PregnancyOutcomeMonitoringService::STATE_RESOLVED])->toBe(1);
+    218Γûò     expect($counts[PregnancyOutcomeMonitoringService::STATE_LEGACY_REFERRED])->toBe(1);
+    219Γûò });
+
+  1   tests\Unit\Services\PregnancyOutcomeMonitoringServiceTest.php:215
+
+
+  Tests:    1 failed, 21 passed (39 assertions)
+  Duration: 1.47s
+
