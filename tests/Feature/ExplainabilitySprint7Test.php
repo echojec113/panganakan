@@ -96,7 +96,7 @@ it('old HIGH then latest LOW — admin-high-count=0 admin-low-count=1', function
     $response->assertDontSee('Old hypertension');
 });
 
-it('old LOW then latest INCOMPLETE — admin-low-count=0 admin-incomplete-count=1', function () {
+it('old LOW then latest INCOMPLETE — admin-low-count=0', function () {
     $patient = Patient::create([
         'first_name' => 'IncSwitch',
         'last_name' => 'Test',
@@ -132,7 +132,6 @@ it('old LOW then latest INCOMPLETE — admin-low-count=0 admin-incomplete-count=
     $response->assertOk();
 
     assertTestIdCount($response, 'admin-low-count', 0);
-    assertTestIdCount($response, 'admin-incomplete-count', 1);
 });
 
 it('patient with multiple visits contributes to only one count', function () {

@@ -5,16 +5,25 @@ namespace App\Http\Controllers;
 use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use Carbon\Carbon;
+use App\Services\RiskAnalyticsService;
+use App\Services\RiskMonitoringDataService;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function __construct(
+        private RiskAnalyticsService $riskAnalytics,
+        private RiskMonitoringDataService $riskMonitoringData
+    ) {
+    }
+
+    public function index(Request $request)
     {
         // Check user role and return appropriate dashboard
         if (auth()->user()->role === 'admin') {
             return $this->adminDashboard();
         } else {
-            return $this->staffDashboard();
+            return $this->staffDashboard($request);
         }
     }
 
@@ -213,7 +222,7 @@ class DashboardController extends Controller
     /**
      * Staff Dashboard - Daily Operations & Tasks View
      */
-    private function staffDashboard()
+    private function staffDashboard(Request $request)
     {
         // ======================
         // TODAY'S SUMMARY
@@ -299,6 +308,12 @@ class DashboardController extends Controller
             ->where('bp_verification_status', 'PENDING_REPEAT')
             ->count();
 
+        $visits = $this->riskMonitoringData->visits($request);
+        $analytics = $this->riskAnalytics->get(
+            $this->riskMonitoringData->monthFilter($request->month),
+            $this->riskMonitoringData->riskTypeFilter($request->risk_type)
+        );
+
         return view('dashboards.staff', compact(
             'patientsToday',
             'appointmentsToday',
@@ -313,7 +328,9 @@ class DashboardController extends Controller
             'staffLowRiskCount',
             'staffIncompleteCount',
             'staffUrgentBpCount',
-            'staffPendingRepeatCount'
+            'staffPendingRepeatCount',
+            'visits',
+            'analytics'
         ));
     }
 

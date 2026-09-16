@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\ValueObjects\ClinicalFactorEvidence;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -41,6 +42,14 @@ class RiskAnalyticsService extends AnalyticsService
         $distribution = ['high' => [], 'low' => [], 'incomplete' => []];
         $conditions = ['Hypertension' => [], 'Diabetes' => [], 'Anemia' => []];
         $bpFollowUp = ['urgent' => [], 'pendingRepeat' => [], 'cleared' => []];
+        $ageGroups = [
+            'Under 19' => 0,
+            '19-24' => 0,
+            '25-34' => 0,
+            '35-44' => 0,
+            '45 and older' => 0,
+        ];
+        $highRiskFactors = [];
 
         foreach ($keys as $key) {
             $high = 0;
@@ -72,6 +81,35 @@ class RiskAnalyticsService extends AnalyticsService
 
                 if ((bool) $row->anemia) {
                     $anemia++;
+                }
+
+                $age = is_numeric($row->age) ? (int) $row->age : null;
+                if ($age !== null) {
+                    $ageGroup = match (true) {
+                        $age < 19 => 'Under 19',
+                        $age <= 24 => '19-24',
+                        $age <= 34 => '25-34',
+                        $age <= 44 => '35-44',
+                        default => '45 and older',
+                    };
+                    $ageGroups[$ageGroup]++;
+                }
+
+                if ($row->risk_level === self::RISK_HIGH) {
+                    $storedFactors = is_string($row->factor_evidence)
+                        ? json_decode($row->factor_evidence, true)
+                        : $row->factor_evidence;
+                    foreach (ClinicalFactorEvidence::normalizeList($storedFactors) as $factor) {
+                        $label = trim((string) ($factor['label'] ?? ''));
+                        if ($label === '') {
+                            continue;
+                        }
+                        $key = mb_strtolower($label);
+                        if (!isset($highRiskFactors[$key])) {
+                            $highRiskFactors[$key] = ['label' => $label, 'count' => 0];
+                        }
+                        $highRiskFactors[$key]['count']++;
+                    }
                 }
 
                 if ($row->urgency === self::URGENCY_URGENT) {
@@ -115,6 +153,11 @@ class RiskAnalyticsService extends AnalyticsService
             'riskDistribution' => $distribution,
             'conditions' => $conditions,
             'bpFollowUp' => $bpFollowUp,
+            'ageDistribution' => [
+                'labels' => array_keys($ageGroups),
+                'data' => array_values($ageGroups),
+            ],
+            'topHighRiskConditions' => $this->topHighRiskFactors($highRiskFactors),
             'summary' => [
                 'highestHighRiskPeriod' => $this->maxPeriod($labels, $highRiskTrend),
                 'mostCommonCondition' => $this->mostCommonCondition($conditions),
@@ -134,7 +177,9 @@ class RiskAnalyticsService extends AnalyticsService
             ->groupBy('patient_id');
 
         $query = DB::table('prenatal_visits')
-            ->whereIn('id', $latestIds)
+            ->join('patients', 'patients.id', '=', 'prenatal_visits.patient_id')
+            ->whereIn('prenatal_visits.id', $latestIds)
+            ->whereNull('patients.deleted_at')
             ->whereYear('visit_date', $year);
 
         if ($month !== null) {
@@ -151,7 +196,27 @@ class RiskAnalyticsService extends AnalyticsService
             'hypertension',
             'diabetes',
             'anemia',
+            'patients.age',
+            'factor_evidence',
         ])->all();
+    }
+
+    /**
+     * Return the five most common persisted clinical factors among HIGH
+     * assessments, with ties resolved alphabetically for stable charts.
+     *
+     * @param array<string, array{label: string, count: int}> $factors
+     * @return array<int, array{label: string, count: int}>
+     */
+    private function topHighRiskFactors(array $factors): array
+    {
+        $items = array_values($factors);
+
+        usort($items, function (array $a, array $b): int {
+            return $b['count'] <=> $a['count'] ?: strcmp($a['label'], $b['label']);
+        });
+
+        return array_slice($items, 0, 5);
     }
 
     /**

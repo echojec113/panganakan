@@ -23,7 +23,7 @@
         </div>
 
         <!-- Risk Summary Cards - Responsive Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
             <!-- High Risk Card -->
             <div class="rounded-xl shadow-sm border border-gray-100 overflow-hidden" style="border-left: 4px solid #dc2626;">
                 <div class="p-4 sm:p-5 bg-white">
@@ -58,22 +58,6 @@
                 </div>
             </div>
 
-            <!-- Assessment Incomplete Card -->
-            <div class="rounded-xl shadow-sm border border-gray-100 overflow-hidden" style="border-left: 4px solid #d97706;">
-                <div class="p-4 sm:p-5 bg-white">
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Assessment Incomplete</p>
-                        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-amber-50">
-                            <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                            </svg>
-                        </span>
-                    </div>
-                    <p class="text-3xl font-bold text-amber-600 mono">{{ $incompleteCount ?? 0 }}</p>
-                    <p class="text-xs text-slate-500 mt-1 leading-relaxed">Patients whose latest assessment could not be finalized because required data or a valid model result was unavailable.</p>
-                    <a href="{{ route('risk.monitoring', ['risk_filter' => 'ASSESSMENT INCOMPLETE']) }}#patient-assessments" class="inline-block mt-2 text-xs font-semibold text-amber-600 hover:text-amber-800 underline">View incomplete &rarr;</a>
-                </div>
-            </div>
         </div>
 
         <!-- Risk Analytics -->
@@ -134,7 +118,7 @@
             <div class="border-b border-gray-100 px-4 sm:px-6 py-4 bg-gray-50">
                 <div>
                     <h3 class="text-base sm:text-lg font-semibold text-gray-800">Risk Analytics Breakdown</h3>
-                    <p class="text-xs sm:text-sm text-gray-500">Monthly risk distribution, maternal conditions, and BP follow-up</p>
+                    <p class="text-xs sm:text-sm text-gray-500">Monthly risk trends, maternal conditions, patient ages, and high-risk factors</p>
                 </div>
             </div>
 
@@ -143,11 +127,11 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                     <div class="rounded-xl border border-gray-100 p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm font-semibold text-gray-700">Risk Distribution by Month</p>
-                            <span id="riskDistributionEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
+                            <p class="text-sm font-semibold text-gray-700">Age Distribution</p>
+                            <span id="ageDistributionEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
                         </div>
                         <div class="chart-wrap" style="height:260px;">
-                            <canvas id="riskDistributionChart"></canvas>
+                            <canvas id="ageDistributionChart"></canvas>
                         </div>
                     </div>
                     <div class="rounded-xl border border-gray-100 p-4">
@@ -161,14 +145,13 @@
                     </div>
                 </div>
 
-                <!-- BP Follow-Up (full width) -->
                 <div class="rounded-xl border border-gray-100 p-4">
                     <div class="flex items-center justify-between mb-2">
-                        <p class="text-sm font-semibold text-gray-700">BP Follow-Up by Month</p>
-                        <span id="riskBpFollowUpEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
+                        <p class="text-sm font-semibold text-gray-700">Top 5 Conditions Triggering High Risk</p>
+                        <span id="topHighRiskConditionsEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
                     </div>
                     <div class="chart-wrap" style="height:260px;">
-                        <canvas id="riskBpFollowUpChart"></canvas>
+                        <canvas id="topHighRiskConditionsChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -828,41 +811,36 @@
                 });
             }
 
-            const dist = analytics.riskDistribution || { high: [], low: [], incomplete: [] };
-            const distSeries = [dist.high || [], dist.low || [], dist.incomplete || []];
-            const distTotal = distSeries.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0);
-            const hasDist = (analytics.labels || []).length > 0 && distTotal > 0;
-            toggleEmpty('riskDistributionChart', 'riskDistributionEmpty', hasDist);
-            if (hasDist) {
-                makeChart('riskDistributionChart', {
-                    type: 'bar',
+            const ageDistribution = analytics.ageDistribution || { labels: [], data: [] };
+            const ageTotal = (ageDistribution.data || []).reduce((sum, value) => sum + value, 0);
+            const hasAgeDistribution = ageTotal > 0;
+            toggleEmpty('ageDistributionChart', 'ageDistributionEmpty', hasAgeDistribution);
+            if (hasAgeDistribution) {
+                makeChart('ageDistributionChart', {
+                    type: 'pie',
                     data: {
-                        labels: analytics.labels,
-                        datasets: [
-                            { label: 'High', data: dist.high, backgroundColor: palette.red, borderRadius: 4, borderSkipped: false },
-                            { label: 'Low', data: dist.low, backgroundColor: palette.emerald, borderRadius: 4, borderSkipped: false },
-                            { label: 'Incomplete', data: dist.incomplete, backgroundColor: palette.amber, borderRadius: 4, borderSkipped: false },
-                        ]
+                        labels: ageDistribution.labels,
+                        datasets: [{
+                            data: ageDistribution.data,
+                            backgroundColor: [palette.blue, palette.emerald, palette.amber, palette.violet, palette.red],
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                        }]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
                         plugins: {
                             legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } },
-                            tooltip: sharedTooltip,
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                grid: { color: palette.gridLine },
-                                ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
-                                border: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: (context) => {
+                                        const value = context.raw || 0;
+                                        const percentage = ageTotal ? ((value / ageTotal) * 100).toFixed(1) : '0.0';
+                                        return `${context.label}: ${value} (${percentage}%)`;
+                                    }
+                                }
                             },
-                            x: {
-                                grid: { display: false },
-                                ticks: { font: baseFont, color: '#94a3b8' },
-                                border: { display: false },
-                            }
-                        }
+                        },
                     }
                 });
             }
@@ -906,26 +884,23 @@
                 });
             }
 
-            const bp = analytics.bpFollowUp || { urgent: [], pendingRepeat: [], cleared: [] };
-            const bpSeries = [bp.urgent || [], bp.pendingRepeat || [], bp.cleared || []];
-            const bpTotal = bpSeries.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0);
-            const hasBp = (analytics.labels || []).length > 0 && bpTotal > 0;
-            toggleEmpty('riskBpFollowUpChart', 'riskBpFollowUpEmpty', hasBp);
-            if (hasBp) {
-                makeChart('riskBpFollowUpChart', {
+            const topHighRiskConditions = analytics.topHighRiskConditions || [];
+            const hasTopHighRiskConditions = topHighRiskConditions.length > 0;
+            toggleEmpty('topHighRiskConditionsChart', 'topHighRiskConditionsEmpty', hasTopHighRiskConditions);
+            if (hasTopHighRiskConditions) {
+                makeChart('topHighRiskConditionsChart', {
                     type: 'bar',
                     data: {
-                        labels: analytics.labels,
+                        labels: topHighRiskConditions.map((item) => item.label),
                         datasets: [
-                            { label: 'Urgent', data: bp.urgent, backgroundColor: palette.red, borderRadius: 4, borderSkipped: false },
-                            { label: 'Pending Repeat', data: bp.pendingRepeat, backgroundColor: palette.amber, borderRadius: 4, borderSkipped: false },
-                            { label: 'Cleared', data: bp.cleared, backgroundColor: palette.emerald, borderRadius: 4, borderSkipped: false },
+                            { label: 'High-Risk Assessments', data: topHighRiskConditions.map((item) => item.count), backgroundColor: palette.red, borderRadius: 4, borderSkipped: false },
                         ]
                     },
                     options: {
                         responsive: true, maintainAspectRatio: false,
+                        indexAxis: 'y',
                         plugins: {
-                            legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } },
+                            legend: { display: false },
                             tooltip: sharedTooltip,
                         },
                         scales: {
@@ -936,7 +911,8 @@
                                 border: { display: false },
                             },
                             x: {
-                                grid: { display: false },
+                                beginAtZero: true,
+                                grid: { color: palette.gridLine },
                                 ticks: { font: baseFont, color: '#94a3b8' },
                                 border: { display: false },
                             }
