@@ -57,7 +57,9 @@ it('AC — the sidebar label was renamed to Pregnancy Outcome Monitoring', funct
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
     $response->assertSee('Pregnancy Outcome Monitoring');
-    $response->assertDontSee('Delivered Patients');
+    // "Delivered Patients" is now an intentional cross-navigation button on this
+    // page (links to patients.delivered); only the old duplicated page title is
+    // no longer expected.
 });
 
 it('AD — Confirmation Required rows use the friendly label and count', function () {

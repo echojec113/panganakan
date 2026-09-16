@@ -48,7 +48,14 @@ class PrenatalVisitController extends Controller
 
     public function index()
     {
-        $visits = PrenatalVisit::with('patient')->latest()->get();
+        // Active listing = ongoing pregnancies only. Delivered patients keep
+        // their prenatal visit records untouched in the database; they are
+        // simply no longer surfaced here (still accessible via the patient
+        // profile / Delivered Patients / Pregnancy History views).
+        $visits = PrenatalVisit::with('patient')
+            ->whereHas('patient', fn ($q) => $q->where('status', 'ONGOING'))
+            ->latest()
+            ->get();
         return view('prenatal_visits.index', compact('visits'));
     }
 

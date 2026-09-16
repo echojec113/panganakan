@@ -75,6 +75,7 @@
                         {{ \App\Services\PregnancyOutcomeMonitoringService::stateLabel($stateKey) }}
                     </a>
                 @endforeach
+                <a href="{{ route('patients.delivered') }}" class="ml-auto inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-medium bg-white text-gray-600 border border-gray-200 hover:bg-gray-50">Delivered Patients</a>
             </div>
 
             <div class="p-6">

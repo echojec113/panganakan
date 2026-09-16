@@ -120,8 +120,8 @@
     {{-- ==================== MAIN CONTENT ==================== --}}
     <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {{-- ======= ROW 1: KPI CARDS ======= --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {{-- ======= ROW 1: KPI CARDS (Total Patients | Active Patients | High Risk | Low Risk) ======= --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
             {{-- Total Patients --}}
             <div class="kpi-card kpi-blue">
@@ -155,10 +155,7 @@
                 </div>
             </div>
 
-        </div>
-
-        {{-- ======= EXPLAINABLE RISK SUMMARY CARDS ======= --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {{-- HIGH Risk --}}
             <div class="kpi-card" style="border-left: 4px solid #dc2626; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
@@ -174,6 +171,7 @@
                 </div>
             </div>
 
+            {{-- LOW Risk --}}
             <div class="kpi-card" style="border-left: 4px solid #16a34a; padding: 16px;">
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex-1 min-w-0">
@@ -222,22 +220,8 @@
                     </div>
                 </div>
                 <div class="p-5">
-                    <div class="chart-wrap mb-5" style="height:150px;">
+                    <div class="chart-wrap" style="height:200px;">
                         <canvas id="conditionsChart"></canvas>
-                    </div>
-                    <div class="space-y-3">
-                        @foreach($conditions as $cond)
-                        @php $maxCond = $conditions->max('count') ?: 1; @endphp
-                        <div class="cond-row">
-                            <p class="cond-label text-slate-600">{{ $cond['name'] }}</p>
-                            <div class="cond-bar-wrap">
-                                <div class="progress-track">
-                                    <div class="progress-fill bg-blue-500" style="width: {{ ($cond['count'] / $maxCond) * 100 }}%"></div>
-                                </div>
-                            </div>
-                            <p class="cond-count mono">{{ $cond['count'] }}</p>
-                        </div>
-                        @endforeach
                     </div>
                 </div>
             </div>
@@ -473,9 +457,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // ---- 3. Conditions Horizontal Bar ----
+    // ---- 3. Conditions Bar Graph ----
     const condLabels = {!! json_encode($conditions->pluck('name')) !!};
     const condData   = {!! json_encode($conditions->pluck('count')) !!};
+    const condPalette = [palette.blue, palette.amber, palette.violet, palette.emerald, palette.red, palette.slate];
 
     new Chart(document.getElementById('conditionsChart').getContext('2d'), {
         type: 'bar',
@@ -484,28 +469,43 @@ document.addEventListener('DOMContentLoaded', function () {
             datasets: [{
                 label: 'Cases',
                 data: condData,
-                backgroundColor: [palette.blue, palette.amber, palette.violet],
+                backgroundColor: condLabels.map((_, i) => condPalette[i % condPalette.length]),
                 borderRadius: 6,
                 borderSkipped: false,
+                maxBarThickness: 36,
             }]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            indexAxis: 'y',
             plugins: {
                 legend: { display: false },
-                tooltip: sharedTooltip,
+                tooltip: {
+                    ...sharedTooltip,
+                    callbacks: {
+                        title: items => condLabels[items[0].dataIndex] || '',
+                    }
+                },
             },
             scales: {
                 x: {
-                    beginAtZero: true,
-                    grid: { color: palette.gridLine },
-                    ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 4 },
+                    grid: { display: false },
+                    ticks: {
+                        font: { ...baseFont, size: 10 },
+                        color: '#64748b',
+                        autoSkip: false,
+                        maxRotation: 40,
+                        minRotation: 0,
+                        callback: function (value) {
+                            const label = this.getLabelForValue(value);
+                            return label && label.length > 12 ? label.slice(0, 11) + '…' : label;
+                        }
+                    },
                     border: { display: false },
                 },
                 y: {
-                    grid: { display: false },
-                    ticks: { font: baseFont, color: '#64748b' },
+                    beginAtZero: true,
+                    grid: { color: palette.gridLine },
+                    ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 4, precision: 0 },
                     border: { display: false },
                 }
             }
