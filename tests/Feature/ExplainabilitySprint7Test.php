@@ -275,6 +275,128 @@ it('staff dashboard shows clinic-wide counts matching admin', function () {
     $staffResponse->assertSeeText('Other hypertension');
 });
 
+it('staff priority alerts show every ongoing current high-risk pregnancy', function () {
+    $createPatient = function (string $firstName, string $status = 'ONGOING'): Patient {
+        return Patient::create([
+            'first_name' => $firstName,
+            'last_name' => 'Priority',
+            'age' => 25,
+            'address' => 'Test',
+            'contact_number' => '09171234567',
+            'email' => strtolower($firstName) . '@example.com',
+            'gravida' => 1,
+            'para' => 0,
+            'status' => $status,
+        ]);
+    };
+
+    $createVisit = function (Patient $patient, string $date, string $risk, array $overrides = []): PrenatalVisit {
+        return PrenatalVisit::create(array_merge([
+            'patient_id' => $patient->id,
+            'visit_date' => $date,
+            'bp_sys' => 110,
+            'bp_dia' => 70,
+            'weight' => 55,
+            'gestational_age' => 20,
+            'risk_level' => $risk,
+            'decision_source' => 'RULE_BASED',
+            'rule_reasons' => [$risk . ' assessment'],
+            'assessment' => $risk . ' assessment',
+        ], $overrides));
+    };
+
+    $ongoingHigh = $createPatient('OngoingHigh');
+    $createVisit($ongoingHigh, '2026-09-10', 'HIGH', ['decision_source' => 'HISTORICAL_HIGH']);
+    $createVisit($ongoingHigh, '2026-09-19', 'HIGH', ['decision_source' => 'CURRENT_HIGH']);
+
+    $ongoingLow = $createPatient('OngoingLow');
+    $createVisit($ongoingLow, '2026-09-17', 'HIGH', ['decision_source' => 'HISTORICAL_HIGH']);
+    $createVisit($ongoingLow, '2026-09-18', 'LOW', ['decision_source' => 'CURRENT_LOW']);
+
+    $sameDate = $createPatient('SameDate');
+    $lowerId = $createVisit($sameDate, '2026-09-18', 'LOW', ['decision_source' => 'LOW_ID']);
+    $higherId = $createVisit($sameDate, '2026-09-18', 'HIGH', ['decision_source' => 'HIGH_ID']);
+
+    $softDeletedLatest = $createPatient('SoftDeletedLatest');
+    $createVisit($softDeletedLatest, '2026-09-10', 'HIGH', ['decision_source' => 'VALID_OLDER']);
+    $deletedLatest = $createVisit($softDeletedLatest, '2026-09-18', 'LOW', ['decision_source' => 'DELETED_NEWER']);
+    $deletedLatest->delete();
+
+    $deliveredHigh = $createPatient('DeliveredHigh', 'DELIVERED');
+    $createVisit($deliveredHigh, '2026-09-20', 'HIGH');
+
+    $referredHigh = $createPatient('ReferredHigh', 'REFERRED');
+    $createVisit($referredHigh, '2026-09-20', 'HIGH');
+
+    $additionalNames = [];
+    for ($index = 1; $index <= 6; $index++) {
+        $name = 'Additional' . $index;
+        $additionalNames[] = $name;
+        $patient = $createPatient($name);
+        $createVisit($patient, '2026-09-' . str_pad((string) (10 + $index), 2, '0', STR_PAD_LEFT), 'HIGH');
+    }
+
+    $response = actingAs($this->staff)->get(route('dashboard'));
+    $response->assertOk();
+
+    $alerts = $response->viewData('highRiskAlerts');
+    $alertPatientNames = $alerts->pluck('patient.first_name')->all();
+
+    $expectedAlertNames = array_merge(['OngoingHigh', 'SameDate', 'SoftDeletedLatest'], $additionalNames);
+
+    expect($alerts)->toHaveCount(count($expectedAlertNames))
+        ->and($alerts->count())->toBeGreaterThan(5)
+        ->and($alertPatientNames)->toContain('OngoingHigh', 'SameDate', 'SoftDeletedLatest')
+        ->and($alertPatientNames)->not->toContain('OngoingLow', 'DeliveredHigh', 'ReferredHigh')
+        ->and($alerts->pluck('id')->all())->toContain($higherId->id)
+        ->not->toContain($lowerId->id)
+        ->and($alerts->first()->patient->first_name)->toBe('OngoingHigh');
+
+    foreach ($additionalNames as $name) {
+        expect($alertPatientNames)->toContain($name);
+    }
+
+    $alertDates = $alerts->pluck('visit_date')->map(fn ($date) => $date->toDateString())->all();
+    expect($alertDates)->toBe(collect($alertDates)->sortDesc()->values()->all());
+
+    $response->assertSee('max-h-80 overflow-y-auto')
+        ->assertSeeText(count($expectedAlertNames) . ' Active');
+});
+
+it('admin and staff summary counts retain the shared id-based latest-visit behavior', function () {
+    $patient = Patient::create([
+        'first_name' => 'Summary',
+        'last_name' => 'Scope',
+        'age' => 25,
+        'address' => 'Test',
+        'contact_number' => '09171234567',
+        'email' => 'summary-scope@example.com',
+        'gravida' => 1,
+        'para' => 0,
+        'status' => 'ONGOING',
+    ]);
+
+    PrenatalVisit::create([
+        'patient_id' => $patient->id,
+        'visit_date' => '2026-09-18',
+        'risk_level' => 'HIGH',
+        'assessment' => 'Newer high visit',
+    ]);
+
+    PrenatalVisit::create([
+        'patient_id' => $patient->id,
+        'visit_date' => '2026-09-10',
+        'risk_level' => 'LOW',
+        'assessment' => 'Higher ID older low visit',
+    ]);
+
+    $adminResponse = actingAs($this->admin)->get(route('dashboard'));
+    $staffResponse = actingAs($this->staff)->get(route('dashboard'));
+
+    assertTestIdCount($adminResponse, 'admin-high-count', 0);
+    assertTestIdCount($staffResponse, 'staff-high-count', 0);
+});
+
 it('admin dashboard shows patients regardless of staff assignment', function () {
     $patientA = Patient::create([
         'first_name' => 'AdminSees',

@@ -337,6 +337,21 @@ class PrenatalVisitController extends Controller
             ->with('success', 'Prenatal visit added successfully with risk assessment');
     }
 
+    /**
+     * Read-only print view for a single, already-persisted prenatal visit.
+     *
+     * Uses only the visit's stored assessment data — no risk assessment is
+     * re-run and no risk level is recalculated. The visit is identified by
+     * its own ID, so this always renders that exact visit's own patient and
+     * assessment, never another visit's or another patient's data.
+     */
+    public function print($visit)
+    {
+        $prenatalVisit = PrenatalVisit::with('patient')->findOrFail($visit);
+
+        return view('prenatal_visits.print', ['visit' => $prenatalVisit]);
+    }
+
     public function edit($id)
     {
         $visit = PrenatalVisit::findOrFail($id);

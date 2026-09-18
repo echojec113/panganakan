@@ -35,6 +35,26 @@ class DashboardController extends Controller
             ->groupBy('patient_id');
     }
 
+    private function priorityAlertLatestVisitSubquery(): \Illuminate\Database\Query\Builder
+    {
+        return \Illuminate\Support\Facades\DB::table('prenatal_visits as current_visit')
+            ->whereNull('current_visit.deleted_at')
+            ->whereNotExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('prenatal_visits as later_visit')
+                    ->whereColumn('later_visit.patient_id', 'current_visit.patient_id')
+                    ->whereNull('later_visit.deleted_at')
+                    ->where(function ($query) {
+                        $query->whereColumn('later_visit.visit_date', '>', 'current_visit.visit_date')
+                            ->orWhere(function ($query) {
+                                $query->whereColumn('later_visit.visit_date', 'current_visit.visit_date')
+                                    ->whereColumn('later_visit.id', '>', 'current_visit.id');
+                            });
+                    });
+            })
+            ->select('current_visit.id');
+    }
+
     private function countLatestByRisk(string $riskLevel): int
     {
         return PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
@@ -241,9 +261,10 @@ class DashboardController extends Controller
 
         $highRiskAlerts = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
-            ->whereIn('id', $this->latestVisitSubquery())
-            ->latest()
-            ->take(5)
+            ->whereIn('id', $this->priorityAlertLatestVisitSubquery())
+            ->whereHas('patient', fn ($query) => $query->where('status', 'ONGOING'))
+            ->orderByDesc('visit_date')
+            ->orderByDesc('id')
             ->get();
 
         // ======================

@@ -94,6 +94,15 @@ Route::middleware('auth')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Prenatal Visit Viewing (Admin & Staff) — read-only, single-visit print
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/prenatal-visits/{visit}/print', [PrenatalVisitController::class, 'print'])
+        ->name('prenatal-visits.print');
+
+    /*
+    |--------------------------------------------------------------------------
     | Referral Viewing (Admin & Staff)
     |--------------------------------------------------------------------------
     */

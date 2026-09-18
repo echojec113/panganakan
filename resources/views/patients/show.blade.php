@@ -739,9 +739,13 @@
                                                     @method('DELETE')
                                                     <button type="submit" onclick="return confirm('Delete this visit?')" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
                                                 </form>
+                                                <a href="{{ route('prenatal-visits.print', $visit->id) }}" target="_blank" class="text-gray-600 hover:text-gray-800 text-sm">Print</a>
                                             </div>
                                         @else
-                                            <span class="text-xs text-gray-500">Read-only</span>
+                                            <div class="flex items-center space-x-2">
+                                                <span class="text-xs text-gray-500">Read-only</span>
+                                                <a href="{{ route('prenatal-visits.print', $visit->id) }}" target="_blank" class="text-gray-600 hover:text-gray-800 text-sm">Print</a>
+                                            </div>
                                         @endif
                                     </td>
                                 </tr>
