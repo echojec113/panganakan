@@ -204,3 +204,160 @@ it('returns 404 for an invalid pregnancy record ID', function () {
         ->get(route('view-all-records.pregnancy', ['patient' => 999999]))
         ->assertNotFound();
 });
+
+it('filters main list patients by search across first, middle, and last name', function () {
+    $maria = recordsPatient(['first_name' => 'Maria', 'middle_name' => 'Santos', 'last_name' => 'Reyes']);
+    $juanita = recordsPatient(['first_name' => 'Juanita', 'middle_name' => 'Dela', 'last_name' => 'Cruz']);
+    $ana = recordsPatient(['first_name' => 'Ana', 'middle_name' => 'Reyes', 'last_name' => 'Santos']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['search' => 'Reyes']));
+
+    $response->assertOk();
+    $response->assertSeeText('Maria Santos Reyes');
+    $response->assertSeeText('Ana Reyes Santos');
+    $response->assertDontSeeText('Juanita Dela Cruz');
+});
+
+it('combines search with the Ongoing status filter', function () {
+    recordsPatient(['first_name' => 'Maria', 'status' => 'ONGOING']);
+    recordsPatient(['first_name' => 'Marianne', 'status' => 'DELIVERED']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', [
+        'status' => 'ONGOING',
+        'search' => 'Maria',
+    ]));
+
+    $response->assertOk();
+    $response->assertSeeText('Maria Santos Reyes');
+    $response->assertDontSeeText('Marianne Santos Reyes');
+});
+
+it('never lets search bypass the selected status filter', function () {
+    recordsPatient(['first_name' => 'Maria', 'status' => 'DELIVERED']);
+    recordsPatient(['first_name' => 'Mariana', 'status' => 'ONGOING']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', [
+        'status' => 'ONGOING',
+        'search' => 'Maria',
+    ]));
+
+    $response->assertOk();
+    $response->assertSeeText('Mariana Santos Reyes');
+    $response->assertDontSeeText('Maria Santos Reyes');
+});
+
+it('keeps one row per person when a search matches multiple pregnancies of the same identity', function () {
+    $firstPregnancy = recordsPatient(['first_name' => 'Ana', 'middle_name' => null, 'last_name' => 'Cruz', 'birthdate' => '1991-03-05']);
+    recordsPatient(['first_name' => 'Ana', 'middle_name' => null, 'last_name' => 'Cruz', 'birthdate' => '1991-03-05']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['search' => 'Ana']));
+    $content = $response->getContent();
+
+    expect(substr_count($content, route('view-all-records.history', $firstPregnancy)))->toBe(1);
+});
+
+it('treats an empty search exactly like no search was provided', function () {
+    recordsPatient(['first_name' => 'Maria']);
+    $admin = recordsAdmin();
+
+    $withEmptySearch = $this->actingAs($admin)->get(route('view-all-records.index', ['search' => '']));
+    $withoutSearch = $this->actingAs($admin)->get(route('view-all-records.index'));
+
+    $withEmptySearch->assertOk();
+    $withEmptySearch->assertSeeText('Maria Santos Reyes');
+    expect($withEmptySearch->getContent())->toBe($withoutSearch->getContent());
+});
+
+it('sorts Ongoing patients by latest prenatal visit activity, newest first', function () {
+    $olderActivity = recordsPatient(['first_name' => 'OlderActivity']);
+    recordsVisit($olderActivity, ['visit_date' => '2026-09-01']);
+
+    $newerActivity = recordsPatient(['first_name' => 'NewerActivity']);
+    recordsVisit($newerActivity, ['visit_date' => '2026-09-10']);
+
+    $noVisits = recordsPatient(['first_name' => 'NoVisits']);
+    $noVisits->forceFill(['created_at' => now()->subYear()])->save();
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['status' => 'ONGOING']));
+    $content = $response->getContent();
+
+    $posNewer = strpos($content, 'NewerActivity Santos Reyes');
+    $posOlder = strpos($content, 'OlderActivity Santos Reyes');
+    $posNone = strpos($content, 'NoVisits Santos Reyes');
+
+    expect($posNewer)->not->toBeFalse();
+    expect($posOlder)->not->toBeFalse();
+    expect($posNone)->not->toBeFalse();
+    expect($posNewer)->toBeLessThan($posOlder);
+    expect($posOlder)->toBeLessThan($posNone);
+});
+
+it('sorts Delivered patients by delivery_date, newest first', function () {
+    recordsPatient(['first_name' => 'OldestDelivery', 'status' => 'DELIVERED', 'delivery_date' => '2026-08-30']);
+    recordsPatient(['first_name' => 'NewestDelivery', 'status' => 'DELIVERED', 'delivery_date' => '2026-09-20']);
+    recordsPatient(['first_name' => 'MiddleDelivery', 'status' => 'DELIVERED', 'delivery_date' => '2026-09-12']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['status' => 'DELIVERED']));
+    $content = $response->getContent();
+
+    $posNewest = strpos($content, 'NewestDelivery Santos Reyes');
+    $posMiddle = strpos($content, 'MiddleDelivery Santos Reyes');
+    $posOldest = strpos($content, 'OldestDelivery Santos Reyes');
+
+    expect($posNewest)->toBeLessThan($posMiddle);
+    expect($posMiddle)->toBeLessThan($posOldest);
+});
+
+it('sorts Referred patients by the latest Pending referral_date, newest first, with created_at fallback for legacy records', function () {
+    $olderReferral = recordsPatient(['first_name' => 'OlderReferral']);
+    recordsReferral($olderReferral);
+    $olderReferral->referrals()->update(['referral_date' => '2026-09-05']);
+
+    $newerReferral = recordsPatient(['first_name' => 'NewerReferral']);
+    recordsReferral($newerReferral);
+    $newerReferral->referrals()->update(['referral_date' => '2026-09-18']);
+
+    $legacyReferred = recordsPatient(['first_name' => 'LegacyReferred', 'status' => 'REFERRED']);
+    $legacyReferred->forceFill(['created_at' => now()->subYear()])->save();
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['status' => 'REFERRED']));
+    $content = $response->getContent();
+
+    $posNewer = strpos($content, 'NewerReferral Santos Reyes');
+    $posOlder = strpos($content, 'OlderReferral Santos Reyes');
+    $posLegacy = strpos($content, 'LegacyReferred Santos Reyes');
+
+    expect($posNewer)->not->toBeFalse();
+    expect($posOlder)->not->toBeFalse();
+    expect($posLegacy)->not->toBeFalse();
+    expect($posNewer)->toBeLessThan($posOlder);
+    expect($posOlder)->toBeLessThan($posLegacy);
+});
+
+it('represents multiple pregnancy rows for the same person as a single sorted row', function () {
+    $firstPregnancy = recordsPatient(['status' => 'DELIVERED', 'delivery_date' => '2026-01-10']);
+    $secondPregnancy = recordsPatient(['status' => 'DELIVERED', 'delivery_date' => '2026-09-15']);
+    recordsPatient(['first_name' => 'Unrelated', 'status' => 'DELIVERED', 'delivery_date' => '2026-05-01']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['status' => 'DELIVERED']));
+    $content = $response->getContent();
+
+    expect(substr_count($content, 'Maria Santos Reyes'))->toBe(1);
+    expect(strpos($content, 'Maria Santos Reyes'))->toBeLessThan(strpos($content, 'Unrelated Santos Reyes'));
+
+    $historyLink = route('view-all-records.history', $firstPregnancy);
+    $historyLinkAlt = route('view-all-records.history', $secondPregnancy);
+    expect(substr_count($content, $historyLink) + substr_count($content, $historyLinkAlt))->toBe(1);
+});
+
+it('keeps patients with the same name but different birthdates as separate people', function () {
+    $first = recordsPatient(['first_name' => 'Ana', 'middle_name' => null, 'last_name' => 'Cruz', 'birthdate' => '1991-03-05']);
+    $second = recordsPatient(['first_name' => 'Ana', 'middle_name' => null, 'last_name' => 'Cruz', 'birthdate' => '1992-03-05']);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['search' => 'Ana']));
+    $content = $response->getContent();
+
+    expect(substr_count($content, 'Ana Cruz'))->toBe(2);
+    expect(substr_count($content, route('view-all-records.history', $first)))->toBe(1);
+    expect(substr_count($content, route('view-all-records.history', $second)))->toBe(1);
+});

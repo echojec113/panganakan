@@ -6,7 +6,12 @@
         </div>
 
         <div class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <form method="GET" action="{{ route('view-all-records.index') }}" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <form method="GET" action="{{ route('view-all-records.index') }}" class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div class="w-full sm:max-w-sm">
+                    <label for="search" class="mb-1 block text-sm font-medium text-gray-700">Search</label>
+                    <input type="text" id="search" name="search" value="{{ $search }}" placeholder="Search by patient name"
+                        class="w-full rounded-lg border-gray-300 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500">
+                </div>
                 <div class="w-full sm:w-64">
                     <label for="status" class="mb-1 block text-sm font-medium text-gray-700">Status</label>
                     <select id="status" name="status" onchange="this.form.submit()" class="w-full rounded-lg border-gray-300 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500">
@@ -15,9 +20,7 @@
                         <option value="REFERRED" @selected($status === 'REFERRED')>Referred</option>
                     </select>
                 </div>
-                <noscript>
-                    <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply</button>
-                </noscript>
+                <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Apply</button>
             </form>
         </div>
 
