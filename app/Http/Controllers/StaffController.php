@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\StaffCredentialMail;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class StaffController extends Controller
 {
@@ -45,10 +48,12 @@ class StaffController extends Controller
         'password' => 'required|min:6',
     ]);
 
+    $plainTextPassword = $request->input('password');
+
     $staff = User::create([
     'name' => $request->name,
     'email' => $request->email,
-    'password' => Hash::make($request->password),
+    'password' => Hash::make($plainTextPassword),
     'role' => 'staff',
 ]);
 
@@ -59,6 +64,21 @@ $this->logAction(
     'Created staff: ' . $staff->name
 );
 
+try {
+    Mail::to($staff->email)
+        ->send(new StaffCredentialMail($staff, $plainTextPassword));
+
+    Log::info('STAFF CREDENTIAL EMAIL SENT', [
+        'staff_id' => $staff->id,
+        'staff_email' => $staff->email,
+    ]);
+} catch (\Exception $exception) {
+    Log::error('STAFF CREDENTIAL EMAIL FAILED', [
+        'staff_id' => $staff->id,
+        'staff_email' => $staff->email,
+        'exception_class' => $exception::class,
+    ]);
+}
 
 
 

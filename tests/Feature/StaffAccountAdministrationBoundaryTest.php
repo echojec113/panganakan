@@ -1,7 +1,9 @@
 <?php
 
+use App\Mail\StaffCredentialMail;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,6 +42,35 @@ test('admin can create a staff account', function () {
     expect($created)->not->toBeNull()
         ->and($created->role)->toBe('staff')
         ->and($created->name)->toBe('New Staff');
+});
+
+test('creating a staff account emails the entered credentials without persisting the plaintext password', function () {
+    Mail::fake();
+
+    $admin = User::factory()->create(['role' => 'admin']);
+    $email = 'credentials@example.com';
+    $plainTextPassword = 'secret123';
+
+    $this->actingAs($admin)->post(route('staff.store'), [
+        'name' => 'Credential Staff',
+        'email' => $email,
+        'password' => $plainTextPassword,
+    ])->assertRedirect(route('staff.index'));
+
+    $created = User::where('email', $email)->first();
+
+    expect($created)->not->toBeNull()
+        ->and($created->password)->not->toBe($plainTextPassword)
+        ->and(Hash::check($plainTextPassword, $created->password))->toBeTrue();
+
+    Mail::assertSent(StaffCredentialMail::class, function (StaffCredentialMail $mail) use ($email, $plainTextPassword) {
+        $rendered = $mail->render();
+
+        return $mail->hasTo($email)
+            && str_contains($rendered, 'Login email: <strong>'.$email.'</strong>')
+            && str_contains($rendered, 'Password: <strong>'.$plainTextPassword.'</strong>')
+            && str_contains($rendered, 'Your DEPLA Family Care Staff account has been created successfully.');
+    });
 });
 
 test('submitted role=admin during staff creation cannot create an admin', function () {
