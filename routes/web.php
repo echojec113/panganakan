@@ -15,7 +15,7 @@ use App\Http\Controllers\RiskMonitoringController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\PregnancyOutcomeController;
 use App\Http\Controllers\NotificationController;
-
+use App\Http\Controllers\PatientViewController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -136,6 +136,24 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/audit-logs', [AuditLogController::class, 'index'])
         ->name('audit-logs.index');
+
+    /*
+    |--------------------------------------------------------------------------
+    | View All Records (Admin-only via controller check)
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/view-all-records', [PatientViewController::class, 'index'])
+        ->name('view-all-records.index');
+
+    Route::get('/view-all-records/{patient}/history', [PatientViewController::class, 'history'])
+        ->name('view-all-records.history');
+
+    Route::get('/view-all-records/{patient}/pregnancy/print', [PatientViewController::class, 'print'])
+        ->name('view-all-records.pregnancy.print');
+
+    Route::get('/view-all-records/{patient}/pregnancy', [PatientViewController::class, 'pregnancy'])
+        ->name('view-all-records.pregnancy');
 
     /*
     |--------------------------------------------------------------------------
