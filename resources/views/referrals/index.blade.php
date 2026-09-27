@@ -30,7 +30,18 @@
         title="Referral Management"
         subtitle="Track referral decisions and clinical follow-through."
         class="mb-8"
-    />
+    >
+        @if(auth()->user()->role === 'staff')
+            <x-slot name="actions">
+                <a href="{{ route('referrals.select-patient') }}" class="btn btn-primary">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create Referral
+                </a>
+            </x-slot>
+        @endif
+    </x-app-header>
 
     <x-flash type="success" :message="session('success')" class="mb-6" />
     <x-flash type="error" :message="session('error')" class="mb-6" />
@@ -212,86 +223,299 @@
         @endif
     </div>
 
-    {{-- Referral Analytics (below operational management) --}}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
-        <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap gap-3 items-center justify-between">
-            <div>
-                <p class="text-sm font-semibold text-gray-800">Referral Analytics</p>
-                <p id="referralAnalyticsSubtitle" class="text-xs text-gray-500 mt-0.5">Showing referral analytics for {{ $analytics['year'] ?? now()->year }}</p>
-            </div>
-</div>
-            <div class="flex items-center gap-2 flex-wrap">
-                <label for="referralAnalyticsMonth" class="text-xs text-gray-500">Month</label>
-                <select id="referralAnalyticsMonth" class="px-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
-                    <option value="">All Months</option>
-                    @for($m = 1; $m <= 12; $m++)
-                        <option value="{{ $m }}" {{ ($analytics['month'] ?? null) === $m ? 'selected' : '' }}>{{ \Carbon\Carbon::create(null, $m, 1)->format('F') }}</option>
-                    @endfor
-                </select>
-                <span id="referralAnalyticsLoading" class="text-xs text-gray-500" style="display:none;">Loading&hellip;</span>
-            </div>
+    {{-- Referral Analytics --}}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+
+    {{-- Analytics Header --}}
+<div class="px-6 py-5 border-b border-gray-100
+            flex flex-col gap-4
+            sm:flex-row sm:items-end sm:justify-between">
+
+    {{-- Title --}}
+    <div>
+        <p class="text-sm font-semibold text-gray-800">
+            Referral Analytics
+        </p>
+
+        <p
+            id="referralAnalyticsSubtitle"
+            class="mt-0.5 text-xs text-gray-500"
+        >
+            @if($analytics['month'] ?? null)
+                Showing referral analytics for
+                {{ \Carbon\Carbon::create($analytics['year'], $analytics['month'], 1)->format('F Y') }}
+            @else
+                Showing referral analytics for {{ $analytics['year'] ?? now()->year }}
+            @endif
+        </p>
+    </div>
+
+    {{-- Analytics Filters --}}
+    <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
+
+        {{-- Year Filter --}}
+        <div class="w-full sm:w-auto">
+            <label
+                for="referralAnalyticsYear"
+                class="mb-1 block text-xs font-medium text-gray-500"
+            >
+                Year
+            </label>
+
+            <select
+                id="referralAnalyticsYear"
+                class="block w-full min-w-[110px]
+                       rounded-lg border border-gray-300 bg-white
+                       px-3 py-2 text-sm text-gray-700
+                       focus:border-blue-500
+                       focus:ring-1 focus:ring-blue-500
+                       sm:w-auto"
+            >
+                @foreach(($analytics['availableYears'] ?? [now()->year]) as $year)
+                    <option
+                        value="{{ $year }}"
+                        {{ (int) ($analytics['year'] ?? now()->year) === (int) $year ? 'selected' : '' }}
+                    >
+                        {{ $year }}
+                    </option>
+                @endforeach
+            </select>
         </div>
 
-        <div class="p-6">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <p class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Most Referred Hospital</p>
-                    <p id="referralSummaryHospital" class="mt-1 text-sm font-semibold text-gray-800">—</p>
-                </div>
-                <div class="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <p class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Completion Rate</p>
-                    <p id="referralSummaryRate" class="mt-1 text-sm font-semibold text-gray-800">—</p>
-                </div>
-                <div class="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <p class="text-[11px] font-medium uppercase tracking-wide text-gray-500" id="referralSummaryBusiestTitle">Busiest Month</p>
-                    <p id="referralSummaryBusiest" class="mt-1 text-sm font-semibold text-gray-800">—</p>
-                    <p id="referralSummaryBusiestSub" class="text-xs text-gray-400 mt-0.5" style="display:none;">—</p>
-                </div>
-                <div class="rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <p class="text-[11px] font-medium uppercase tracking-wide text-gray-500">Most Common Reason</p>
-                    <p id="referralSummaryReason" class="mt-1 text-sm font-semibold text-gray-800">—</p>
-                </div>
-            </div>
+        {{-- Month Filter --}}
+        <div class="w-full sm:w-auto">
+            <label
+                for="referralAnalyticsMonth"
+                class="mb-1 block text-xs font-medium text-gray-500"
+            >
+                Month
+            </label>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-                <div class="rounded-xl border border-gray-100 p-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-gray-700">Referrals by Month</p>
-                        <span id="referralTrendEmpty" class="text-xs text-gray-400" style="display:none;">No referral data available.</span>
-                    </div>
-                    <div style="height: 260px; margin-top: 10px;"><canvas id="referralTrendChart"></canvas></div>
-                </div>
-                <div class="rounded-xl border border-gray-100 p-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-gray-700">Pending vs Completed</p>
-                        <span id="referralStatusEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
-                    </div>
-                    <div style="height: 260px; margin-top: 10px;"><canvas id="referralStatusChart"></canvas></div>
-                </div>
-            </div>
+            <select
+                id="referralAnalyticsMonth"
+                class="block w-full min-w-[140px]
+                       rounded-lg border border-gray-300 bg-white
+                       px-3 py-2 text-sm text-gray-700
+                       focus:border-blue-500
+                       focus:ring-1 focus:ring-blue-500
+                       sm:w-auto"
+            >
+                <option value="">All Months</option>
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div class="rounded-xl border border-gray-100 p-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-gray-700">Top Destinations</p>
-                        <span id="referralDestinationsEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
-                    </div>
-                    <div style="height: 260px; margin-top: 10px;"><canvas id="referralDestinationsChart"></canvas></div>
-                </div>
-                <div class="rounded-xl border border-gray-100 p-4">
-                    <div class="flex items-center justify-between">
-                        <p class="text-sm font-semibold text-gray-700">Referral Reasons</p>
-                        <span id="referralReasonsEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
-                    </div>
-                    <div style="height: 260px; margin-top: 10px;"><canvas id="referralReasonsChart"></canvas></div>
-                </div>
+                @for($m = 1; $m <= 12; $m++)
+                    <option
+                        value="{{ $m }}"
+                        {{ ($analytics['month'] ?? null) === $m ? 'selected' : '' }}
+                    >
+                        {{ \Carbon\Carbon::create(null, $m, 1)->format('F') }}
+                    </option>
+                @endfor
+            </select>
+        </div>
+
+        {{-- Loading Indicator --}}
+        <div class="sm:pb-2">
+            <span
+                id="referralAnalyticsLoading"
+                class="block text-xs text-gray-500"
+                style="display: none;"
+            >
+                Loading&hellip;
+            </span>
+        </div>
+
+    </div>
+</div>
+
+{{-- Referral Analytics Charts --}}
+
+{{-- Analytics Content --}}
+<div class="p-6">
+
+    {{-- Summary Cards --}}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+        {{-- Total Referrals --}}
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Total Referrals
+            </p>
+
+            <p
+                id="referralSummaryTotal"
+                class="mt-2 text-2xl font-bold text-gray-900"
+            >
+                {{ $analytics['summary']['totalReferrals'] ?? 0 }}
+            </p>
+
+            <p class="mt-1 text-xs text-gray-500">
+                Within selected period
+            </p>
+        </div>
+
+
+        {{-- Completed Referrals --}}
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Completed Referrals
+            </p>
+
+            <p
+                id="referralSummaryCompleted"
+                class="mt-2 text-2xl font-bold text-green-600"
+            >
+                {{ $analytics['summary']['completedReferrals'] ?? 0 }}
+            </p>
+
+            <p class="mt-1 text-xs text-gray-500">
+                Within selected period
+            </p>
+        </div>
+
+
+        {{-- Most Referred Facility --}}
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                Most Referred Facility
+            </p>
+
+            <p
+                id="referralSummaryFacility"
+                class="mt-2 truncate text-base font-bold text-gray-900"
+                title="{{ $analytics['summary']['mostReferredFacility']['label'] ?? '' }}"
+            >
+                {{ $analytics['summary']['mostReferredFacility']['label'] ?? '—' }}
+            </p>
+
+            <p
+                id="referralSummaryFacilitySub"
+                class="mt-1 text-xs text-gray-500"
+            >
+                @if($analytics['summary']['mostReferredFacility'] ?? null)
+                    {{ $analytics['summary']['mostReferredFacility']['count'] }}
+                    {{ $analytics['summary']['mostReferredFacility']['count'] === 1 ? 'referral' : 'referrals' }}
+                @else
+                    No referral data
+                @endif
+            </p>
+        </div>
+
+
+        {{-- Busiest Period --}}
+        <div class="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <p
+                id="referralSummaryBusiestTitle"
+                class="text-xs font-medium uppercase tracking-wide text-gray-500"
+            >
+                {{ ($analytics['month'] ?? null) ? 'Busiest Day' : 'Busiest Month' }}
+            </p>
+
+            <p
+                id="referralSummaryBusiest"
+                class="mt-2 text-base font-bold text-gray-900"
+            >
+                {{ $analytics['summary']['busiestPeriod']['label'] ?? '—' }}
+            </p>
+
+            <p
+                id="referralSummaryBusiestSub"
+                class="mt-1 text-xs text-gray-500"
+            >
+                @if($analytics['summary']['busiestPeriod'] ?? null)
+                    {{ $analytics['summary']['busiestPeriod']['count'] }}
+                    {{ $analytics['summary']['busiestPeriod']['count'] === 1 ? 'referral' : 'referrals' }}
+                @else
+                    No referral data
+                @endif
+            </p>
+        </div>
+
+    </div>
+
+
+
+        {{-- Referral Trend --}}
+    <div class="mt-6 rounded-xl border border-gray-100 bg-white p-5">
+        <div class="mb-5">
+            <p class="text-sm font-semibold text-gray-800">
+                Referral Trend
+            </p>
+
+            <p class="mt-0.5 text-xs text-gray-500">
+                Referral volume across the selected period.
+            </p>
+        </div>
+
+        <div class="relative h-[300px]">
+            <canvas id="referralTrendChart"></canvas>
+
+            <div
+                id="referralTrendEmpty"
+                class="absolute inset-0 flex items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/50 px-4 text-center text-sm text-gray-400"
+                style="display: none;"
+            >
+                No referral data for the selected period.
             </div>
         </div>
     </div>
 
-</div>
+    {{-- Referral Status --}}
+    <div class="mt-6 rounded-xl border border-gray-100 bg-white p-5">
+        <div class="mb-5">
+            <p class="text-sm font-semibold text-gray-800">
+                Referral Status
+            </p>
 
-{{-- Referral Analytics Charts --}}
+            <p class="mt-0.5 text-xs text-gray-500">
+                Distribution of referral outcomes within the selected period.
+            </p>
+        </div>
+
+        <div class="relative h-[300px]">
+            <canvas id="referralStatusChart"></canvas>
+
+            <div
+                id="referralDestinationsEmpty"
+                class="absolute inset-0 flex items-center justify-center text-sm text-gray-400"
+                style="display: none;"
+            >
+                No referral data for the selected period.
+            </div>
+        </div>
+    </div>
+    </div>
+        {{-- Top Referral Destinations --}}
+    <div class="mt-6 rounded-xl border border-gray-100 bg-white p-5">
+        <div class="mb-5">
+            <p class="text-sm font-semibold text-gray-800">
+                Top Referral Destinations
+            </p>
+
+            <p class="mt-0.5 text-xs text-gray-500">
+                Facilities receiving the most referrals within the selected period.
+            </p>
+        </div>
+
+        <div class="relative h-[320px]">
+            <canvas id="referralDestinationsChart"></canvas>
+
+            <div
+                id="referralDestinationsEmpty"
+                class="absolute inset-0 flex items-center justify-center text-sm text-gray-400"
+                style="display: none;"
+            >
+                No referral data for the selected period.
+            </div>
+        </div>
+    </div>
+
+</div> {{-- closes Analytics Content --}}
+
+</div> {{-- closes Referral Analytics --}}
+
+
+
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -340,219 +564,617 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function setText(id, value) {
         const el = document.getElementById(id);
-        if (el) el.textContent = value || '—';
-    }
 
+        if (!el) return;
+
+        el.textContent =
+            value === null || value === undefined || value === ''
+                ? '—'
+                : value;
+    }
     function renderAnalytics(analytics) {
-        const summary = analytics.summary || {};
-        const isSingleMonth = !!analytics.month;
-        const subtitleEl = document.getElementById('referralAnalyticsSubtitle');
+    const summary = analytics.summary || {};
+    const trend = analytics.trend || {
+        granularity: 'month',
+        labels: [],
+        data: [],
+    };
 
-        if (subtitleEl) {
-            subtitleEl.textContent = isSingleMonth
-                ? 'Showing referral analytics for ' + ((analytics.labels || [])[0] || 'the selected month')
-                : 'Showing referral analytics for ' + (analytics.year || '');
-        }
+    const status = analytics.status || {
+        pending: 0,
+        completed: 0,
+        refused: 0,
+        cancelled: 0,
+    };
 
-        const noDataMessage = isSingleMonth
-            ? 'No referral data for the selected month.'
-            : 'No referral data available.';
+    const isSingleMonth = analytics.month !== null
+        && analytics.month !== undefined
+        && analytics.month !== '';
 
-        ['referralTrendEmpty', 'referralStatusEmpty', 'referralDestinationsEmpty', 'referralReasonsEmpty'].forEach((id) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = noDataMessage;
-        });
+    /*
+    |--------------------------------------------------------------------------
+    | Analytics Subtitle
+    |--------------------------------------------------------------------------
+    */
 
-        setText('referralSummaryHospital', summary.mostReferredHospital ? summary.mostReferredHospital.label : null);
-        setText('referralSummaryRate', typeof summary.completionRate === 'number' ? summary.completionRate.toFixed(1) + '%' : null);
-        setText('referralSummaryReason', summary.mostCommonReason ? summary.mostCommonReason.label : null);
+    const subtitleEl = document.getElementById(
+        'referralAnalyticsSubtitle'
+    );
 
-        const busiestTitleEl = document.getElementById('referralSummaryBusiestTitle');
-        const busiestSubEl = document.getElementById('referralSummaryBusiestSub');
+    if (subtitleEl) {
         if (isSingleMonth) {
-            const monthLabel = (analytics.labels || [])[0] || '—';
-            const monthCount = (analytics.referralTrend || [])[0] || 0;
-            if (busiestTitleEl) busiestTitleEl.textContent = 'Selected Month Referrals';
-            setText('referralSummaryBusiest', monthLabel);
-            if (busiestSubEl) {
-                busiestSubEl.style.display = 'block';
-                busiestSubEl.textContent = monthCount + (monthCount === 1 ? ' Referral' : ' Referrals');
-            }
+            const monthName = new Intl.DateTimeFormat('en', {
+                month: 'long',
+            }).format(
+                new Date(
+                    Number(analytics.year),
+                    Number(analytics.month) - 1,
+                    1
+                )
+            );
+
+            subtitleEl.textContent =
+                'Showing referral analytics for ' +
+                monthName +
+                ' ' +
+                analytics.year;
         } else {
-            if (busiestTitleEl) busiestTitleEl.textContent = 'Busiest Month';
-            if (busiestSubEl) busiestSubEl.style.display = 'none';
-            setText('referralSummaryBusiest', summary.busiestPeriod ? summary.busiestPeriod.label + ' · ' + summary.busiestPeriod.count : null);
-        }
-
-        const trendTotal = (analytics.referralTrend || []).reduce((a, b) => a + b, 0);
-        const hasTrend = isSingleMonth ? trendTotal > 0 : (analytics.labels || []).length > 0;
-        toggleEmpty('referralTrendChart', 'referralTrendEmpty', hasTrend);
-        if (hasTrend) {
-            makeChart('referralTrendChart', {
-                type: 'line',
-                data: {
-                    labels: analytics.labels,
-                    datasets: [{
-                        label: 'Referrals',
-                        data: analytics.referralTrend,
-                        borderColor: palette.blue,
-                        backgroundColor: (c) => {
-                            const g = c.chart.ctx.createLinearGradient(0, 0, 0, 260);
-                            g.addColorStop(0, 'rgba(37,99,235,0.15)');
-                            g.addColorStop(1, 'rgba(37,99,235,0)');
-                            return g;
-                        },
-                        borderWidth: 2.5,
-                        tension: 0.45,
-                        fill: true,
-                        pointBackgroundColor: palette.blue,
-                        pointBorderColor: '#ffffff',
-                        pointBorderWidth: 2,
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false }, tooltip: sharedTooltip },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: palette.gridLine },
-                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
-                            border: { display: false },
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { font: baseFont, color: '#94a3b8' },
-                            border: { display: false },
-                        }
-                    }
-                }
-            });
-        }
-
-        const status = analytics.statusTrend || { pending: [], completed: [] };
-        const hasStatus = hasTrend && (status.pending.concat(status.completed).reduce((a, b) => a + b, 0) > 0);
-        toggleEmpty('referralStatusChart', 'referralStatusEmpty', hasStatus);
-        if (hasStatus) {
-            makeChart('referralStatusChart', {
-                type: 'bar',
-                data: {
-                    labels: analytics.labels,
-                    datasets: [
-                        { label: 'Pending', data: status.pending, backgroundColor: palette.amber, borderRadius: 6, borderSkipped: false },
-                        { label: 'Completed', data: status.completed, backgroundColor: palette.emerald, borderRadius: 6, borderSkipped: false },
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { font: baseFont, color: '#64748b', boxWidth: 10 } }, tooltip: sharedTooltip },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: palette.gridLine },
-                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 5 },
-                            border: { display: false },
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { font: baseFont, color: '#94a3b8' },
-                            border: { display: false },
-                        }
-                    }
-                }
-            });
-        }
-
-        const dests = analytics.destinations || [];
-        toggleEmpty('referralDestinationsChart', 'referralDestinationsEmpty', dests.length > 0);
-        if (dests.length > 0) {
-            makeChart('referralDestinationsChart', {
-                type: 'bar',
-                data: {
-                    labels: dests.map((d) => d.label),
-                    datasets: [{
-                        label: 'Referrals',
-                        data: dests.map((d) => d.count),
-                        backgroundColor: palette.emerald,
-                        borderRadius: 6, borderSkipped: false,
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-                    plugins: { legend: { display: false }, tooltip: sharedTooltip },
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            grid: { color: palette.gridLine },
-                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 4 },
-                            border: { display: false },
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { font: baseFont, color: '#64748b' },
-                            border: { display: false },
-                        }
-                    }
-                }
-            });
-        }
-
-        const reasons = analytics.reasons || [];
-        toggleEmpty('referralReasonsChart', 'referralReasonsEmpty', reasons.length > 0);
-        if (reasons.length > 0) {
-            makeChart('referralReasonsChart', {
-                type: 'bar',
-                data: {
-                    labels: reasons.map((d) => d.label),
-                    datasets: [{
-                        label: 'Referrals',
-                        data: reasons.map((d) => d.count),
-                        backgroundColor: palette.violet,
-                        borderRadius: 6, borderSkipped: false,
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, indexAxis: 'y',
-                    plugins: { legend: { display: false }, tooltip: sharedTooltip },
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            grid: { color: palette.gridLine },
-                            ticks: { font: baseFont, color: '#94a3b8', maxTicksLimit: 4 },
-                            border: { display: false },
-                        },
-                        y: {
-                            grid: { display: false },
-                            ticks: { font: baseFont, color: '#64748b' },
-                            border: { display: false },
-                        }
-                    }
-                }
-            });
+            subtitleEl.textContent =
+                'Showing referral analytics for ' +
+                analytics.year;
         }
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Summary Cards
+    |--------------------------------------------------------------------------
+    */
+
+    setText(
+        'referralSummaryTotal',
+        summary.totalReferrals ?? 0
+    );
+
+    setText(
+        'referralSummaryCompleted',
+        summary.completedReferrals ?? 0
+    );
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Most Referred Facility
+    |--------------------------------------------------------------------------
+    */
+
+    const facility = summary.mostReferredFacility || null;
+
+    setText(
+        'referralSummaryFacility',
+        facility ? facility.label : null
+    );
+
+    const facilityEl = document.getElementById(
+        'referralSummaryFacility'
+    );
+
+    if (facilityEl) {
+        facilityEl.title = facility ? facility.label : '';
+    }
+
+    const facilitySubEl = document.getElementById(
+        'referralSummaryFacilitySub'
+    );
+
+    if (facilitySubEl) {
+        if (facility) {
+            facilitySubEl.textContent =
+                facility.count +
+                (facility.count === 1
+                    ? ' referral'
+                    : ' referrals');
+        } else {
+            facilitySubEl.textContent = 'No referral data';
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Busiest Month / Day
+    |--------------------------------------------------------------------------
+    */
+
+    const busiest = summary.busiestPeriod || null;
+
+    const busiestTitleEl = document.getElementById(
+        'referralSummaryBusiestTitle'
+    );
+
+    if (busiestTitleEl) {
+        busiestTitleEl.textContent =
+            isSingleMonth
+                ? 'Busiest Day'
+                : 'Busiest Month';
+    }
+
+    setText(
+        'referralSummaryBusiest',
+        busiest ? busiest.label : null
+    );
+
+    const busiestSubEl = document.getElementById(
+        'referralSummaryBusiestSub'
+    );
+
+    if (busiestSubEl) {
+        if (busiest) {
+            busiestSubEl.textContent =
+                busiest.count +
+                (busiest.count === 1
+                    ? ' referral'
+                    : ' referrals');
+        } else {
+            busiestSubEl.textContent = 'No referral data';
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Empty-State Messages
+    |--------------------------------------------------------------------------
+    */
+
+    const noDataMessage = isSingleMonth
+        ? 'No referral data for the selected month.'
+        : 'No referral data for the selected year.';
+
+    [
+        'referralTrendEmpty',
+        'referralStatusEmpty',
+        'referralDestinationsEmpty',
+    ].forEach((id) => {
+        const el = document.getElementById(id);
+
+        if (el) {
+            el.textContent = noDataMessage;
+        }
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Referral Trend
+    |--------------------------------------------------------------------------
+    |
+    | All Months:
+    | Jan -> Dec
+    |
+    | Specific Month:
+    | Sep 1 -> Sep 30
+    |
+    */
+
+    const trendLabels = Array.isArray(trend.labels)
+        ? trend.labels
+        : [];
+
+    const trendData = Array.isArray(trend.data)
+        ? trend.data
+        : [];
+
+    const trendTotal = trendData.reduce(
+        (total, value) => total + Number(value || 0),
+        0
+    );
+
+    const hasTrend = trendTotal > 0;
+
+    toggleEmpty(
+        'referralTrendChart',
+        'referralTrendEmpty',
+        hasTrend
+    );
+
+    if (hasTrend) {
+        makeChart('referralTrendChart', {
+            type: 'line',
+
+            data: {
+                labels: trendLabels,
+
+                datasets: [{
+                    label: 'Referrals',
+                    data: trendData,
+
+                    borderColor: palette.blue,
+
+                    backgroundColor: (context) => {
+                        const chart = context.chart;
+                        const ctx = chart.ctx;
+                        const chartArea = chart.chartArea;
+
+                        if (!chartArea) {
+                            return 'rgba(85,184,90,0.10)';
+                        }
+
+                        const gradient = ctx.createLinearGradient(
+                            0,
+                            chartArea.top,
+                            0,
+                            chartArea.bottom
+                        );
+
+                        gradient.addColorStop(
+                            0,
+                            'rgba(85,184,90,0.18)'
+                        );
+
+                        gradient.addColorStop(
+                            1,
+                            'rgba(85,184,90,0)'
+                        );
+
+                        return gradient;
+                    },
+
+                    borderWidth: 2.5,
+                    tension: 0.35,
+                    fill: true,
+
+                    pointBackgroundColor: palette.blue,
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+
+                    pointRadius:
+                        trend.granularity === 'day'
+                            ? 3
+                            : 4,
+
+                    pointHoverRadius: 6,
+                }],
+            },
+
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+
+                interaction: {
+                    intersect: false,
+                    mode: 'index',
+                },
+
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+
+                    tooltip: sharedTooltip,
+                },
+
+                scales: {
+                    y: {
+                        beginAtZero: true,
+
+                        grid: {
+                            color: palette.gridLine,
+                        },
+
+                        ticks: {
+                            font: baseFont,
+                            color: '#94a3b8',
+                            precision: 0,
+                            maxTicksLimit: 5,
+                        },
+
+                        border: {
+                            display: false,
+                        },
+                    },
+
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+
+                        ticks: {
+                            font: baseFont,
+                            color: '#94a3b8',
+
+                            autoSkip:
+                                trend.granularity === 'day',
+
+                            maxTicksLimit:
+                                trend.granularity === 'day'
+                                    ? 10
+                                    : 12,
+
+                            maxRotation: 0,
+                            minRotation: 0,
+                        },
+
+                        border: {
+                            display: false,
+                        },
+                    },
+                },
+            },
+        });
+    } else {
+        destroyChart('referralTrendChart');
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Referral Status
+    |--------------------------------------------------------------------------
+    |
+    | Status is aggregated across the selected period.
+    | It is NOT broken down by individual day/month.
+    |
+    */
+
+    const statusLabels = [
+        'Pending',
+        'Completed',
+        'Refused',
+        'Cancelled',
+    ];
+
+    const statusData = [
+        Number(status.pending || 0),
+        Number(status.completed || 0),
+        Number(status.refused || 0),
+        Number(status.cancelled || 0),
+    ];
+
+    const statusTotal = statusData.reduce(
+        (total, value) => total + value,
+        0
+    );
+
+    const hasStatus = statusTotal > 0;
+
+    toggleEmpty(
+        'referralStatusChart',
+        'referralStatusEmpty',
+        hasStatus
+    );
+
+    if (hasStatus) {
+        makeChart('referralStatusChart', {
+            type: 'bar',
+
+            data: {
+                labels: statusLabels,
+
+                datasets: [{
+                    label: 'Referrals',
+
+                    data: statusData,
+
+                    backgroundColor: [
+                        palette.amber,
+                        palette.emerald,
+                        palette.red,
+                        palette.slate,
+                    ],
+
+                    borderRadius: 8,
+                    borderSkipped: false,
+                }],
+            },
+
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+
+                    tooltip: sharedTooltip,
+                },
+
+                scales: {
+                    y: {
+                        beginAtZero: true,
+
+                        grid: {
+                            color: palette.gridLine,
+                        },
+
+                        ticks: {
+                            font: baseFont,
+                            color: '#94a3b8',
+                            precision: 0,
+                            maxTicksLimit: 5,
+                        },
+
+                        border: {
+                            display: false,
+                        },
+                    },
+
+                    x: {
+                        grid: {
+                            display: false,
+                        },
+
+                        ticks: {
+                            font: baseFont,
+                            color: '#64748b',
+                        },
+
+                        border: {
+                            display: false,
+                        },
+                    },
+                },
+            },
+        });
+    } else {
+        destroyChart('referralStatusChart');
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Top Referral Destinations
+    |--------------------------------------------------------------------------
+    */
+
+    const destinations = Array.isArray(
+        analytics.destinations
+    )
+        ? analytics.destinations
+        : [];
+
+    const hasDestinations = destinations.length > 0;
+
+    toggleEmpty(
+        'referralDestinationsChart',
+        'referralDestinationsEmpty',
+        hasDestinations
+    );
+
+    if (hasDestinations) {
+        makeChart('referralDestinationsChart', {
+            type: 'bar',
+
+            data: {
+                labels: destinations.map(
+                    (destination) => destination.label
+                ),
+
+                datasets: [{
+                    label: 'Referrals',
+
+                    data: destinations.map(
+                        (destination) => destination.count
+                    ),
+
+                    backgroundColor: palette.emerald,
+
+                    borderRadius: 6,
+                    borderSkipped: false,
+                }],
+            },
+
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+
+                indexAxis: 'y',
+
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+
+                    tooltip: sharedTooltip,
+                },
+
+                scales: {
+                    x: {
+                        beginAtZero: true,
+
+                        grid: {
+                            color: palette.gridLine,
+                        },
+
+                        ticks: {
+                            font: baseFont,
+                            color: '#94a3b8',
+                            precision: 0,
+                            maxTicksLimit: 5,
+                        },
+
+                        border: {
+                            display: false,
+                        },
+                    },
+
+                    y: {
+                        grid: {
+                            display: false,
+                        },
+
+                        ticks: {
+                            font: baseFont,
+                            color: '#64748b',
+                        },
+
+                        border: {
+                            display: false,
+                        },
+                    },
+                },
+            },
+        });
+    } else {
+        destroyChart('referralDestinationsChart');
+    }
+
+
+    
+}
 
     renderAnalytics(initialAnalytics);
 
+    const yearSelect = document.getElementById('referralAnalyticsYear');
     const monthSelect = document.getElementById('referralAnalyticsMonth');
     const loading = document.getElementById('referralAnalyticsLoading');
 
     function loadAnalytics() {
-        if (!monthSelect) return;
+        if (!yearSelect || !monthSelect) return;
 
+        const year = yearSelect.value;
         const month = monthSelect.value;
-        if (loading) loading.style.display = 'inline';
 
-        fetch('{{ route('referrals.analytics') }}?month=' + encodeURIComponent(month))
-            .then((r) => r.json())
-            .then(renderAnalytics)
-            .catch(() => { /* keep previous charts on failure */ })
-            .finally(() => { if (loading) loading.style.display = 'none'; });
+        if (loading) {
+            loading.style.display = 'block';
+        }
+
+        const params = new URLSearchParams({
+            year: year,
+            month: month,
+        });
+
+        fetch('{{ route('referrals.analytics') }}?' + params.toString())
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Failed to load referral analytics.');
+                }
+
+                return response.json();
+            })
+            .then((analytics) => {
+                renderAnalytics(analytics);
+            })
+            .catch((error) => {
+                console.error('Referral analytics error:', error);
+            })
+            .finally(() => {
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+            });
     }
 
-    if (monthSelect) monthSelect.addEventListener('change', loadAnalytics);
+    if (yearSelect) {
+        yearSelect.addEventListener('change', loadAnalytics);
+    }
+
+    if (monthSelect) {
+        monthSelect.addEventListener('change', loadAnalytics);
+    }
+
 });
 </script>
 

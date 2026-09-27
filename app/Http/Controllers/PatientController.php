@@ -33,9 +33,11 @@ class PatientController extends Controller
             $query->where('assigned_staff_id', auth()->id());
         }
 
+        $highRiskCount = (clone $query)->whereHas('latestPrenatalAssessment',
+            fn ($visit) => $visit->where('risk_level', 'HIGH'))->count();
         $patients = $query->latest()->get();
 
-        return view('patients.index', compact('patients'));
+        return view('patients.index', compact('patients', 'highRiskCount'));
     }
 
     public function trashed()

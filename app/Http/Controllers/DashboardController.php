@@ -29,30 +29,7 @@ class DashboardController extends Controller
 
     private function latestVisitSubquery(): \Illuminate\Database\Query\Builder
     {
-        return \Illuminate\Support\Facades\DB::table('prenatal_visits')
-            ->whereNull('deleted_at')
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('patient_id');
-    }
-
-    private function priorityAlertLatestVisitSubquery(): \Illuminate\Database\Query\Builder
-    {
-        return \Illuminate\Support\Facades\DB::table('prenatal_visits as current_visit')
-            ->whereNull('current_visit.deleted_at')
-            ->whereNotExists(function ($query) {
-                $query->selectRaw('1')
-                    ->from('prenatal_visits as later_visit')
-                    ->whereColumn('later_visit.patient_id', 'current_visit.patient_id')
-                    ->whereNull('later_visit.deleted_at')
-                    ->where(function ($query) {
-                        $query->whereColumn('later_visit.visit_date', '>', 'current_visit.visit_date')
-                            ->orWhere(function ($query) {
-                                $query->whereColumn('later_visit.visit_date', 'current_visit.visit_date')
-                                    ->whereColumn('later_visit.id', '>', 'current_visit.id');
-                            });
-                    });
-            })
-            ->select('current_visit.id');
+        return PrenatalVisit::latestAssessmentIds();
     }
 
     private function countLatestByRisk(string $riskLevel): int
@@ -183,23 +160,20 @@ class DashboardController extends Controller
         // OVERDUE FOLLOW-UPS
         // ======================
 
-        $overdueFollowUps = PrenatalVisit::with('patient')
+        $overdueQuery = PrenatalVisit::with('patient')
             ->whereHas('patient', function ($q) {
                 $q->where('status', 'ONGOING');
             })
             ->whereNotNull('next_visit_date')
             ->where('next_visit_date', '<', Carbon::today())
-            ->whereIn('id', function ($q) {
-                $q->selectRaw('MAX(id)')
-                    ->from('prenatal_visits')
-                    ->whereNull('deleted_at')
-                    ->groupBy('patient_id');
-            })
+            ->whereIn('id', $this->latestVisitSubquery());
+
+        $overdueCount = (clone $overdueQuery)->count();
+        $overdueFollowUps = $overdueQuery
             ->orderBy('next_visit_date')
             ->take(5)
             ->get();
 
-        $overdueCount = $overdueFollowUps->count();
 
         // ======================
         // MOST COMMON CONDITIONS
@@ -261,7 +235,7 @@ class DashboardController extends Controller
 
         $highRiskAlerts = PrenatalVisit::with('patient')
             ->where('risk_level', 'HIGH')
-            ->whereIn('id', $this->priorityAlertLatestVisitSubquery())
+            ->whereIn('id', $this->latestVisitSubquery())
             ->whereHas('patient', fn ($query) => $query->where('status', 'ONGOING'))
             ->orderByDesc('visit_date')
             ->orderByDesc('id')
@@ -272,12 +246,15 @@ class DashboardController extends Controller
         // ======================
 
         $staffHighRiskCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->whereHas('patient', fn ($query) => $query->where('status', 'ONGOING'))
             ->where('risk_level', 'HIGH')
             ->count();
         $staffLowRiskCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->whereHas('patient', fn ($query) => $query->where('status', 'ONGOING'))
             ->where('risk_level', 'LOW')
             ->count();
         $staffIncompleteCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
+            ->whereHas('patient', fn ($query) => $query->where('status', 'ONGOING'))
             ->where('risk_level', 'ASSESSMENT INCOMPLETE')
             ->count();
 
@@ -300,6 +277,25 @@ class DashboardController extends Controller
             ->orderBy('next_visit_date')
             ->take(8)
             ->get();
+
+            // ======================
+// FOLLOW-UP ATTENTION
+// ======================
+
+
+
+// Ongoing patients whose scheduled follow-up has already passed
+$followUpOverdueCount = PrenatalVisit::whereIn(
+        'id',
+        $this->latestVisitSubquery()
+    )
+    ->whereNotNull('next_visit_date')
+    ->whereDate('next_visit_date', '<', Carbon::today())
+    ->whereHas('patient', function ($query) {
+        $query->where('status', 'ONGOING');
+    })
+    ->count();
+
 
         // ======================
         // TODAY'S QUICK STATS
@@ -330,10 +326,14 @@ class DashboardController extends Controller
             ->count();
 
         $visits = $this->riskMonitoringData->visits($request);
-        $analytics = $this->riskAnalytics->get(
-            $this->riskMonitoringData->monthFilter($request->month),
-            $this->riskMonitoringData->riskTypeFilter($request->risk_type)
-        );
+
+$analytics = $this->riskAnalytics->get(
+    $request->filled('year') ? (int) $request->year : null,
+    $this->riskMonitoringData->monthFilter($request->month),
+    $this->riskMonitoringData->riskTypeFilter($request->risk_type)
+);
+
+$ageDistribution = $this->riskAnalytics->ageDistribution();
 
         return view('dashboards.staff', compact(
             'patientsToday',
@@ -351,7 +351,10 @@ class DashboardController extends Controller
             'staffUrgentBpCount',
             'staffPendingRepeatCount',
             'visits',
-            'analytics'
+            'analytics',
+            'ageDistribution',
+            'followUpOverdueCount'
+            
         ));
     }
 

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\ValueObjects\ClinicalFactorEvidence;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use App\Models\PrenatalVisit;
 
 class RiskAnalyticsService extends AnalyticsService
 {
@@ -19,187 +20,365 @@ class RiskAnalyticsService extends AnalyticsService
     private const CLEARED_SYS_THRESHOLD = 140;
     private const CLEARED_DIA_THRESHOLD = 90;
 
-    public function get(?int $month = null, ?string $riskType = null): array
-    {
-        $riskType = in_array($riskType, [self::RISK_HIGH, self::RISK_LOW], true) ? $riskType : self::RISK_HIGH;
+    public function get(
+    ?int $year = null,
+    ?int $month = null,
+    ?string $riskType = null
+): array
+{
+    $riskType = in_array(
+        $riskType,
+        [self::RISK_HIGH, self::RISK_LOW],
+        true
+    ) ? $riskType : self::RISK_HIGH;
 
-        $year = (int) Carbon::now()->year;
-        $rows = $this->latestAssessments($year, $month);
+    $year = $year ?? (int) Carbon::now()->year;
 
-        $buckets = $this->monthBuckets($year, $month);
-        $keys = $buckets['keys'];
-        $labels = $buckets['labels'];
+    $rows = $this->latestAssessments($year, $month);
 
-        $groups = [];
+    /*
+    |--------------------------------------------------------------------------
+    | Adaptive time buckets
+    |--------------------------------------------------------------------------
+    | All Months  = January to December
+    | One Month   = every calendar day in that month
+    */
+    if ($month === null) {
+        $keys = [];
+        $labels = [];
 
-        foreach ($rows as $row) {
-            $key = Carbon::parse($row->visit_date)->format('Y-m');
-            $groups[$key][] = $row;
+        for ($m = 1; $m <= 12; $m++) {
+            $date = Carbon::create($year, $m, 1);
+
+            $keys[] = $date->format('Y-m');
+            $labels[] = $date->format('M');
         }
 
-        $highRiskTrend = [];
-        $lowRiskTrend = [];
-        $distribution = ['high' => [], 'low' => [], 'incomplete' => []];
-        $conditions = ['Hypertension' => [], 'Diabetes' => [], 'Anemia' => []];
-        $bpFollowUp = ['urgent' => [], 'pendingRepeat' => [], 'cleared' => []];
-        $ageGroups = [
-            'Under 19' => 0,
-            '19-24' => 0,
-            '25-34' => 0,
-            '35-44' => 0,
-            '45 and older' => 0,
-        ];
-        $highRiskFactors = [];
+        $granularity = 'month';
+    } else {
+        $date = Carbon::create($year, $month, 1);
+        $daysInMonth = $date->daysInMonth;
 
-        foreach ($keys as $key) {
-            $high = 0;
-            $low = 0;
-            $incomplete = 0;
-            $hypertension = 0;
-            $diabetes = 0;
-            $anemia = 0;
-            $urgent = 0;
-            $pendingRepeat = 0;
-            $cleared = 0;
+        $keys = [];
+        $labels = [];
 
-            foreach ($groups[$key] ?? [] as $row) {
-                if ($row->risk_level === self::RISK_HIGH) {
-                    $high++;
-                } elseif ($row->risk_level === self::RISK_LOW) {
-                    $low++;
-                } elseif ($row->risk_level === self::RISK_INCOMPLETE) {
-                    $incomplete++;
-                }
+        for ($day = 1; $day <= $daysInMonth; $day++) {
+            $dayDate = Carbon::create($year, $month, $day);
 
-                if ((bool) $row->hypertension) {
-                    $hypertension++;
-                }
+            $keys[] = $dayDate->format('Y-m-d');
+            $labels[] = $dayDate->format('M j');
+        }
 
-                if ((bool) $row->diabetes) {
-                    $diabetes++;
-                }
+        $granularity = 'day';
+    }
 
-                if ((bool) $row->anemia) {
-                    $anemia++;
-                }
+    /*
+    |--------------------------------------------------------------------------
+    | Group assessments into the correct period
+    |--------------------------------------------------------------------------
+    */
+    $groups = [];
 
-                $age = is_numeric($row->age) ? (int) $row->age : null;
-                if ($age !== null) {
-                    $ageGroup = match (true) {
-                        $age < 19 => 'Under 19',
-                        $age <= 24 => '19-24',
-                        $age <= 34 => '25-34',
-                        $age <= 44 => '35-44',
-                        default => '45 and older',
-                    };
-                    $ageGroups[$ageGroup]++;
-                }
+    foreach ($rows as $row) {
+        $visitDate = Carbon::parse($row->visit_date);
 
-                if ($row->risk_level === self::RISK_HIGH) {
-                    $storedFactors = is_string($row->factor_evidence)
-                        ? json_decode($row->factor_evidence, true)
-                        : $row->factor_evidence;
-                    foreach (ClinicalFactorEvidence::normalizeList($storedFactors) as $factor) {
-                        $label = trim((string) ($factor['label'] ?? ''));
-                        if ($label === '') {
-                            continue;
-                        }
-                        $key = mb_strtolower($label);
-                        if (!isset($highRiskFactors[$key])) {
-                            $highRiskFactors[$key] = ['label' => $label, 'count' => 0];
-                        }
-                        $highRiskFactors[$key]['count']++;
-                    }
-                }
+        $key = $granularity === 'day'
+            ? $visitDate->format('Y-m-d')
+            : $visitDate->format('Y-m');
 
-                if ($row->urgency === self::URGENCY_URGENT) {
-                    $urgent++;
-                }
+        $groups[$key][] = $row;
+    }
 
-                if ($row->bp_verification_status === self::VERIFICATION_PENDING) {
-                    $pendingRepeat++;
-                }
+    $highRiskTrend = [];
+    $lowRiskTrend = [];
 
-                if ($row->bp_verification_status === self::VERIFICATION_COMPLETED
-                    && is_numeric($row->repeat_bp_sys)
-                    && is_numeric($row->repeat_bp_dia)
-                    && (int) $row->repeat_bp_sys < self::CLEARED_SYS_THRESHOLD
-                    && (int) $row->repeat_bp_dia < self::CLEARED_DIA_THRESHOLD) {
-                    $cleared++;
-                }
+    $distribution = [
+        'high' => [],
+        'low' => [],
+        'incomplete' => [],
+    ];
+
+    $conditions = [
+        'Hypertension' => [],
+        'Diabetes' => [],
+        'Anemia' => [],
+    ];
+
+    $bpFollowUp = [
+        'urgent' => [],
+        'pendingRepeat' => [],
+        'cleared' => [],
+    ];
+
+    $highRiskFactors = [];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Build analytics for every month/day bucket
+    |--------------------------------------------------------------------------
+    */
+    foreach ($keys as $periodKey) {
+        $high = 0;
+        $low = 0;
+        $incomplete = 0;
+
+        $hypertension = 0;
+        $diabetes = 0;
+        $anemia = 0;
+
+        $urgent = 0;
+        $pendingRepeat = 0;
+        $cleared = 0;
+
+        foreach ($groups[$periodKey] ?? [] as $row) {
+            if ($row->risk_level === self::RISK_HIGH) {
+                $high++;
+            } elseif ($row->risk_level === self::RISK_LOW) {
+                $low++;
+            } elseif ($row->risk_level === self::RISK_INCOMPLETE) {
+                $incomplete++;
             }
 
-            $highRiskTrend[] = $high;
-            $lowRiskTrend[] = $low;
-            $distribution['high'][] = $high;
-            $distribution['low'][] = $low;
-            $distribution['incomplete'][] = $incomplete;
-            $conditions['Hypertension'][] = $hypertension;
-            $conditions['Diabetes'][] = $diabetes;
-            $conditions['Anemia'][] = $anemia;
-            $bpFollowUp['urgent'][] = $urgent;
-            $bpFollowUp['pendingRepeat'][] = $pendingRepeat;
-            $bpFollowUp['cleared'][] = $cleared;
+            if ($row->risk_level === $riskType) {
+            if ((bool) $row->hypertension) {
+        $hypertension++;
+    }
+
+    if ((bool) $row->diabetes) {
+        $diabetes++;
+    }
+
+    if ((bool) $row->anemia) {
+        $anemia++;
+    }
+}
+
+            if ($row->risk_level === self::RISK_HIGH) {
+    /*
+     * Prefer structured factor evidence from the current assessment
+     * architecture. Older assessments may not have factor_evidence,
+     * so fall back to their persisted risk_reasons.
+     */
+    $storedFactors = is_string($row->factor_evidence)
+        ? json_decode($row->factor_evidence, true)
+        : $row->factor_evidence;
+
+    $normalizedFactors = ClinicalFactorEvidence::normalizeList($storedFactors);
+
+    if (!empty($normalizedFactors)) {
+        foreach ($normalizedFactors as $factor) {
+            $label = trim((string) ($factor['label'] ?? ''));
+
+            if ($label === '') {
+                continue;
+            }
+
+            $factorKey = mb_strtolower($label);
+
+            if (!isset($highRiskFactors[$factorKey])) {
+                $highRiskFactors[$factorKey] = [
+                    'label' => $label,
+                    'count' => 0,
+                ];
+            }
+
+            $highRiskFactors[$factorKey]['count']++;
+        }
+    } else {
+        // Legacy assessments: risk_reasons contains the persisted labels.
+        $legacyReasons = $row->risk_reasons;
+
+if (is_string($legacyReasons)) {
+    $legacyReasons = json_decode($legacyReasons, true);
+
+    // Some historical records were stored as double-encoded JSON.
+    if (is_string($legacyReasons)) {
+        $legacyReasons = json_decode($legacyReasons, true);
+    }
+}
+
+if (is_array($legacyReasons)) {
+            foreach ($legacyReasons as $reason) {
+                $label = trim((string) $reason);
+
+                if ($label === '') {
+                    continue;
+                }
+
+                $factorKey = mb_strtolower($label);
+
+                if (!isset($highRiskFactors[$factorKey])) {
+                    $highRiskFactors[$factorKey] = [
+                        'label' => $label,
+                        'count' => 0,
+                    ];
+                }
+
+                $highRiskFactors[$factorKey]['count']++;
+            }
+        }
+    }
+}
+
+            if ($row->urgency === self::URGENCY_URGENT) {
+                $urgent++;
+            }
+
+            if ($row->bp_verification_status === self::VERIFICATION_PENDING) {
+                $pendingRepeat++;
+            }
+
+            if (
+                $row->bp_verification_status === self::VERIFICATION_COMPLETED
+                && is_numeric($row->repeat_bp_sys)
+                && is_numeric($row->repeat_bp_dia)
+                && (int) $row->repeat_bp_sys < self::CLEARED_SYS_THRESHOLD
+                && (int) $row->repeat_bp_dia < self::CLEARED_DIA_THRESHOLD
+            ) {
+                $cleared++;
+            }
         }
 
-        return [
-            'year' => $year,
-            'month' => $month,
-            'riskType' => $riskType,
-            'labels' => $labels,
-            'riskTrend' => $riskType === self::RISK_LOW ? $lowRiskTrend : $highRiskTrend,
-            'highRiskTrend' => $highRiskTrend,
-            'lowRiskTrend' => $lowRiskTrend,
-            'riskDistribution' => $distribution,
-            'conditions' => $conditions,
-            'bpFollowUp' => $bpFollowUp,
-            'ageDistribution' => [
-                'labels' => array_keys($ageGroups),
-                'data' => array_values($ageGroups),
-            ],
-            'topHighRiskConditions' => $this->topHighRiskFactors($highRiskFactors),
-            'summary' => [
-                'highestHighRiskPeriod' => $this->maxPeriod($labels, $highRiskTrend),
-                'mostCommonCondition' => $this->mostCommonCondition($conditions),
-            ],
-        ];
+        $highRiskTrend[] = $high;
+        $lowRiskTrend[] = $low;
+
+        $distribution['high'][] = $high;
+        $distribution['low'][] = $low;
+        $distribution['incomplete'][] = $incomplete;
+
+        $conditions['Hypertension'][] = $hypertension;
+        $conditions['Diabetes'][] = $diabetes;
+        $conditions['Anemia'][] = $anemia;
+
+        $bpFollowUp['urgent'][] = $urgent;
+        $bpFollowUp['pendingRepeat'][] = $pendingRepeat;
+        $bpFollowUp['cleared'][] = $cleared;
     }
+
+    $selectedTrend = $riskType === self::RISK_LOW
+        ? $lowRiskTrend
+        : $highRiskTrend;
+
+    return [
+        'year' => $year,
+        'month' => $month,
+        'riskType' => $riskType,
+
+        'trend' => [
+            'granularity' => $granularity,
+            'labels' => $labels,
+            'data' => $selectedTrend,
+        ],
+
+        // Keep these temporarily because the existing frontend still uses them.
+        'labels' => $labels,
+        'riskTrend' => $selectedTrend,
+        'highRiskTrend' => $highRiskTrend,
+        'lowRiskTrend' => $lowRiskTrend,
+
+        'riskDistribution' => $distribution,
+        'conditions' => $conditions,
+        'bpFollowUp' => $bpFollowUp,
+
+        'topHighRiskConditions' =>
+            $this->topHighRiskFactors($highRiskFactors),
+
+        'summary' => [
+            'highestRiskPeriod' =>
+                $this->maxPeriod($labels, $selectedTrend),
+
+            // Temporary compatibility with existing Blade/JS
+            'highestHighRiskPeriod' =>
+                $this->maxPeriod($labels, $highRiskTrend),
+
+            'mostCommonCondition' =>
+                $this->mostCommonCondition($conditions),
+        ],
+    ];
+}
+
+    public function ageDistribution(): array
+{
+    $latestIds = DB::table('prenatal_visits')
+        ->whereNull('deleted_at')
+        ->selectRaw('MAX(id) as id')
+        ->groupBy('patient_id');
+
+    $rows = DB::table('prenatal_visits')
+        ->join('patients', 'patients.id', '=', 'prenatal_visits.patient_id')
+        ->whereIn('prenatal_visits.id', $latestIds)
+        ->whereNull('patients.deleted_at')
+        ->get([
+            'patients.age',
+        ]);
+
+    $ageGroups = [
+        'Under 19' => 0,
+        '19-24' => 0,
+        '25-34' => 0,
+        '35-44' => 0,
+        '45 and older' => 0,
+    ];
+
+    foreach ($rows as $row) {
+        $age = is_numeric($row->age)
+            ? (int) $row->age
+            : null;
+
+        if ($age === null) {
+            continue;
+        }
+
+        $ageGroup = match (true) {
+            $age < 19 => 'Under 19',
+            $age <= 24 => '19-24',
+            $age <= 34 => '25-34',
+            $age <= 44 => '35-44',
+            default => '45 and older',
+        };
+
+        $ageGroups[$ageGroup]++;
+    }
+
+    return [
+        'labels' => array_keys($ageGroups),
+        'data' => array_values($ageGroups),
+    ];
+}
 
     /**
      * One row per patient: the latest non-deleted assessment within the
      * selected month (and current year).
      */
     private function latestAssessments(int $year, ?int $month): array
-    {
-        $latestIds = DB::table('prenatal_visits')
-            ->whereNull('deleted_at')
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('patient_id');
+{
+    $latestIds = PrenatalVisit::latestAssessmentIds();
 
-        $query = DB::table('prenatal_visits')
-            ->join('patients', 'patients.id', '=', 'prenatal_visits.patient_id')
-            ->whereIn('prenatal_visits.id', $latestIds)
-            ->whereNull('patients.deleted_at')
-            ->whereYear('visit_date', $year);
+    $query = DB::table('prenatal_visits')
+        ->join('patients', 'patients.id', '=', 'prenatal_visits.patient_id')
+        ->whereIn('prenatal_visits.id', $latestIds)
+        ->whereNull('patients.deleted_at')
+        ->whereYear('visit_date', $year);
 
-        if ($month !== null) {
-            $query->whereMonth('visit_date', $month);
-        }
-
-        return $query->get([
-            'visit_date',
-            'risk_level',
-            'urgency',
-            'bp_verification_status',
-            'repeat_bp_sys',
-            'repeat_bp_dia',
-            'hypertension',
-            'diabetes',
-            'anemia',
-            'patients.age',
-            'factor_evidence',
-        ])->all();
+    if ($month !== null) {
+        $query->whereMonth('visit_date', $month);
     }
+
+    return $query->get([
+    'visit_date',
+    'risk_level',
+    'urgency',
+    'bp_verification_status',
+    'repeat_bp_sys',
+    'repeat_bp_dia',
+    'hypertension',
+    'diabetes',
+    'anemia',
+    'patients.age',
+    'factor_evidence',
+    'risk_reasons',
+])->all();
+}
 
     /**
      * Return the five most common persisted clinical factors among HIGH

@@ -74,7 +74,7 @@ it('AFE — the profile shows the CONFIRMATION_REQUIRED state for a passed-EDD p
 
     $response = $this->actingAs($user)->get(route('patients.show', $patient->id));
 
-    $response->assertSee('Outcome Confirmation Required');
+    $response->assertSee('Follow-up Needed');
 });
 
 it('AFF — an eligible staff profile shows safe modal-trigger buttons, not direct POST forms', function () {
@@ -183,7 +183,7 @@ it('AFM — a confirmed outcome profile shows no follow-up controls', function (
     $response = $this->actingAs($user)->get(route('patients.show', $patient->id));
 
     $response->assertOk();
-    $response->assertSee('Confirmed Delivery');
+    $response->assertSee('Delivery Confirmed');
     $response->assertSee('This Clinic');
     $response->assertSee('Clinic Record');
     $response->assertDontSee('data-outcome-confirm-trigger');

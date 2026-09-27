@@ -113,6 +113,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/referrals/analytics', [ReferralController::class, 'analytics'])
         ->name('referrals.analytics');
 
+    Route::get('/referrals/create', [ReferralController::class, 'selectPatient'])
+        ->middleware('staff')
+        ->name('referrals.select-patient');
+
     Route::get('/referrals/{id}/print', [ReferralController::class, 'print'])
         ->name('referrals.print');
 

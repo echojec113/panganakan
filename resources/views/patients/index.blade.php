@@ -6,7 +6,7 @@
         {{-- Header --}}
         <x-app-header class="mb-8">
             <x-slot name="title">Patient Records</x-slot>
-            <x-slot name="subtitle">Manage and monitor all registered prenatal patients</x-slot>
+            <x-slot name="subtitle">Ongoing patients; high-risk cases use the latest assessment</x-slot>
             <x-slot name="actions">
                 <a href="{{ route('patients.trashed') }}" class="btn btn-secondary">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,7 +58,7 @@
             </div>
             <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                 <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">High-Risk Cases</p>
-                <p class="text-2xl font-bold text-red-600">{{ $patients->filter(function($p) { return $p->prenatalVisits->where('risk_level', 'HIGH')->count() > 0; })->count() }}</p>
+                <p class="text-2xl font-bold text-red-600">{{ $highRiskCount }}</p>
             </div>
         </div>
 

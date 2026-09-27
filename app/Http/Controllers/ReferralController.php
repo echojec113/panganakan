@@ -41,6 +41,29 @@ class ReferralController extends Controller
 
         return $month;
     }
+    /**
+ * Normalize the analytics year filter.
+ *
+ * A missing or invalid year defaults to the current year.
+ * Years are limited to a reasonable range so arbitrary values
+ * cannot be passed into the analytics queries.
+ */
+private function yearFilter($value): int
+{
+    $currentYear = (int) now()->year;
+
+    if ($value === null || $value === '') {
+        return $currentYear;
+    }
+
+    $year = filter_var($value, FILTER_VALIDATE_INT);
+
+    if ($year === false || $year < 2000 || $year > $currentYear) {
+        return $currentYear;
+    }
+
+    return $year;
+}
 
     /**
      * Show all referrals
@@ -72,18 +95,72 @@ class ReferralController extends Controller
         $refused = Referral::where('status', 'Refused')->count();
         $cancelled = Referral::where('status', 'Cancelled')->count();
 
-        $analytics = $this->referralAnalytics->get($this->monthFilter(request('month')));
+        $analyticsYear = $this->yearFilter(request('year'));
+        $analyticsMonth = $this->monthFilter(request('month'));
+
+        $analytics = $this->referralAnalytics->get(
+        $analyticsYear,
+        $analyticsMonth
+);
 
         return view('referrals.index', compact('referrals', 'total', 'pending', 'completed', 'refused', 'cancelled', 'analytics'));
     }
 
+    /** Select an ongoing pregnancy before opening the existing referral form. */
+    public function selectPatient(Request $request)
+{
+    $validated = $request->validate([
+        'search' => 'nullable|string|max:255',
+    ]);
+
+    $search = trim($validated['search'] ?? '');
+
+    $patients = Patient::query()
+        ->where('status', 'ONGOING')
+
+        // Only show patients whose LATEST assessment is HIGH.
+        ->whereHas('latestPrenatalAssessment', function ($query) {
+            $query->where('risk_level', 'HIGH');
+        })
+
+        // Load that same latest assessment for the Blade view.
+        ->with('latestPrenatalAssessment')
+
+        ->when($search !== '', function ($query) use ($search) {
+            $query->where(function ($query) use ($search) {
+                $query->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('middle_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
+            });
+        })
+
+        ->orderBy('last_name')
+        ->orderBy('first_name')
+        ->orderBy('id')
+        ->paginate(15)
+        ->withQueryString();
+
+    return view(
+        'referrals.select-patient',
+        compact('patients', 'search')
+    );
+}
+
     /**
-     * JSON analytics payload (aggregated totals only) for the month filter.
-     */
-    public function analytics(Request $request)
-    {
-        return response()->json($this->referralAnalytics->get($this->monthFilter($request->month)));
-    }
+ * JSON analytics payload for the selected year and optional month.
+ */
+public function analytics(Request $request)
+{
+    $year = $this->yearFilter($request->query('year'));
+    $month = $this->monthFilter($request->query('month'));
+
+    return response()->json(
+        $this->referralAnalytics->get(
+            $year,
+            $month
+        )
+    );
+}
 
     /**
      * Show create form
@@ -311,7 +388,7 @@ class ReferralController extends Controller
             ->with('success', 'Referral marked as completed.');
     }
 
-    /**
+    /** 
      * Record a patient refusal of a pending referral.
      *
      * Only Pending referrals may be refused. `refusal_notes` is required and

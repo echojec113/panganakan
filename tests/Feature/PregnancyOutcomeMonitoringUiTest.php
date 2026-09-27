@@ -68,7 +68,7 @@ it('AD — Confirmation Required rows use the friendly label and count', functio
 
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
-    $response->assertSee('Outcome Confirmation Required');
+    $response->assertSee('Follow-up Needed');
     $response->assertSee('Confirmation Required');
 });
 
@@ -84,7 +84,7 @@ it('AE — a fresh still-pregnant observation renders the friendly state', funct
 
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
-    $response->assertSee('Still Pregnant — Confirmed');
+    $response->assertSee('Confirmed Still Pregnant');
     $response->assertSee('Still Pregnant');
 });
 
@@ -103,14 +103,14 @@ it('AF — a fresh unable-to-contact observation renders the friendly state', fu
     $response->assertSee('Unable to Contact');
 });
 
-it('AG — a confirmed delivery renders as Confirmed Delivery with provenance labels', function () {
+it('AG — a confirmed delivery renders as Delivery Confirmed with provenance labels', function () {
     $user = monitoringUiUser();
     $patient = monitoringUiPatient(['status' => 'DELIVERED', 'delivery_date' => now()->subDays(2)->toDateString()]);
     monitoringUiConfirmedDelivery($patient);
 
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
-    $response->assertSee('Confirmed Delivery');
+    $response->assertSee('Delivery Confirmed');
     $response->assertSee('This Clinic');
     $response->assertSee('Clinic Record');
 });
@@ -264,7 +264,7 @@ it('AQ — a delivery recorded through the existing 17C flow derives RESOLVED on
 
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
-    $response->assertSee('Confirmed Delivery');
+    $response->assertSee('Delivery Confirmed');
     expect($patient->refresh()->pregnancyOutcome->hasConfirmedOutcome())->toBeTrue();
 });
 
@@ -307,7 +307,7 @@ it('AS — a pending referral and a confirmation-required state coexist independ
 
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
-    $response->assertSee('Outcome Confirmation Required');
+    $response->assertSee('Follow-up Needed');
     expect($patient->refresh()->hasActiveReferral())->toBeTrue();
     expect($patient->status)->toBe('ONGOING');
 });
@@ -410,14 +410,14 @@ it('AU — Start New Pregnancy still works and does not inherit follow-up/outcom
     expect($newPregnancy->gravida)->toBe(3);
 });
 
-it('BA — a Confirmed Delivery row shows View Record only (no Pregnancy History button)', function () {
+it('BA — a Delivery Confirmed row shows View Record only (no Pregnancy History button)', function () {
     $user = monitoringUiUser();
     $patient = monitoringUiPatient(['status' => 'DELIVERED', 'delivery_date' => now()->subDays(2)->toDateString()]);
     monitoringUiConfirmedDelivery($patient);
 
     $response = $this->actingAs($user)->get(route('pregnancy-outcomes.index'));
 
-    $response->assertSee('Confirmed Delivery');
+    $response->assertSee('Delivery Confirmed');
     $response->assertSee('View Record');
     $response->assertSee(route('patients.show', $patient->id));
     $response->assertDontSee('Pregnancy History');

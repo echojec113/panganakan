@@ -89,6 +89,27 @@ class PrenatalVisit extends Model
         return $this->belongsTo(\App\Models\Patient::class);
     }
 
+    /** Latest non-deleted assessment per patient: clinical date, then ID. */
+    public static function latestAssessmentIds(): \Illuminate\Database\Query\Builder
+    {
+        return \Illuminate\Support\Facades\DB::table('prenatal_visits as current_visit')
+            ->whereNull('current_visit.deleted_at')
+            ->whereNotExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('prenatal_visits as later_visit')
+                    ->whereColumn('later_visit.patient_id', 'current_visit.patient_id')
+                    ->whereNull('later_visit.deleted_at')
+                    ->where(function ($query) {
+                        $query->whereColumn('later_visit.visit_date', '>', 'current_visit.visit_date')
+                            ->orWhere(function ($query) {
+                                $query->whereColumn('later_visit.visit_date', 'current_visit.visit_date')
+                                    ->whereColumn('later_visit.id', '>', 'current_visit.id');
+                            });
+                    });
+            })
+            ->select('current_visit.id');
+    }
+
     public function referrals()
     {
         return $this->hasMany(\App\Models\Referral::class, 'prenatal_visit_id');
@@ -144,7 +165,7 @@ class PrenatalVisit extends Model
             return false;
         }
 
-        return (bool) ($this->next_visit_date && Carbon::parse($this->next_visit_date)->isPast());
+        return (bool) ($this->next_visit_date && Carbon::parse($this->next_visit_date)->lt(Carbon::today()));
     }
     
 }

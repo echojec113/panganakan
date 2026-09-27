@@ -84,7 +84,7 @@ final class PregnancyOutcomeVocabulary
     ];
 
     public const FOLLOW_UP_STATUS_LABELS = [
-        self::FOLLOW_UP_STATUS_STILL_PREGNANT_CONFIRMED => 'Still Pregnant — Confirmed',
+        self::FOLLOW_UP_STATUS_STILL_PREGNANT_CONFIRMED => 'Confirmed Still Pregnant',
         self::FOLLOW_UP_STATUS_UNABLE_TO_CONTACT => 'Unable to Contact',
     ];
 

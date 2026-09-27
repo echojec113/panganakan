@@ -5,7 +5,7 @@
             {{-- Header --}}
             <x-app-header class="mb-8">
                 <x-slot name="title">Prenatal Visits</x-slot>
-                <x-slot name="subtitle">Record of all prenatal check-ups and risk assessments</x-slot>
+                <x-slot name="subtitle">Prenatal visit records and risk assessments for ongoing patients</x-slot>
                 <x-slot name="actions">
                     <a href="{{ route('prenatal-visits.create') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#55B85A] text-white text-sm font-medium hover:bg-[#4aa04c] transition shadow-sm">
                         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -37,7 +37,7 @@
 
                 <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                     <p class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-1">This Month</p>
-                    <p class="text-2xl font-bold text-gray-900">{{ $visits->where('visit_date', '>=', now()->startOfMonth())->count() }}</p>
+                    <p class="text-2xl font-bold text-gray-900">{{ $visits->where('visit_date', '>=', now()->startOfMonth())->where('visit_date', '<', now()->startOfMonth()->addMonth())->count() }}</p>
                 </div>
             </div>
 

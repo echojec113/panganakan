@@ -6,7 +6,6 @@ use App\Models\PrenatalVisit;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class RiskMonitoringDataService
 {
@@ -71,9 +70,6 @@ class RiskMonitoringDataService
 
     private function latestVisitSubquery(): Builder
     {
-        return DB::table('prenatal_visits')
-            ->whereNull('deleted_at')
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('patient_id');
+        return PrenatalVisit::latestAssessmentIds();
     }
 }

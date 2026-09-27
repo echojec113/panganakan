@@ -67,10 +67,10 @@ class PregnancyOutcomeMonitoringService
      *                             str_replace() raw enum strings.
      */
     public const STATE_LABELS = [
-        self::STATE_CONFIRMATION_REQUIRED => 'Outcome Confirmation Required',
-        self::STATE_STILL_PREGNANT_CONFIRMED => 'Still Pregnant — Confirmed',
+        self::STATE_CONFIRMATION_REQUIRED => 'Follow-up Needed',
+        self::STATE_STILL_PREGNANT_CONFIRMED => 'Confirmed Still Pregnant',
         self::STATE_UNABLE_TO_CONTACT => 'Unable to Contact',
-        self::STATE_RESOLVED => 'Confirmed Delivery',
+        self::STATE_RESOLVED => 'Delivery Confirmed',
         self::STATE_NOT_YET_DUE => 'Monitoring Not Yet Due',
         self::STATE_LEGACY_DELIVERED => 'Historical Delivered Record',
         self::STATE_LEGACY_REFERRED => 'Legacy Referred Record',

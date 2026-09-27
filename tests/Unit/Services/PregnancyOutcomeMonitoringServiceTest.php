@@ -188,10 +188,10 @@ it('O — daysUntilOrPastEdd reports days to and past EDD', function () {
 it('P — stateLabel maps every derived state to a friendly label', function () {
     $labels = PregnancyOutcomeMonitoringService::STATE_LABELS;
 
-    expect($labels[PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED])->toBe('Outcome Confirmation Required');
-    expect($labels[PregnancyOutcomeMonitoringService::STATE_STILL_PREGNANT_CONFIRMED])->toBe('Still Pregnant — Confirmed');
+    expect($labels[PregnancyOutcomeMonitoringService::STATE_CONFIRMATION_REQUIRED])->toBe('Follow-up Needed');
+    expect($labels[PregnancyOutcomeMonitoringService::STATE_STILL_PREGNANT_CONFIRMED])->toBe('Confirmed Still Pregnant');
     expect($labels[PregnancyOutcomeMonitoringService::STATE_UNABLE_TO_CONTACT])->toBe('Unable to Contact');
-    expect($labels[PregnancyOutcomeMonitoringService::STATE_RESOLVED])->toBe('Confirmed Delivery');
+    expect($labels[PregnancyOutcomeMonitoringService::STATE_RESOLVED])->toBe('Delivery Confirmed');
     expect($labels[PregnancyOutcomeMonitoringService::STATE_NOT_YET_DUE])->toBe('Monitoring Not Yet Due');
     expect($labels[PregnancyOutcomeMonitoringService::STATE_LEGACY_DELIVERED])->toBe('Historical Delivered Record');
     expect($labels[PregnancyOutcomeMonitoringService::STATE_LEGACY_REFERRED])->toBe('Legacy Referred Record');

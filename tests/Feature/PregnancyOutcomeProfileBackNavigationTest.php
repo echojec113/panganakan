@@ -74,7 +74,7 @@ it('monitoring View Record / Open Profile links preserve state, search, and page
 // Back restores the previous monitoring view for each state
 // ---------------------------------------------------------------------------
 
-it('Back returns to the Confirmed Delivery monitoring view', function () {
+it('Back returns to the Delivery Confirmed monitoring view', function () {
     $user = backNavUser();
     $patient = backNavPatient(['status' => 'DELIVERED', 'delivery_date' => now()->subDays(2)->toDateString()]);
     backNavConfirmedDelivery($patient);
@@ -87,7 +87,7 @@ it('Back returns to the Confirmed Delivery monitoring view', function () {
     expect(backNavBackHref($response->getContent(), $monitoringUrl))->toBeTrue();
 });
 
-it('Back returns to the Outcome Confirmation Required monitoring view', function () {
+it('Back returns to the Follow-up Needed monitoring view', function () {
     $user = backNavUser();
     $patient = backNavPatient();
 
@@ -95,11 +95,11 @@ it('Back returns to the Outcome Confirmation Required monitoring view', function
     $response = $this->actingAs($user)->get(backNavProfileUrl($patient, $monitoringUrl));
 
     $response->assertOk();
-    $response->assertSee('Outcome Confirmation Required');
+    $response->assertSee('Follow-up Needed');
     expect(backNavBackHref($response->getContent(), $monitoringUrl))->toBeTrue();
 });
 
-it('Back returns to the Still Pregnant — Confirmed monitoring view', function () {
+it('Back returns to the Confirmed Still Pregnant monitoring view', function () {
     $user = backNavUser();
     $patient = backNavPatient();
     PregnancyOutcome::create([

@@ -1711,3 +1711,127 @@ None. No controller, route, model, middleware, migration, service, or authorizat
 - `php artisan view:cache`: clean. `git diff --check`: clean. No migrations run.
 
 Design defense: the redesign reuses the application's own tokens and components (`bg-white`/`border-gray-100` cards, `bg-gray-50` card headers, `status-badge`, `btn-primary`, `input-label`/`input-error`, primary `#2563eb` focus ring) rather than inventing a new system. The page stays a read/self-service surface: role is rendered as a badge only (no role input), self-deletion remains absent, and every form still posts to its existing named route (`profile.update`, `password.update`) with unchanged validation. Password visibility is pure client-side presentation — the backend still receives the same `type="password"` field values — so no validation or security behavior changes. Inputs are intentionally explicit (controlled error-border classes) so the required field-level validation UX is deterministic, while labels/errors still come from the shared components.
+
+## Pregnancy Outcome Monitoring - EDD display simplification (2026-09-25)
+
+Status: UI change complete; automated UI verification blocked by test bootstrap.
+
+- UI: Removed relative days-past/days-until EDD text from desktop rows and mobile cards in resources/views/pregnancy-outcomes/index.blade.php. The EDD date and missing-date fallback remain visible.
+- Backend review: No backend implementation change is needed for this presentation-only request. EDD calculations, sorting, monitoring states, follow-up eligibility, clinical thresholds and database writes remain unchanged.
+- Verification: git diff --check passed. Reviewed both EDD rendering blocks. The Artisan test runner failed with a working-directory error; invoking the Pest entry point directly reached 27 tests, all failing during setup with "A facade root has not been set" (0 assertions). No browser verification performed.
+- Defense notes: Show only the calendar date to simplify the monitoring list. Keep date calculations in the existing service because they still support queue ordering and follow-up rules.
+
+## Pregnancy Outcome Monitoring - Follow-up wording (2026-09-25)
+
+- UI: Changed the empty Latest Follow-up cell from "None recorded" to "No follow-up recorded" in resources/views/pregnancy-outcomes/index.blade.php.
+- Backend: No change needed for this text-only update; the existing empty-state condition remains authoritative.
+- Verification: Inspected the changed cell and searched the outcome view/modal for the old wording; git diff --check passed. No browser test performed.
+- Defense notes: Specify the missing follow-up record without implying the patient record is missing or that no contact attempt occurred.
+
+## Pregnancy Outcome Monitoring - Follow-up Needed label (2026-09-26)
+
+- Backend/presentation mapping: Renamed the display label for STATE_CONFIRMATION_REQUIRED to "Follow-up Needed" in PregnancyOutcomeMonitoringService. Internal state values, filter slugs, clinical thresholds and write paths are unchanged.
+- UI: Updated the monitoring page explanation. Monitoring badges, filter labels and patient profile labels inherit the shared wording automatically.
+- Testing: Updated existing unit/UI/profile expectations to the new label. Monitoring service unit suite passed: 22 tests, 42 assertions. Service PHP syntax and git diff --check passed. Feature suites were not rerun; their prior bootstrap limitation remains documented above.
+- Defense notes: Use a short action-oriented label for pregnancies requiring a new follow-up, including expired observations, without implying a delivery or failed contact attempt.
+
+## Pregnancy Outcome Monitoring - Confirmation labels (2026-09-26)
+
+- Backend/presentation mapping: Updated the monitoring state labels to "Confirmed Still Pregnant" and "Delivery Confirmed". Updated the follow-up vocabulary label as well so the latest observation and monitoring state use consistent wording.
+- UI: Shared labels flow through monitoring rows, filters and the patient profile. Action buttons retain "Confirm Still Pregnant" because they describe an action rather than a recorded result. No clinical rules, stored values or routes changed.
+- Verification: Updated existing label expectations and test descriptions. Monitoring service and vocabulary unit suites passed: 29 tests, 76 assertions. git diff --check passed. Feature suites were not rerun due to the previously documented bootstrap limitation; no browser test performed.
+- Defense notes: Use clear result wording for confirmed observations and delivery while preserving imperative wording on confirmation buttons.
+
+## Pregnancy Outcome Monitoring - Remove desktop label (2026-09-26)
+
+- UI: Removed the redundant "Desktop view" text above the monitoring table.
+- Backend: No backend change required; responsive table/card visibility and monitoring rules remain unchanged.
+- Verification: Source inspection confirmed the label is absent and responsive layout classes remain; git diff --check passed. No browser test performed.
+- Defense notes: Device-layout terminology adds no useful patient information, so omit the label from the user-facing page.
+
+## Pregnancy Outcome Monitoring - Consistent summary count badge (2026-09-26)
+
+- UI: Moved the Action Required count into a rounded badge at the top right, replacing the Outcome Confirmation pill. Matched the title weight, badge sizing and description placement to the other three summary cards.
+- Backend: No backend changes needed; the count still reads STATE_CONFIRMATION_REQUIRED from the same stats array.
+- Verification: Inspected all four summary card structures and ran git diff --check. No browser verification performed; no new tests needed for this static markup change.
+- Defense notes: Consistent count placement helps staff compare the four totals without changing their meaning or monitoring behavior.
+
+## Pregnancy Outcome Monitoring - Shared action button styling (2026-09-26)
+
+- UI: Applied the existing btn btn-secondary style to Delivered Patients, Confirm Still Pregnant, Unable to Contact and Open Profile/View Record in desktop and mobile layouts, matching the patient profile follow-up buttons. The adjacent historical-record link uses the same shared style. Mobile confirmation text now matches desktop.
+- Backend: No backend changes required. Routes, confirmation-modal data attributes, eligibility conditions and submitted actions remain unchanged.
+- Verification: Inspected the resulting button classes and preserved action attributes; git diff --check passed. No browser test performed. Existing feature-test bootstrap limitation remains as previously documented; no new tests added for the styling-only change.
+- Defense notes: Reuse shared button tokens for consistent height, typography, spacing, border, hover and keyboard focus. These observation actions use the same outlined treatment already used on the patient profile.
+
+## Pregnancy Outcome Monitoring - Colored action buttons (2026-09-26)
+
+- UI: Per user preference, replaced outlined monitoring actions with green Confirm Still Pregnant, red Unable to Contact, and blue navigation buttons (Delivered Patients, Open Profile/View Record, Pregnancy History), in both desktop and mobile layouts.
+- Backend: No changes required; existing modal triggers, routes and eligibility rules remain intact.
+- Verification: Inspected button classes and ran git diff --check. No browser test performed.
+- Defense notes: Keep the shared btn dimensions and interaction states while using distinct fills plus existing text/icons to distinguish actions. Reuse the existing primary and danger variants; green uses Tailwind utilities on the shared base.
+
+## Referral Management - Create Referral entry point (2026-09-26)
+
+- Backend: Added staff-only GET /referrals/create (referrals.select-patient), before the wildcard referral route. ReferralController::selectPatient validates search, queries non-deleted ONGOING pregnancies, and paginates 15 records with stable ordering and preserved search parameters.
+- UI: Added a colored Create Referral header button for staff. Added a searchable patient selection page with record ID, birthdate and EDD for identification, empty-state messaging and a Back to Referrals link. Selecting a patient opens the existing patient-specific referral form.
+- Verification: ReferralPatientSelectionTest passed via PHPUnit --do-not-cache-result: 5 tests, 17 assertions. Covers staff navigation through the existing form, guest/admin restrictions, header visibility, exclusion of delivered/referred/soft-deleted records, search scoping, no referral creation during selection, and empty state. Controller/routes PHP syntax and git diff --check passed. Initial PHPUnit run hit a result-cache directory error; disabling test result caching resolved it. No browser verification performed.
+- Defense notes: Patient selection is a read-only entry point into the existing manual referral workflow. Existing referral creation validation, assessment-linked paths, patient lifecycle and clinical decisions are preserved. The new route has staff middleware as well as a staff-only button; hiding UI is not the authorization boundary.
+
+## Pregnancy Outcome Monitoring - Align row action buttons (2026-09-26)
+
+- UI: Desktop actions now share a fixed-width, right-aligned vertical stack with equal-width buttons and consistent gaps. Mobile actions use a full-width vertical stack. Existing colors, labels and actions are preserved.
+- Backend: No changes required for this layout adjustment.
+- Verification: Inspected both action containers and ran git diff --check. No browser verification performed.
+- Defense notes: Stretch buttons within a common column instead of sizing each button to its text, keeping both edges aligned across rows.
+
+## Pregnancy Outcome Monitoring - Horizontal actions with icons (2026-09-26)
+
+- UI: Replaced the vertical action stack with a horizontal row. Preserved confirmation/warning icons and added eye icons for Open Profile/View Record and a history icon for Pregnancy History. Mobile actions wrap when space is limited; desktop retains the existing scrollable table.
+- Backend: No changes needed; labels, colors, permission gates and modal actions remain intact.
+- Verification: Reviewed desktop/mobile action markup and ran git diff --check. No browser test performed.
+- Defense notes: Keep visible labels alongside decorative icons for clear action identification; use consistent gaps and shared button sizing.
+
+## Pregnancy Outcome Monitoring - Compact icon-only actions (2026-09-26)
+
+- UI: Matched the existing action-buttons component styling with compact 32px icon targets, 16px colored icons, no resting filled backgrounds, and horizontal spacing on desktop/mobile. Green confirms still pregnant, red records unsuccessful contact, blue opens the profile/history. Delivered Patients remains a labeled header navigation button.
+- Accessibility: Kept screen-reader-only action names, hover titles and keyboard focus rings. Icons remain appropriate to their actions; no delete operation was introduced.
+- Backend: Existing routes, modal trigger attributes and conditions are unchanged.
+- Verification: Inspected icon/link markup and accessible labels; git diff --check passed. No browser verification performed.
+- Defense notes: Follow the supplied compact action-row reference while retaining clear action names for assistive technology and hover users.
+
+## Pregnancy Outcome Monitoring - Small action legend (2026-09-26)
+
+- UI: Added a compact, wrapping icon legend above the monitoring table/cards using the actual action icons and colors. Staff see confirmation/contact explanations; all users see profile and desktop history explanations. Empty results omit the legend.
+- Backend: No changes required.
+- Verification: Reviewed legend icons against action icons and checked role/responsive visibility; git diff --check passed. No browser verification performed.
+- Defense notes: Short labels explain icon-only actions without adding text to every row.
+
+## Staff Dashboard - Remove summary hyperlinks (2026-09-27)
+
+- UI: Removed View High and View Low hyperlinks from the risk summary cards.
+- Backend: No changes required for this presentation-only update.
+- Verification: Source search confirms both labels are absent. git diff --check reports existing trailing whitespace outside the removed lines; no browser test performed.
+- Defense notes: Simplifies summary cards while preserving counts, descriptions and existing risk filters.
+
+## Staff Dashboard - Visits Today label (2026-09-27)
+
+- UI: Changed the Patients Today summary label to Visits Today.
+- Backend: No changes required for this text update.
+- Verification: Inspected the Blade label and retained the existing uppercase styling and count binding. No browser test performed.
+- Defense notes: Matches the requested terminology and the card's existing Visits recorded today description.
+
+## Risk metric semantics audit and targeted fixes (2026-09-27)
+
+- Audit: Reproduced dashboard 16 HIGH vs prenatal page 8 HIGH. These represent all-status latest assessments vs visits for ONGOING patients; clinic-wide there are 24 HIGH visits. Patient Records previously counted 7 ever-HIGH patients vs 6 latest-HIGH ongoing patients. Full metric/query/deletion/status audit: docs/RISK_METRICS_AUDIT.md.
+- Backend: Shared PrenatalVisit::latestAssessmentIds preserves greatest visit_date then ID with deleted visits excluded. Dashboard, monitoring and analytics reuse it; eliminated remaining MAX(id) latest selectors in those consumers. Patient Records counts latest-HIGH among its existing ongoing/assigned population. Admin overdue total now counts before the five-row display limit.
+- UI: Scope subtitles clarified without layout changes. Prenatal This Month now excludes later months/years; ongoing-only visit listing and visit-level cards preserved.
+- Verification: Read-only live totals and actual controller view data agree: staff 16 HIGH/6 LOW, alerts/list 6, overdue 15, Patient Records 45/6, prenatal visits 24/8/9 and month 3. Independent sorted-visit oracle matches shared IDs and Patient relationship. docs/verify-risk-metrics.php provides repeatable Tinker checks, including unexpected/null risk groups. One unexpected stored risk value remains untouched.
+- Testing: PHPUnit RiskMetricSemanticsTest passed (3 tests, 29 assertions) on isolated SQLite memory database. Tests cover backfills, ties, deletion, status/assignment scopes, overdue totals above five and month/year bounds. Initial Pest run including existing active-listing tests failed at Windows TestCase/facade bootstrap before assertions; new regression tests use explicit PHPUnit TestCase. Changed PHP files pass syntax checks. No browser verification; existing unrelated whitespace warnings remain.
+- Defense notes: Different populations legitimately produce different counts. Preserve clinical rules, historical values, lifecycle filters and analytics period semantics; centralize only latest-row selection. Current patient risk should use latest assessment rather than a historical HIGH. No production database records changed. Existing user changes retained.
+
+## Staff operational risk scope and overdue date correction (2026-09-27)
+
+- Backend: Staff HIGH, LOW and INCOMPLETE counts now require a non-deleted ONGOING patient while retaining the existing latest-assessment selector. Monitoring overdue now compares next_visit_date strictly before today, preserving delivered/referred exclusions.
+- UI: Staff High/Low subtitles now state ongoing patients; card layout unchanged.
+- Verification: Live controller values: HIGH 6, LOW 4, INCOMPLETE 4, Priority Alerts 6, Follow-Up Overdue 15. RiskMetricSemanticsTest passed via PHPUnit --do-not-cache-result: 5 tests, 48 assertions, including status scopes, unchanged admin counts, and yesterday/today/tomorrow/null follow-up dates.
+- Defense notes: Daily Operations headline counts represent ongoing pregnancies. Today is due, not overdue. Admin, analytics, historical visit counts, Patient Records, Priority Alerts, clinical rules, stored records and latestAssessmentIds remain unchanged. This scope correction supersedes the prior audit's all-status staff headline definition.

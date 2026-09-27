@@ -7,7 +7,6 @@ use App\Models\Patient;
 use App\Services\RiskAnalyticsService;
 use App\Services\RiskMonitoringDataService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class RiskMonitoringController extends Controller
 {
@@ -20,10 +19,7 @@ class RiskMonitoringController extends Controller
 
     private function latestVisitSubquery(): \Illuminate\Database\Query\Builder
     {
-        return DB::table('prenatal_visits')
-            ->whereNull('deleted_at')
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('patient_id');
+        return PrenatalVisit::latestAssessmentIds();
     }
 
     public function index(Request $request)
@@ -40,8 +36,9 @@ class RiskMonitoringController extends Controller
         $totalPatients = Patient::count();
 
         $analytics = $this->riskAnalytics->get(
-            $this->riskMonitoringData->monthFilter($request->month),
-            $this->riskMonitoringData->riskTypeFilter($request->risk_type)
+        $request->filled('year') ? (int) $request->year : null,
+        $this->riskMonitoringData->monthFilter($request->month),
+        $this->riskMonitoringData->riskTypeFilter($request->risk_type)
         );
 
         return view('risk.monitoring', compact(
@@ -63,8 +60,9 @@ class RiskMonitoringController extends Controller
     public function analytics(Request $request)
     {
         return response()->json($this->riskAnalytics->get(
-            $this->riskMonitoringData->monthFilter($request->month),
-            $this->riskMonitoringData->riskTypeFilter($request->risk_type)
-        ));
+        $request->filled('year') ? (int) $request->year : null,
+        $this->riskMonitoringData->monthFilter($request->month),
+        $this->riskMonitoringData->riskTypeFilter($request->risk_type)
+    ));
     }
 }
