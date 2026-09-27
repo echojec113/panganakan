@@ -76,10 +76,10 @@
         </section>
 
         {{-- Patients for review and age distribution --}}
-<section class="grid grid-cols-1 lg:grid-cols-10 gap-6">
+<section class="grid grid-cols-1 md:grid-cols-10 gap-6">
 
     {{-- Patients for Review --}}
-    <div class="dash-card lg:col-span-7">
+    <div class="dash-card md:col-span-7">
         <div class="dash-card-header">
     <div>
         <p class="section-title">High-Risk Patients</p>
@@ -209,7 +209,7 @@
         </div>
     </div>
     {{-- Follow-Up Attention --}}
-<div class="dash-card lg:col-span-3">
+<div class="dash-card md:col-span-3">
     <div class="dash-card-header">
         <div>
             <p class="section-title">Follow-Up Attention</p>

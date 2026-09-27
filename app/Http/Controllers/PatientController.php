@@ -25,21 +25,128 @@ class PatientController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        $query = Patient::where('status', 'ONGOING');
+    public function index(Request $request)
+{
+    /*
+    |--------------------------------------------------------------------------
+    | Validate list controls
+    |--------------------------------------------------------------------------
+    |
+    | These values come from the URL, so the backend should still validate
+    | them instead of trusting arbitrary filter/search values.
+    |
+    */
+    $validated = $request->validate([
+        'filter' => ['nullable', Rule::in(['all', 'my'])],
+        'search' => ['nullable', 'string', 'max:100'],
+        'page' => ['nullable', 'integer', 'min:1'],
+    ]);
 
-        if (request('filter') === 'my') {
-            $query->where('assigned_staff_id', auth()->id());
-        }
+    $filter = $validated['filter'] ?? 'all';
+    $search = trim($validated['search'] ?? '');
 
-        $highRiskCount = (clone $query)->whereHas('latestPrenatalAssessment',
-            fn ($visit) => $visit->where('risk_level', 'HIGH'))->count();
-        $patients = $query->latest()->get();
+    /*
+    |--------------------------------------------------------------------------
+    | Base patient query
+    |--------------------------------------------------------------------------
+    |
+    | Patient Records contains active/ongoing pregnancy records only.
+    | Load assignedStaff now to avoid repeatedly querying the user table
+    | while rendering each patient row.
+    |
+    */
+    $query = Patient::query()
+        ->with('assignedStaff')
+        ->where('status', 'ONGOING');
 
-        return view('patients.index', compact('patients', 'highRiskCount'));
+    /*
+    |--------------------------------------------------------------------------
+    | Ownership filter
+    |--------------------------------------------------------------------------
+    */
+    if ($filter === 'my') {
+        $query->where('assigned_staff_id', auth()->id());
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Server-side search
+    |--------------------------------------------------------------------------
+    |
+    | Search the full database result set — not just the current page.
+    |
+    */
+    if ($search !== '') {
+
+    // Supports Patient ID searches:
+    // PT-0017, PT0017, or 17
+    $patientIdSearch = strtoupper($search);
+    $patientIdSearch = preg_replace('/^PT-?/', '', $patientIdSearch);
+
+    $query->where(function ($searchQuery) use ($search, $patientIdSearch) {
+
+        $searchQuery
+            ->where('first_name', 'like', "%{$search}%")
+            ->orWhere('middle_name', 'like', "%{$search}%")
+            ->orWhere('last_name', 'like', "%{$search}%");
+
+        if (ctype_digit($patientIdSearch)) {
+            $searchQuery->orWhere('id', (int) $patientIdSearch);
+        }
+    });
+}
+
+    /*
+    |--------------------------------------------------------------------------
+    | Statistics
+    |--------------------------------------------------------------------------
+    |
+    | Statistics intentionally describe ALL ongoing patients rather than the
+    | current search result so typing into the search box does not make the
+    | headline numbers jump around.
+    |
+    */
+
+    $ongoingQuery = Patient::query()
+        ->where('status', 'ONGOING');
+
+    $totalPatients = (clone $ongoingQuery)->count();
+
+    $highRiskCount = (clone $ongoingQuery)
+        ->whereHas('latestPrenatalAssessment', function ($visit) {
+            $visit->where('risk_level', 'HIGH');
+        })
+        ->count();
+
+    $myPatientsCount = (clone $ongoingQuery)
+        ->where('assigned_staff_id', auth()->id())
+        ->count();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Paginated patient list
+    |--------------------------------------------------------------------------
+    |
+    | Stable alphabetical ordering makes Patient Records easier to browse.
+    | Query parameters are preserved when moving between pages.
+    |
+    */
+    $patients = $query
+        ->orderBy('last_name')
+        ->orderBy('first_name')
+        ->orderBy('id')
+        ->paginate(10)
+        ->withQueryString();
+
+    return view('patients.index', compact(
+        'patients',
+        'totalPatients',
+        'highRiskCount',
+        'myPatientsCount',
+        'filter',
+        'search'
+    ));
+}
     public function trashed()
     {
     $patients = Patient::onlyTrashed()->get();

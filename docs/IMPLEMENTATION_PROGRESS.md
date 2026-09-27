@@ -1835,3 +1835,18 @@ Status: UI change complete; automated UI verification blocked by test bootstrap.
 - UI: Staff High/Low subtitles now state ongoing patients; card layout unchanged.
 - Verification: Live controller values: HIGH 6, LOW 4, INCOMPLETE 4, Priority Alerts 6, Follow-Up Overdue 15. RiskMetricSemanticsTest passed via PHPUnit --do-not-cache-result: 5 tests, 48 assertions, including status scopes, unchanged admin counts, and yesterday/today/tomorrow/null follow-up dates.
 - Defense notes: Daily Operations headline counts represent ongoing pregnancies. Today is due, not overdue. Admin, analytics, historical visit counts, Patient Records, Priority Alerts, clinical rules, stored records and latestAssessmentIds remain unchanged. This scope correction supersedes the prior audit's all-status staff headline definition.
+
+## Header logout removal and control alignment (2026-09-27)
+
+- UI: Removed the Logout form from the shared app header. Date and profile controls now match the notification button's 38px height, retaining the existing centered flex alignment.
+- Backend: No changes. Profile Account Session logout remains available.
+- Verification: Inspected header markup and scoped CSS; no asset rebuild needed because styles are inline. No browser verification performed.
+- Defense notes: Align the remaining header controls consistently and keep sign-out in the existing profile session section.
+
+## Restrict standalone Risk Monitoring to admins (2026-09-28)
+
+- Backend: Added existing AdminMiddleware directly to risk.monitoring page route; staff receive 403 even via direct URL or query filters. Shared authenticated analytics endpoint stays accessible because the staff dashboard uses it.
+- UI: Risk Monitoring sidebar link renders for admins only. Dashboard view, controller, data and charts unchanged.
+- Verification: RiskMonitoringAccessTest passed (3 tests, 12 assertions): staff denial/link absence, preserved dashboard/analytics, admin access/link, guest redirect. route:list confirms auth plus AdminMiddleware on page and auth on shared analytics.
+- Existing regression expectation updated to expect staff page denial. Combined run: 8 tests, 52 assertions, 2 unrelated failures from current Patient Records My Patients count semantics and renamed/reformatted Visits This Month markup. Those application files were not modified.
+- Defense notes: Enforce authorization server-side, not only through navigation visibility. Restrict the standalone page while preserving dashboard functionality explicitly requested by the user. No clinical rules or database records changed.

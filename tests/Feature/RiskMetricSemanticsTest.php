@@ -53,8 +53,7 @@ public function test_latest_consumers_use_clinical_date_ties_and_soft_deletes():
     $staff = User::factory()->create(['role' => 'staff']);
     $this->actingAs($staff)->get(route('dashboard'))->assertOk()
         ->assertViewHas('staffHighRiskCount', 0)->assertViewHas('staffLowRiskCount', 1);
-    $this->get(route('risk.monitoring'))->assertOk()
-        ->assertViewHas('highRiskCount', 0)->assertViewHas('lowRiskCount', 1);
+    $this->get(route('risk.monitoring'))->assertForbidden();
     $this->get(route('patients.index'))->assertOk()->assertViewHas('highRiskCount', 0);
 }
 

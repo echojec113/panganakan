@@ -46,18 +46,185 @@ class PrenatalVisitController extends Controller
     }
 
 
-    public function index()
-    {
-        // Active listing = ongoing pregnancies only. Delivered patients keep
-        // their prenatal visit records untouched in the database; they are
-        // simply no longer surfaced here (still accessible via the patient
-        // profile / Delivered Patients / Pregnancy History views).
-        $visits = PrenatalVisit::with('patient')
-            ->whereHas('patient', fn ($q) => $q->where('status', 'ONGOING'))
-            ->latest()
-            ->get();
-        return view('prenatal_visits.index', compact('visits'));
+    public function index(Request $request)
+{
+    /*
+    |--------------------------------------------------------------------------
+    | Prenatal Visits Listing
+    |--------------------------------------------------------------------------
+    |
+    | Active Prenatal Visits only show records belonging to patients whose
+    | pregnancy status is ONGOING.
+    |
+    | Delivered patients keep their prenatal records in the database and can
+    | still be accessed through their patient history, but they are excluded
+    | from this active prenatal-workflow page.
+    |
+    */
+
+    $search = trim((string) $request->query('search', ''));
+    $risk = strtoupper(trim((string) $request->query('risk', '')));
+
+    $allowedRisks = [
+        'HIGH',
+        'LOW',
+        'ASSESSMENT INCOMPLETE',
+        'PENDING',
+    ];
+
+    // Ignore invalid risk values instead of allowing arbitrary filter input.
+    if ($risk !== '' && !in_array($risk, $allowedRisks, true)) {
+        $risk = '';
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Base Scope
+    |--------------------------------------------------------------------------
+    */
+
+    $baseQuery = PrenatalVisit::query()
+        ->whereHas('patient', function ($query) {
+            $query->where('status', 'ONGOING');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Summary Cards
+    |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    | These are calculated separately from pagination.
+    | Therefore "Total Visits" will NOT suddenly become 10 just because the
+    | table displays 10 records per page.
+    |
+    */
+
+    $totalVisits = (clone $baseQuery)->count();
+
+    // Count distinct patients whose CURRENT/LATEST prenatal assessment is HIGH.
+    // This avoids counting one high-risk patient multiple times simply because
+    // she has multiple prenatal visits.
+    $latestAssessmentIds = PrenatalVisit::latestAssessmentIds();
+
+    $highRiskPatients = PrenatalVisit::query()
+        ->whereIn('id', $latestAssessmentIds)
+        ->where('risk_level', 'HIGH')
+        ->whereHas('patient', function ($query) {
+            $query->where('status', 'ONGOING');
+        })
+        ->distinct('patient_id')
+        ->count('patient_id');
+
+    // Follow-ups that are already due today or overdue.
+    // Only the latest prenatal visit of each ongoing patient is considered,
+    // otherwise an old visit could incorrectly remain "due" after a newer
+    // follow-up visit was already recorded.
+    $followUpsDue = PrenatalVisit::query()
+        ->whereIn('id', $latestAssessmentIds)
+        ->whereHas('patient', function ($query) {
+            $query->where('status', 'ONGOING');
+        })
+        ->whereNotNull('next_visit_date')
+        ->whereDate('next_visit_date', '<=', today())
+        ->count();
+
+    $visitsThisMonth = (clone $baseQuery)
+        ->whereBetween('visit_date', [
+            now()->startOfMonth()->toDateString(),
+            now()->endOfMonth()->toDateString(),
+        ])
+        ->count();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Table Query
+    |--------------------------------------------------------------------------
+    */
+
+    $query = PrenatalVisit::query()
+        ->with('patient')
+        ->whereHas('patient', function ($patientQuery) {
+            $patientQuery->where('status', 'ONGOING');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Live Search
+    |--------------------------------------------------------------------------
+    |
+    | Supports:
+    |   Jerich
+    |   Jerich Dela Cruz
+    |   PT-0017
+    |   PT0017
+    |   17
+    |
+    | We deliberately do NOT search contact numbers here.
+    |
+    */
+
+    if ($search !== '') {
+        $patientIdSearch = strtoupper($search);
+
+        // PT-0017 -> 0017
+        // PT0017  -> 0017
+        $patientIdSearch = preg_replace('/^PT-?/', '', $patientIdSearch);
+
+        $query->whereHas('patient', function ($patientQuery) use ($search, $patientIdSearch) {
+            $patientQuery->where(function ($searchQuery) use ($search, $patientIdSearch) {
+                $searchQuery
+                    ->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('middle_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
+
+                /*
+                 * Search the numeric database ID only when the Patient ID
+                 * entered by the user resolves to a valid number.
+                 */
+                if (ctype_digit($patientIdSearch)) {
+                    $searchQuery->orWhere('id', (int) $patientIdSearch);
+                }
+            });
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Assessment Filter
+    |--------------------------------------------------------------------------
+    */
+
+    if ($risk !== '') {
+        $query->where('risk_level', $risk);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pagination
+    |--------------------------------------------------------------------------
+    |
+    | 10 visits per page.
+    | withQueryString() preserves search/risk when moving between pages.
+    |
+    */
+
+    $visits = $query
+        ->orderByDesc('visit_date')
+        ->orderByDesc('id')
+        ->paginate(10)
+        ->withQueryString();
+
+    return view('prenatal_visits.index', compact(
+        'visits',
+        'search',
+        'risk',
+        'totalVisits',
+        'highRiskPatients',
+        'followUpsDue',
+        'visitsThisMonth'
+    ));
+}
 
     public function create(Request $request)
     {

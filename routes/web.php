@@ -16,6 +16,7 @@ use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\PregnancyOutcomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientViewController;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -53,8 +54,17 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('/profile', [ProfileController::class, 'edit'])
+    ->name('profile.edit');
+
+Route::patch('/profile', [ProfileController::class, 'update'])
+    ->name('profile.update');
+
+Route::patch('/profile/photo', [ProfileController::class, 'updatePhoto'])
+    ->name('profile.photo.update');
+
+Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
+    ->name('profile.photo.destroy');
 
     /*
     |--------------------------------------------------------------------------
@@ -130,6 +140,7 @@ Route::middleware('auth')->group(function () {
     */
 
     Route::get('/risk-monitoring', [RiskMonitoringController::class, 'index'])
+        ->middleware(\App\Http\Middleware\AdminMiddleware::class)
         ->name('risk.monitoring');
 
     Route::get('/risk-monitoring/analytics', [RiskMonitoringController::class, 'analytics'])
