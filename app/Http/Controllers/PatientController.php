@@ -394,17 +394,19 @@ class PatientController extends Controller
     }
 
     /**
-     * Newest persisted prenatal visit, deterministically: created_at desc,
-     * then id desc as a tie-breaker for records created in the same second.
-     * Never rely on visit_date alone because multiple visits can share a date.
-     */
-    private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
-    {
-        return $patient->prenatalVisits()
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->first();
-    }
+ * Latest non-deleted prenatal visit by clinical visit date.
+ *
+ * visit_date determines which clinical encounter is latest.
+ * id is used only as the tie-breaker when multiple records
+ * share the same visit date.
+ */
+private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
+{
+    return $patient->prenatalVisits()
+        ->orderByDesc('visit_date')
+        ->orderByDesc('id')
+        ->first();
+}
 
 
     public function startNewPregnancy(Request $request, $id)
