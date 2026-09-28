@@ -82,6 +82,27 @@
         #deliveryModal.delivery-modal-theme [class~="bg-yellow-50"] {
             background-color: #FFFBEB;
         }
+        /* Keep native section anchors below the global header and profile navigation. */
+        .patient-profile-theme .patient-profile-nav {
+            position: sticky;
+            top: var(--profile-header-height, 56px);
+            z-index: 40;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            contain: inline-size;
+        }
+
+        .patient-profile-theme .patient-profile-nav a {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        .patient-profile-theme :is(#overview, #prenatal-visits, #medical-history,
+            #ultrasound, #birth-plan, #risk-assessment, #referral-follow-through) {
+            scroll-margin-top: calc(var(--profile-header-height, 56px) + var(--profile-nav-height, 74px) + 16px);
+        }
+
     </style>
 
     <div class="patient-profile-theme max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: #FCFBF8;">
@@ -105,135 +126,6 @@
                         <h2 class="text-base font-semibold text-amber-900">Pregnancy Completed</h2>
                         <p class="mt-1 text-sm text-amber-800">This pregnancy has been completed and is kept as a historical record. Clinical records are read-only to preserve accuracy. To register another pregnancy for this mother, use Start New Pregnancy.</p>
                     </div>
-                </div>
-            </div>
-        @endif
-
-        @if(in_array($patient->status, ['ONGOING', 'DELIVERED'], true))
-            @php
-                $stateClass = \App\Services\PregnancyOutcomeMonitoringService::class;
-                $monitoringVariant = match ($monitoringState) {
-                    $stateClass::STATE_CONFIRMATION_REQUIRED => 'warning',
-                    $stateClass::STATE_STILL_PREGNANT_CONFIRMED => 'success',
-                    $stateClass::STATE_UNABLE_TO_CONTACT => 'danger',
-                    $stateClass::STATE_RESOLVED, $stateClass::STATE_LEGACY_DELIVERED, $stateClass::STATE_LEGACY_REFERRED => 'neutral',
-                    default => 'info',
-                };
-                // Application-controlled back target. When the profile was opened
-                // from Pregnancy Outcome Monitoring the validated return URL is
-                // used; otherwise fall back to the plain monitoring page.
-                $monitoringBackUrl = $monitoringReturnUrl ?? route('pregnancy-outcomes.index');
-            @endphp
-            <div id="pregnancy-outcome" class="panel mb-6 scroll-mt-6">
-                <div class="panel-header">
-                    <div class="panel-title">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        Pregnancy Outcome
-                    </div>
-                    <x-status-badge :variant="$monitoringVariant">{{ $monitoringStateLabel }}</x-status-badge>
-                </div>
-                <div class="panel-body">
-                    <div class="flex flex-col gap-4">
-                        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                            @if($patient->status === 'ONGOING' && $patient->edd)
-                                <span class="text-gray-500">
-                                    EDD: {{ $patient->edd->format('M d, Y') }}
-                                    @if($daysUntilOrPastEdd !== null && $daysUntilOrPastEdd < 0)
-                                        &middot; <span class="font-semibold text-amber-700">{{ abs($daysUntilOrPastEdd) }} days past EDD</span>
-                                    @elseif($daysUntilOrPastEdd !== null)
-                                        &middot; <span class="text-gray-700">{{ $daysUntilOrPastEdd }} days until EDD</span>
-                                    @endif
-                                </span>
-                            @endif
-                            @if($patient->status === 'ONGOING' && $patient->pregnancyOutcome?->follow_up_recorded_at)
-                                <span class="text-xs text-gray-500">
-                                    Last follow-up: {{ $patient->pregnancyOutcome->follow_up_recorded_at->format('M d, Y H:i') }}
-                                    @if($patient->pregnancyOutcome->followUpRecordedBy?->name) by {{ $patient->pregnancyOutcome->followUpRecordedBy->name }} @endif
-                                    &middot; {{ \App\Support\PregnancyOutcomeVocabulary::followUpStatusLabel($patient->pregnancyOutcome->follow_up_status) }}
-                                </span>
-                            @elseif($patient->status === 'ONGOING' && $monitoringEligible)
-                                <span class="text-sm text-gray-500">Follow-up is now due. Record whether the patient is still pregnant or could not be reached.</span>
-                            @endif
-                            @if($patient->status === 'DELIVERED' && $patient->pregnancyOutcome && $patient->pregnancyOutcome->hasConfirmedOutcome())
-                                <span class="text-sm text-gray-500">Historical outcome confirmed with recorded provenance.</span>
-                            @endif
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')
-                                <button type="button"
-                                        data-outcome-confirm-trigger
-                                        data-outcome-tone="confirm"
-                                        data-outcome-title="Confirm Still Pregnant"
-                                        data-outcome-message="Record that follow-up confirmed the patient is still pregnant as of today. This observation remains current for the monitoring window and does not mark the pregnancy as delivered."
-                                        data-outcome-confirm-label="Confirm Still Pregnant"
-                                        data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
-                                        data-outcome-action="{{ route('pregnancy-outcomes.still-pregnant', $patient->id) }}"
-                                        class="btn btn-secondary">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    Confirm Still Pregnant
-                                </button>
-                                <button type="button"
-                                        data-outcome-confirm-trigger
-                                        data-outcome-tone="alert"
-                                        data-outcome-title="Record Unable to Contact"
-                                        data-outcome-message="Record that a follow-up attempt was made but the patient could not be reached. This does not mark the pregnancy as delivered and does not change referral or clinical risk status."
-                                        data-outcome-confirm-label="Record Unable to Contact"
-                                        data-outcome-patient="{{ $patient->first_name }} {{ $patient->last_name }}"
-                                        data-outcome-action="{{ route('pregnancy-outcomes.unable-to-contact', $patient->id) }}"
-                                        class="btn btn-secondary">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"></path>
-                                    </svg>
-                                    Unable to Contact
-                                </button>
-                            @endif
-                            <a href="{{ $monitoringBackUrl }}" class="btn btn-secondary">
-                                Back
-                            </a>
-                        </div>
-                    </div>
-
-                    @if($patient->status === 'DELIVERED')
-                        @php
-                            $outcome = $patient->pregnancyOutcome;
-                        @endphp
-                        <div class="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4">
-                            @if($outcome && $outcome->hasConfirmedOutcome())
-                                <div>
-                                    <div class="stat-label">Delivered</div>
-                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmed_at?->format('M d, Y H:i') ?: ($patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A') }}</div>
-                                </div>
-                                <div>
-                                    <div class="stat-label">Delivery Location</div>
-                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->delivery_location !== null ? \App\Support\PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : 'N/A' }}</div>
-                                </div>
-                                <div>
-                                    <div class="stat-label">Confirmation Source</div>
-                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmation_source !== null ? \App\Support\PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) : 'N/A' }}</div>
-                                </div>
-                                <div>
-                                    <div class="stat-label">Recorded By</div>
-                                    <div class="mt-0.5 font-semibold text-gray-900">{{ $outcome->confirmedBy?->name ?: 'No longer active' }}</div>
-                                </div>
-                            @else
-                                <div class="sm:col-span-2 lg:col-span-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                                    Historical delivered record — structured outcome confirmation was not recorded in the current system.
-                                </div>
-                            @endif
-                        </div>
-                        @if($outcome && $outcome->hasConfirmedOutcome())
-                            <div class="mt-3 text-sm text-gray-600">
-                                Babies: <span class="font-semibold text-gray-900">{{ $patient->babies->count() }}</span>
-                                <a href="{{ route('patients.delivered.babies', $patient->id) }}" class="ml-2 inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50">
-                                    Baby Information &rarr;
-                                </a>
-                            </div>
-                        @endif
-                    @endif
                 </div>
             </div>
         @endif
@@ -587,7 +479,7 @@
                 'title' => 'Pregnancy Outcome Follow-Up Due',
                 'message' => 'Pregnancy outcome monitoring requires a follow-up observation for this patient.',
                 'action_label' => 'View Pregnancy Outcome',
-                'action_target' => '#pregnancy-outcome',
+                'action_target' => $monitoringReturnUrl ?? route('pregnancy-outcomes.index'),
             ];
         }
     @endphp
@@ -668,7 +560,7 @@
      Phase 4: Patient Profile Navigation
 ========================================================= --}}
 <nav
-    class="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm"
+    class="patient-profile-nav mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm"
     aria-label="Patient profile sections"
 >
     <div class="flex min-w-max items-center px-2 py-2">
@@ -721,7 +613,27 @@
             Referrals
         </a>
     </div>
-</nav>                                            
+</nav>
+<script>
+    (() => {
+        const nav = document.querySelector('.patient-profile-nav');
+        const profile = nav.closest('.patient-profile-theme');
+        const header = document.querySelector('.main-wrapper > .topbar');
+        const updateOffsets = () => {
+            profile.style.setProperty('--profile-header-height', (header?.getBoundingClientRect().height ?? 56) + 'px');
+            profile.style.setProperty('--profile-nav-height', nav.getBoundingClientRect().height + 'px');
+        };
+        updateOffsets();
+        if ('ResizeObserver' in window) {
+            const observer = new ResizeObserver(updateOffsets);
+            observer.observe(nav);
+            if (header) observer.observe(header);
+        } else {
+            window.addEventListener('resize', updateOffsets);
+        }
+    })();
+</script>
+                                            
         {{-- Priority strip: Current Pregnancy + Basic Information --}}
         <div
     id="overview"
@@ -2607,6 +2519,7 @@
            
             
                 <!-- Risk Assessment Card -->
+                <div id="risk-assessment" class="scroll-mt-6">
                 @if($latestAssessment)
                 @php
                     $ds = $latestAssessment->decision_source;
@@ -2685,7 +2598,7 @@
                         'BLOCKED' => 'bg-amber-100 text-amber-800',
                     ];
                 @endphp
-                <div id="risk-assessment" class="panel scroll-mt-6">
+                <div class="panel">
                     {{-- =========================================================
      A–C. STAFF CLINICAL SUMMARY
 ========================================================= --}}
@@ -3420,6 +3333,8 @@
                     </div>
                 </div>
                 @endif
+
+                </div><!-- End Risk Assessment anchor -->
 
                 <!-- Referral Follow-through -->
 @php
