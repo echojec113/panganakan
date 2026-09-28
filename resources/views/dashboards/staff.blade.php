@@ -622,7 +622,7 @@ const refresh = () => {
         risk_type: typeSelect.value
     });
 
-    fetch('{{ route('risk.monitoring.analytics') }}?' + params.toString())
+    fetch('{{ route('risk.monitoring.analytics', [], false) }}?' + params.toString())
         .then((response) => response.json())
         .then(renderAnalytics)
         .finally(() => {
