@@ -6,6 +6,7 @@ use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use Carbon\Carbon;
 use App\Services\RiskAnalyticsService;
+use App\Services\ReferralAnalyticsService;
 use App\Services\RiskMonitoringDataService;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,7 @@ class DashboardController extends Controller
 {
     public function __construct(
         private RiskAnalyticsService $riskAnalytics,
+         private ReferralAnalyticsService $referralAnalytics,
         private RiskMonitoringDataService $riskMonitoringData
     ) {
     }
@@ -21,8 +23,8 @@ class DashboardController extends Controller
     {
         // Check user role and return appropriate dashboard
         if (auth()->user()->role === 'admin') {
-            return $this->adminDashboard();
-        } else {
+        return $this->adminDashboard($request);
+        }else {
             return $this->staffDashboard($request);
         }
     }
@@ -42,174 +44,231 @@ class DashboardController extends Controller
     /**
      * Admin Dashboard - Business & Analytics View
      */
-    private function adminDashboard()
+    private function adminDashboard(Request $request)
     {
         // ======================
         // KPI DATA
         // ======================
 
         $totalPatients = Patient::count();
+        $newPatientsThisMonth = Patient::query()
+            ->whereYear('created_at', Carbon::now()->year)
+            ->whereMonth('created_at', Carbon::now()->month)
+            ->count();
         $activePregnancies = Patient::where('status', 'ONGOING')->count();
-        $upcomingAppointments = PrenatalVisit::whereDate('next_visit_date', '>=', Carbon::today())->count();
-
-        // Latest visit per patient counts
-        $highRisk = $this->countLatestByRisk('HIGH');
-        $lowRisk = $this->countLatestByRisk('LOW');
-        $incompleteCount = $this->countLatestByRisk('ASSESSMENT INCOMPLETE');
-
-        // Urgent BP alerts & pending repeats (latest visit per patient)
-        $urgentBpCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
-            ->where('urgency', 'URGENT_CLINICAL_REVIEW')
-            ->count();
-        $pendingRepeatCount = PrenatalVisit::whereIn('id', $this->latestVisitSubquery())
-            ->where('bp_verification_status', 'PENDING_REPEAT')
+        $visitsThisMonth = PrenatalVisit::query()
+            ->whereYear('visit_date', Carbon::now()->year)
+            ->whereMonth('visit_date', Carbon::now()->month)
             ->count();
 
         // ======================
-        // CONDITION COUNTS
+        // VISIT TREND ANALYTICS
         // ======================
 
-        $hypertensionCount = PrenatalVisit::where('hypertension', 1)->count();
-        $diabetesCount = PrenatalVisit::where('diabetes', 1)->count();
-        $anemiaCount = PrenatalVisit::where('anemia', 1)->count();
+$selectedYear = $request->filled('year')
+    ? (int) $request->year
+    : Carbon::now()->year;
 
-        // ======================
-        // MONTHLY TREND DATA
-        // ======================
+$selectedMonth = $request->filled('month')
+    ? (int) $request->month
+    : null;
 
-        $trend = PrenatalVisit::select('visit_date')
-            ->get()
-            ->groupBy(fn ($v) => Carbon::parse($v->visit_date)->format('n'))
-            ->map(fn ($group) => $group->count());
+$availableYears = PrenatalVisit::query()
+    ->whereNotNull('visit_date')
+    ->selectRaw('YEAR(visit_date) as year')
+    ->distinct()
+    ->orderByDesc('year')
+    ->pluck('year')
+    ->map(fn ($year) => (int) $year);
 
-        $trendLabels = $trend->keys();
-        $trendData = $trend->values();
+if (!$availableYears->contains($selectedYear)) {
+    $availableYears->push($selectedYear);
+    $availableYears = $availableYears->sortDesc()->values();    
+}
 
-        // ======================
-        // GROWTH METRICS
-        // ======================
+if ($selectedMonth) {
+    // Specific month selected → daily visit counts
+    $daysInMonth = Carbon::create($selectedYear, $selectedMonth, 1)->daysInMonth;
 
-        $currentMonth = Carbon::now()->month;
-        $lastMonth = Carbon::now()->subMonth()->month;
+    $dailyCounts = PrenatalVisit::query()
+        ->whereYear('visit_date', $selectedYear)
+        ->whereMonth('visit_date', $selectedMonth)
+        ->selectRaw('DAY(visit_date) as day, COUNT(*) as total')
+        ->groupByRaw('DAY(visit_date)')
+        ->pluck('total', 'day');
 
-        $visitsThisMonth = PrenatalVisit::whereMonth('visit_date', $currentMonth)->count();
-        $visitsLastMonth = PrenatalVisit::whereMonth('visit_date', $lastMonth)->count();
-        $visitGrowthPercent = $visitsLastMonth > 0 ? round((($visitsThisMonth - $visitsLastMonth) / $visitsLastMonth) * 100, 1) : 0;
+    $trendLabels = collect(range(1, $daysInMonth));
+    $trendData = $trendLabels
+        ->map(fn ($day) => (int) ($dailyCounts[$day] ?? 0));
 
-        $patientsThisMonth = Patient::whereMonth('created_at', $currentMonth)->count();
-        $patientsLastMonth = Patient::whereMonth('created_at', $lastMonth)->count();
-        $patientGrowthPercent = $patientsLastMonth > 0 ? round((($patientsThisMonth - $patientsLastMonth) / $patientsLastMonth) * 100, 1) : 0;
+    $trendGranularity = 'daily';
+} else {
+    // Whole year selected → monthly visit counts
+    $monthlyCounts = PrenatalVisit::query()
+        ->whereYear('visit_date', $selectedYear)
+        ->selectRaw('MONTH(visit_date) as month, COUNT(*) as total')
+        ->groupByRaw('MONTH(visit_date)')
+        ->pluck('total', 'month');
 
-        // ======================
-        // BUSINESS INSIGHTS
-        // ======================
+    $trendLabels = collect(range(1, 12));
+    $trendData = $trendLabels
+        ->map(fn ($month) => (int) ($monthlyCounts[$month] ?? 0));
 
-        $insights = $this->generateAdminInsights(
-            $highRisk,
-            $hypertensionCount,
-            $diabetesCount,
-            $anemiaCount,
-            $visitGrowthPercent
-        );
+    $trendGranularity = 'monthly';
+}
+// ======================
+// PATIENT REGISTRATION TREND
+// ======================
 
-        // ======================
-        // HIGH RISK PATIENTS (UNIQUE, WITH EXPLAINABILITY)
-        // ======================
+if ($selectedMonth) {
 
-        $highRiskPatients = PrenatalVisit::with('patient')
-            ->where('risk_level', 'HIGH')
-            ->whereIn('id', $this->latestVisitSubquery())
-            ->orderByDesc('visit_date')
-            ->take(5)
-            ->get();
+    // Specific month selected → daily patient registrations
+    $daysInMonth = Carbon::create(
+        $selectedYear,
+        $selectedMonth,
+        1
+    )->daysInMonth;
 
-        // ======================
-        // URGENT BP ALERTS (UNIQUE, LATEST)
-        // ======================
+    $dailyRegistrationCounts = Patient::query()
+        ->whereYear('created_at', $selectedYear)
+        ->whereMonth('created_at', $selectedMonth)
+        ->selectRaw('DAY(created_at) as day, COUNT(*) as total')
+        ->groupByRaw('DAY(created_at)')
+        ->pluck('total', 'day');
 
-        $urgentBpPatients = PrenatalVisit::with('patient')
-            ->where('urgency', 'URGENT_CLINICAL_REVIEW')
-            ->whereIn('id', $this->latestVisitSubquery())
-            ->orderByDesc('visit_date')
-            ->take(5)
-            ->get();
+    $registrationLabels = collect(range(1, $daysInMonth));
 
-        // ======================
-        // PENDING REPEAT BP (UNIQUE, LATEST)
-        // ======================
+    $registrationData = $registrationLabels
+        ->map(fn ($day) => (int) ($dailyRegistrationCounts[$day] ?? 0));
 
-        $pendingRepeatPatients = PrenatalVisit::with('patient')
-            ->where('bp_verification_status', 'PENDING_REPEAT')
-            ->whereIn('id', $this->latestVisitSubquery())
-            ->orderByDesc('visit_date')
-            ->take(5)
-            ->get();
+    $registrationGranularity = 'daily';
 
-        // ======================
-        // INCOMPLETE ASSESSMENTS (UNIQUE)
-        // ======================
+} else {
 
-        $incompletePatients = PrenatalVisit::with('patient')
-            ->where('risk_level', 'ASSESSMENT INCOMPLETE')
-            ->whereIn('id', $this->latestVisitSubquery())
-            ->orderByDesc('visit_date')
-            ->take(5)
-            ->get();
+    // Whole year selected → monthly patient registrations
+    $monthlyRegistrationCounts = Patient::query()
+        ->whereYear('created_at', $selectedYear)
+        ->selectRaw('MONTH(created_at) as month, COUNT(*) as total')
+        ->groupByRaw('MONTH(created_at)')
+        ->pluck('total', 'month');
 
-        // ======================
-        // OVERDUE FOLLOW-UPS
-        // ======================
+    $registrationLabels = collect(range(1, 12));
 
-        $overdueQuery = PrenatalVisit::with('patient')
-            ->whereHas('patient', function ($q) {
-                $q->where('status', 'ONGOING');
-            })
-            ->whereNotNull('next_visit_date')
-            ->where('next_visit_date', '<', Carbon::today())
-            ->whereIn('id', $this->latestVisitSubquery());
+    $registrationData = $registrationLabels
+        ->map(fn ($month) => (int) ($monthlyRegistrationCounts[$month] ?? 0));
 
-        $overdueCount = (clone $overdueQuery)->count();
-        $overdueFollowUps = $overdueQuery
-            ->orderBy('next_visit_date')
-            ->take(5)
-            ->get();
+    $registrationGranularity = 'monthly';
+}
+// ======================
+// ADMIN ANALYTICS SUMMARY
+// ======================
 
+// Total prenatal visits in the selected reporting period
+$totalVisitsSelectedPeriod = collect($trendData)->sum();
 
-        // ======================
-        // MOST COMMON CONDITIONS
-        // ======================
+// Total new patient registrations in the selected reporting period
+$totalRegistrationsSelectedPeriod = collect($registrationData)->sum();
 
-        $conditions = collect([
-            ['name' => 'Hypertension', 'count' => $hypertensionCount, 'icon' => '🩸'],
-            ['name' => 'Diabetes', 'count' => $diabetesCount, 'icon' => '🍬'],
-            ['name' => 'Anemia', 'count' => $anemiaCount, 'icon' => '🫀'],
-        ])->sortByDesc('count')->take(3);
+// Busiest month or day based on prenatal visit volume
+$peakVisitCount = collect($trendData)->max() ?? 0;
+$peakVisitIndex = collect($trendData)->search($peakVisitCount);
+
+if ($peakVisitCount > 0 && $peakVisitIndex !== false) {
+
+    if ($selectedMonth) {
+        // Specific month selected → busiest day
+        $busiestPeriodLabel = Carbon::create(
+            $selectedYear,
+            $selectedMonth,
+            $peakVisitIndex + 1
+        )->format('M j');
+
+        $busiestPeriodType = 'Busiest Day';
+    } else {
+        // Whole year selected → busiest month
+        $busiestPeriodLabel = Carbon::create(
+            $selectedYear,
+            $peakVisitIndex + 1,
+            1
+        )->format('F');
+
+        $busiestPeriodType = 'Busiest Month';
+    }
+
+} else {
+    $busiestPeriodLabel = '—';
+    $busiestPeriodType = $selectedMonth
+        ? 'Busiest Day'
+        : 'Busiest Month';
+}
+
+// REFERRAL PERFORMANCE
+
+$referralAnalytics = $this->referralAnalytics->get(
+    $selectedYear,
+    $selectedMonth
+);
+
+$referralsSelectedPeriod = $referralAnalytics['summary']['totalReferrals'];
+
+$referralTrendLabels = $referralAnalytics['trend']['labels'];
+$referralTrendData = $referralAnalytics['trend']['data'];
+$referralTrendGranularity = $referralAnalytics['trend']['granularity'];
+
+$referralPending = $referralAnalytics['status']['pending'];
+$referralCompleted = $referralAnalytics['status']['completed'];
+$referralRefused = $referralAnalytics['status']['refused'];
+$referralCancelled = $referralAnalytics['status']['cancelled'];
+
+$mostReferredFacility = $referralAnalytics['summary']['mostReferredFacility'];
+
+// ======================
+// RISK FACTOR ANALYTICS
+// ======================
+
+$adminRiskAnalytics = $this->riskAnalytics->get(
+    $selectedYear,
+    $selectedMonth,
+    'HIGH'
+);
+
+$conditions = collect($adminRiskAnalytics['topHighRiskConditions'])
+    ->map(function ($factor) {
+        return [
+            'name' => $factor['label'],
+            'count' => $factor['count'],
+        ];
+    });
 
         return view('dashboards.admin', compact(
             'totalPatients',
-            'highRisk',
-            'lowRisk',
+            'newPatientsThisMonth',
             'activePregnancies',
-            'upcomingAppointments',
-            'hypertensionCount',
-            'diabetesCount',
-            'anemiaCount',
             'trendLabels',
             'trendData',
-            'highRiskPatients',
-            'insights',
-            'visitGrowthPercent',
-            'patientGrowthPercent',
+            'selectedYear',
+            'selectedMonth',
+            'availableYears',
+            'trendGranularity',
+            'registrationLabels',
+            'registrationData',
+            'registrationGranularity',
             'conditions',
             'visitsThisMonth',
-            'incompleteCount',
-            'incompletePatients',
-            'overdueCount',
-            'overdueFollowUps',
-            'urgentBpCount',
-            'pendingRepeatCount',
-            'urgentBpPatients',
-            'pendingRepeatPatients'
+            'busiestPeriodType',
+            'busiestPeriodLabel',
+            'peakVisitCount',
+            'totalVisitsSelectedPeriod',
+            'totalRegistrationsSelectedPeriod',
+            'referralsSelectedPeriod',
+            'referralTrendLabels',
+            'referralTrendData',
+            'referralTrendGranularity',
+            'referralPending',
+            'referralCompleted',
+            'referralRefused',
+            'referralCancelled',
+            'mostReferredFacility',
         ));
     }
 
@@ -358,35 +417,4 @@ $ageDistribution = $this->riskAnalytics->ageDistribution();
         ));
     }
 
-    /**
-     * Generate Admin Dashboard Insights
-     */
-    private function generateAdminInsights($highRisk, $hypertension, $diabetes, $anemia, $growthPercent)
-    {
-        $insights = [];
-
-        if ($highRisk > 10) {
-            $insights[] = "⚠️ High-risk cases have increased significantly. Consider scheduling urgent reviews.";
-        }
-
-        if ($hypertension > 5) {
-            $insights[] = "🩸 Hypertension is prominent. Implement blood pressure monitoring protocols.";
-        }
-
-        if ($diabetes > 5) {
-            $insights[] = "🍬 Diabetes management needed. Consider dietary counseling programs.";
-        }
-
-        if ($growthPercent > 20) {
-            $insights[] = "📈 Excellent growth this month. Continue current strategies.";
-        } elseif ($growthPercent < -10) {
-            $insights[] = "📉 Visit numbers declined. Review marketing or scheduling efficiency.";
-        }
-
-        if (empty($insights)) {
-            $insights[] = "✅ Operations running smoothly. All metrics are healthy.";
-        }
-
-        return $insights;
-    }
 }

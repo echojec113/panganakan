@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\PrenatalVisit;
-use App\Models\Patient;
 use App\Services\RiskAnalyticsService;
 use App\Services\RiskMonitoringDataService;
 use Illuminate\Http\Request;
@@ -17,39 +16,28 @@ class RiskMonitoringController extends Controller
     {
     }
 
-    private function latestVisitSubquery(): \Illuminate\Database\Query\Builder
-    {
-        return PrenatalVisit::latestAssessmentIds();
-    }
-
     public function index(Request $request)
     {
-        $visits = $this->riskMonitoringData->visits($request);
-
-        // Latest-visit-per-patient counts
-        $baseLatest = PrenatalVisit::whereIn('id', $this->latestVisitSubquery());
-        $highRiskCount = (clone $baseLatest)->where('risk_level', 'HIGH')->count();
-        $lowRiskCount = (clone $baseLatest)->where('risk_level', 'LOW')->count();
-        $incompleteCount = (clone $baseLatest)->where('risk_level', 'ASSESSMENT INCOMPLETE')->count();
-        $urgentBpCount = (clone $baseLatest)->where('urgency', 'URGENT_CLINICAL_REVIEW')->count();
-        $pendingRepeatCount = (clone $baseLatest)->where('bp_verification_status', 'PENDING_REPEAT')->count();
-        $totalPatients = Patient::count();
-
         $analytics = $this->riskAnalytics->get(
         $request->filled('year') ? (int) $request->year : null,
         $this->riskMonitoringData->monthFilter($request->month),
         $this->riskMonitoringData->riskTypeFilter($request->risk_type)
         );
 
+        $availableYears = PrenatalVisit::query()
+            ->whereNotNull('visit_date')
+            ->distinct()
+            ->pluck('visit_date')
+            ->map(fn ($date) => (int) \Carbon\Carbon::parse($date)->year)
+            ->push((int) now()->year, $analytics['year'])
+            ->map(fn ($year) => (int) $year)
+            ->unique()
+            ->sortDesc()
+            ->values();
+
         return view('risk.monitoring', compact(
-            'visits',
-            'highRiskCount',
-            'lowRiskCount',
-            'incompleteCount',
-            'urgentBpCount',
-            'pendingRepeatCount',
-            'totalPatients',
-            'analytics'
+            'analytics',
+            'availableYears'
         ));
     }
 

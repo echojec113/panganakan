@@ -7,6 +7,12 @@ use App\Models\PrenatalVisit;
 use App\Models\Referral;
 use App\Models\User;
 
+uses(\Tests\TestCase::class, \Illuminate\Foundation\Testing\RefreshDatabase::class);
+
+beforeEach(function () {
+    $this->withoutVite();
+});
+
 function recordsAdmin(): User
 {
     return User::factory()->create(['role' => 'admin']);
@@ -55,17 +61,17 @@ function recordsReferral(Patient $patient, string $status = 'Pending'): Referral
     ]);
 }
 
-it('allows an admin to access View All Records with the default Ongoing filter', function () {
+it('allows an admin to access View All Records with the default All Statuses filter', function () {
     $ongoing = recordsPatient(['first_name' => 'Ongoing']);
     recordsPatient(['first_name' => 'Delivered', 'status' => 'DELIVERED']);
 
     $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index'));
 
     $response->assertOk();
-    $response->assertSeeText('View All Records');
-    $response->assertSee('option value="ONGOING" selected', false);
+    $response->assertSeeText('Patient Records');
+    $response->assertSee('option value="" selected', false);
     $response->assertSeeText('Ongoing Santos Reyes');
-    $response->assertDontSeeText('Delivered Santos Reyes');
+    $response->assertSeeText('Delivered Santos Reyes');
     $response->assertSee(route('view-all-records.history', $ongoing), false);
 });
 
@@ -360,4 +366,77 @@ it('keeps patients with the same name but different birthdates as separate peopl
     expect(substr_count($content, 'Ana Cruz'))->toBe(2);
     expect(substr_count($content, route('view-all-records.history', $first)))->toBe(1);
     expect(substr_count($content, route('view-all-records.history', $second)))->toBe(1);
+});
+
+
+it('searches representative pregnancy row IDs in supported formats', function () {
+    $patient = recordsPatient();
+    recordsPatient(['first_name' => 'Other']);
+    foreach (['PT-'.str_pad($patient->id, 4, '0', STR_PAD_LEFT), 'PT'.str_pad($patient->id, 4, '0', STR_PAD_LEFT), (string) $patient->id] as $search) {
+        $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['search' => $search]))
+            ->assertOk()
+            ->assertViewHas('patients', fn ($rows) => $rows->total() === 1 && $rows->first()->id === $patient->id)
+            ->assertSeeText('PT-'.str_pad($patient->id, 4, '0', STR_PAD_LEFT));
+    }
+});
+
+it('paginates final history groups and preserves search and status', function () {
+    for ($i = 1; $i <= 17; $i++) {
+        $patient = recordsPatient(['first_name' => 'Group'.$i]);
+        recordsVisit($patient, ['visit_date' => '2026-09-20']);
+        recordsPatient(['first_name' => 'Group'.$i]);
+    }
+    $admin = recordsAdmin();
+    $params = ['search' => 'Group', 'status' => 'ONGOING'];
+    $first = $this->actingAs($admin)->get(route('view-all-records.index', $params))->assertOk();
+    $first->assertViewHas('patients', fn ($rows) => $rows->total() === 17 && $rows->count() === 15);
+    $second = $this->get(route('view-all-records.index', $params + ['page' => 2]))->assertOk();
+    $second->assertViewHas('patients', fn ($rows) => $rows->total() === 17 && $rows->count() === 2);
+    $names = $first->viewData('patients')->getCollection()->pluck('first_name')
+        ->merge($second->viewData('patients')->getCollection()->pluck('first_name'));
+    expect($names->unique()->count())->toBe(17);
+    parse_str(parse_url($first->viewData('patients')->nextPageUrl(), PHP_URL_QUERY), $query);
+    expect($query)->toMatchArray(['search' => 'Group', 'status' => 'ONGOING', 'page' => '2']);
+});
+
+it('counts patient records independently of filters while retaining grouped histories and soft deletes', function () {
+    $ongoing = recordsPatient();
+    recordsPatient();
+    recordsPatient(['status' => 'DELIVERED']);
+    recordsReferral($ongoing);
+    recordsPatient(['first_name' => 'Legacy', 'status' => 'REFERRED']);
+    recordsPatient(['first_name' => 'Deleted'])->delete();
+    $admin = recordsAdmin();
+    $this->actingAs($admin)->get(route('view-all-records.index'))
+        ->assertOk()->assertViewHas('totalPatientRecords', 4)
+        ->assertViewHas('ongoingPatientRecords', 2)
+        ->assertViewHas('patients', fn ($rows) => $rows->total() === 2)
+        ->assertDontSeeText('Deleted Santos Reyes')
+        ->assertSeeText('4 patient records')
+        ->assertSeeText('2 ongoing')
+        ->assertSeeText('2 patient histories')
+        ->assertDontSeeText('Patients with matching pregnancy records.');
+    $this->get(route('view-all-records.index', ['search' => 'NoMatch', 'status' => 'DELIVERED']))
+        ->assertOk()->assertViewHas('totalPatientRecords', 4)
+        ->assertViewHas('ongoingPatientRecords', 2)
+        ->assertSeeText('No patient records found.');
+});
+
+it('uses recent activity across statuses with pending referrals and safe fallbacks', function () {
+    $ongoing = recordsPatient(['first_name' => 'Visit']);
+    recordsVisit($ongoing, ['visit_date' => '2026-09-10']);
+    $delivered = recordsPatient(['first_name' => 'Birth', 'status' => 'DELIVERED', 'delivery_date' => '2026-09-15']);
+    $referred = recordsPatient(['first_name' => 'Referral']);
+    recordsReferral($referred);
+    $referred->referrals()->update(['referral_date' => '2026-09-20']);
+    recordsVisit($referred, ['visit_date' => '2026-09-18']);
+    $fallback = recordsPatient(['first_name' => 'Fallback', 'status' => 'REFERRED']);
+    $fallback->forceFill(['created_at' => '2026-01-01'])->save();
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index', ['status' => '']))->assertOk();
+    $rows = $response->viewData('patients')->getCollection();
+    expect($rows->pluck('id')->all())->toBe([$referred->id, $delivered->id, $ongoing->id, $fallback->id]);
+    expect($rows->first()->directory_status)->toBe('REFERRED');
+    expect($rows->pluck('directory_activity')->map(fn ($date) => $date->format('Y-m-d'))->all())
+        ->toBe(['2026-09-20', '2026-09-15', '2026-09-10', '2026-01-01']);
+    $response->assertSeeText('Sep 20, 2026');
 });

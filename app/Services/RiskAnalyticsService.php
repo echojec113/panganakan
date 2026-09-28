@@ -284,6 +284,8 @@ if (is_array($legacyReasons)) {
             $this->topHighRiskFactors($highRiskFactors),
 
         'summary' => [
+            'selectedRiskAssessments' => array_sum($selectedTrend),
+            'incompleteAssessments' => array_sum($distribution['incomplete']),
             'highestRiskPeriod' =>
                 $this->maxPeriod($labels, $selectedTrend),
 

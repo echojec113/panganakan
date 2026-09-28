@@ -120,103 +120,248 @@
     {{-- ==================== MAIN CONTENT ==================== --}}
     <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {{-- ======= ROW 1: KPI CARDS (Total Patients | Active Patients | High Risk | Low Risk) ======= --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {{-- ======= ROW 1: BUSINESS SUMMARY ======= --}}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-            {{-- Total Patients --}}
-            <div class="kpi-card kpi-blue">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Total Patients</p>
-                        <p class="text-3xl sm:text-4xl font-bold text-slate-900 mono">{{ $totalPatients }}</p>
-                        <p class="text-xs text-slate-400 mt-2">Active in system</p>
-                    </div>
-                    <div class="kpi-icon bg-blue-50">
-                        <svg width="20" height="20" fill="none" stroke="#2563eb" stroke-width="1.8" viewBox="0 0 24 24">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        </svg>
-                    </div>
-                </div>
+    {{-- Total Patients --}}
+    <div class="kpi-card kpi-blue">
+        <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Total Patients
+                </p>
+
+                <p class="text-3xl sm:text-4xl font-bold text-slate-900 mono">
+                    {{ $totalPatients }}
+                </p>
+
+                <p class="text-xs text-slate-400 mt-2">
+                    All patient records in the system
+                </p>
             </div>
 
-            {{-- Active Pregnancies --}}
-            <div class="kpi-card kpi-emerald">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Active Cases</p>
-                        <p class="text-3xl sm:text-4xl font-bold text-slate-900 mono">{{ $activePregnancies }}</p>
-                        <p class="text-xs text-slate-400 mt-2">Ongoing pregnancies</p>
-                    </div>
-                    <div class="kpi-icon bg-emerald-50">
-                        <svg width="20" height="20" fill="none" stroke="#059669" stroke-width="1.8" viewBox="0 0 24 24">
-                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                        </svg>
-                    </div>
-                </div>
+            <div class="kpi-icon bg-blue-50">
+                <svg width="20" height="20" fill="none" stroke="#2563eb"
+                    stroke-width="1.8" viewBox="0 0 24 24">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="9" cy="7" r="4"/>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
             </div>
-
-            {{-- HIGH Risk --}}
-            <div class="kpi-card" style="border-left: 4px solid #dc2626; padding: 16px;">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">HIGH Risk</p>
-                        <p data-testid="admin-high-count" class="text-xl font-bold text-red-600 mono">{{ $highRisk }}</p>
-                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                            Patients whose latest assessment identified elevated-risk findings and require clinic review.
-                        </p>
-                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'HIGH']) }}" class="inline-block mt-1 text-xs font-semibold text-red-600 hover:text-red-800 underline">
-                            View all HIGH &rarr;
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            {{-- LOW Risk --}}
-            <div class="kpi-card" style="border-left: 4px solid #16a34a; padding: 16px;">
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">LOW Risk</p>
-                        <p data-testid="admin-low-count" class="text-xl font-bold text-green-600 mono">{{ $lowRisk }}</p>
-                        <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                            Patients whose latest completed assessment found no deterministic HIGH-risk rule and received a valid LOW model result.
-                        </p>
-                        <a href="{{ route('risk.monitoring', ['risk_filter' => 'LOW']) }}" class="inline-block mt-1 text-xs font-semibold text-green-600 hover:text-green-800 underline">
-                            View all LOW &rarr;
-                        </a>
-                    </div>
-                </div>
-            </div>
-
         </div>
+    </div>
 
-        @php
-            $totalRiskCases = $highRisk + $lowRisk;
-        @endphp
+    {{-- Ongoing Patients --}}
+    <div class="kpi-card kpi-emerald">
+        <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Ongoing Patients
+                </p>
+
+                <p class="text-3xl sm:text-4xl font-bold text-slate-900 mono">
+                    {{ $activePregnancies }}
+                </p>
+
+                <p class="text-xs text-slate-400 mt-2">
+                    Currently under prenatal care
+                </p>
+            </div>
+
+            <div class="kpi-icon bg-emerald-50">
+                <svg width="20" height="20" fill="none" stroke="#059669"
+                    stroke-width="1.8" viewBox="0 0 24 24">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    {{-- Visits This Month --}}
+    <div class="kpi-card" style="border-top: 2px solid #7c3aed;">
+        <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    Visits This Month
+                </p>
+
+                <p class="text-3xl sm:text-4xl font-bold text-slate-900 mono">
+                    {{ $visitsThisMonth }}
+                </p>
+
+                <p class="text-xs text-slate-400 mt-2">
+                    Prenatal visits recorded this month
+                </p>
+            </div>
+
+            <div class="kpi-icon bg-violet-50">
+                <svg width="20" height="20" fill="none" stroke="#7c3aed"
+                    stroke-width="1.8" viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="17" rx="2"/>
+                    <path d="M16 2v4M8 2v4M3 10h18"/>
+                    <path d="M8 14h3M8 17h5"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    {{-- New Patients This Month --}}
+    <div class="kpi-card" style="border-top: 2px solid #0891b2;">
+        <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                    New Patients This Month
+                </p>
+
+                <p class="text-3xl sm:text-4xl font-bold text-slate-900 mono">
+                    {{ $newPatientsThisMonth }}
+                </p>
+
+                <p class="text-xs text-slate-400 mt-2">
+                    Patient records registered this month
+                </p>
+            </div>
+
+            <div class="kpi-icon bg-cyan-50">
+                <svg width="20" height="20" fill="none" stroke="#0891b2"
+                    stroke-width="1.8" viewBox="0 0 24 24">
+                    <path d="M15 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                    <circle cx="8" cy="7" r="4"/>
+                    <path d="M19 8v6M16 11h6"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+        <section class="space-y-6" aria-labelledby="analytics-overview-title">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 id="analytics-overview-title" class="text-lg font-bold text-slate-900">Analytics Overview</h2>
+                    <p class="mt-1 text-sm text-slate-500">Clinic activity for the selected reporting period</p>
+                </div>
+        <form
+            method="GET"
+            action="{{ route('dashboard') }}"
+            class="flex items-end gap-2 flex-wrap"
+        >
+            <div>
+                <label
+                    for="adminTrendYear"
+                    class="block text-xs font-medium text-slate-500 mb-1"
+                >
+                    Year
+                </label>
+
+                <select
+                    id="adminTrendYear"
+                    name="year"
+                    onchange="this.form.submit()"
+                    class="rounded-lg border-slate-300 text-sm text-slate-700 focus:border-green-500 focus:ring-green-500"
+                >
+                    @foreach($availableYears as $year)
+                        <option
+                            value="{{ $year }}"
+                            {{ (int) $selectedYear === (int) $year ? 'selected' : '' }}
+                        >
+                            {{ $year }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
+                <label
+                    for="adminTrendMonth"
+                    class="block text-xs font-medium text-slate-500 mb-1"
+                >
+                    Month
+                </label>
+
+                <select
+                    id="adminTrendMonth"
+                    name="month"
+                    onchange="this.form.submit()"
+                    class="rounded-lg border-slate-300 text-sm text-slate-700 focus:border-green-500 focus:ring-green-500"
+                >
+                    <option value="">All Months</option>
+
+                    @foreach(range(1, 12) as $month)
+                        <option
+                            value="{{ $month }}"
+                            {{ (int) $selectedMonth === $month ? 'selected' : '' }}
+                        >
+                            {{ \Carbon\Carbon::create()->month($month)->format('F') }}
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+        </form>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <p class="text-xs font-medium text-slate-500">{{ $busiestPeriodType }}</p>
+                    <p class="mt-2 text-xl font-semibold text-slate-900 mono">{{ $busiestPeriodLabel }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $peakVisitCount }} {{ $peakVisitCount === 1 ? 'visit' : 'visits' }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <p class="text-xs font-medium text-slate-500">Total Visits</p>
+                    <p class="mt-2 text-xl font-semibold text-slate-900 mono">{{ $totalVisitsSelectedPeriod }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $selectedMonth ? 'Selected month' : 'Selected year' }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <p class="text-xs font-medium text-slate-500">New Patients</p>
+                    <p class="mt-2 text-xl font-semibold text-slate-900 mono">{{ $totalRegistrationsSelectedPeriod }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $selectedMonth ? 'Selected month' : 'Selected year' }}</p>
+                </div>
+                <div class="rounded-xl border border-slate-200 bg-white p-4">
+                    <p class="text-xs font-medium text-slate-500">Referrals</p>
+                    <p class="mt-2 text-xl font-semibold text-slate-900 mono">{{ $referralsSelectedPeriod }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ $selectedMonth ? 'Selected month' : 'Selected year' }}</p>
+                </div>
+            </div>
 
         {{-- ======= ROW 3: Monthly Trend + Conditions ======= --}}
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
             {{-- Monthly Visits Trend (2/3) --}}
-            <div class="lg:col-span-2 dash-card">
-                <div class="dash-card-header">
-                    <div>
-                        <h2 class="text-base font-bold text-slate-900">Monthly Visits Trend</h2>
-                        <p class="text-xs text-slate-400 mt-0">Visit volume over time</p>
-                    </div>
-                </div>
-                <div class="p-5">
-                    <div class="chart-wrap" style="height:220px;">
-                        <canvas id="trendChart"></canvas>
-                    </div>
-                </div>
-            </div>
+<div class="lg:col-span-2 dash-card">
 
+    <div class="dash-card-header gap-4 flex-wrap">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">
+                {{ $selectedMonth ? 'Daily Visits Trend' : 'Monthly Visits Trend' }}
+            </h2>
+
+            <p class="text-xs text-slate-400 mt-0">
+                @if($selectedMonth)
+                    Prenatal visit volume for
+                    {{ \Carbon\Carbon::create($selectedYear, $selectedMonth, 1)->format('F Y') }}
+                @else
+                    Prenatal visit volume for {{ $selectedYear }}
+                @endif
+            </p>
+        </div>
+
+
+    </div>
+
+    <div class="p-5">
+        <div class="chart-wrap" style="height:220px;">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+
+</div>
             {{-- Common Conditions (1/3) --}}
             <div class="dash-card">
                 <div class="dash-card-header">
                     <div>
-                        <h2 class="text-base font-bold text-slate-900">Common Conditions</h2>
-                        <p class="text-xs text-slate-400 mt-0">Prevalence breakdown</p>
+                        <h2 class="text-base font-bold text-slate-900">Top High-Risk Factors</h2>
+                        <p class="text-xs text-slate-400 mt-0">Most frequent factors in selected period</p>
                     </div>
                 </div>
                 <div class="p-5">
@@ -227,118 +372,132 @@
             </div>
         </div>
 
-        {{-- ======= ROW 4: Risk Distribution + Growth Metrics ======= --}}
+        {{-- ======= ROW 4: Risk Distribution +  Referral Performance  ======= --}}
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {{-- Risk Distribution --}}
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <div>
-                        <h2 class="text-base font-bold text-slate-900">Risk Distribution</h2>
-                        <p class="text-xs text-slate-400 mt-0">Patient risk stratification</p>
-                    </div>
-                </div>
-                <div class="p-5 flex flex-col sm:flex-row items-center gap-8">
-                    <div class="chart-wrap flex-shrink-0" style="height:180px; width:180px;">
-                        <canvas id="riskChart"></canvas>
-                    </div>
-                    <div class="space-y-4 flex-1 w-full">
-                        <div>
-                            <div class="flex items-center justify-between mb-1.5">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-3 h-3 rounded-full bg-emerald-500 block"></span>
-                                    <p class="text-sm text-slate-600 font-medium">Standard Care</p>
-                                </div>
-                                <p class="text-sm font-bold text-slate-800 mono">{{ $lowRisk }}</p>
-                            </div>
-                            <div class="progress-track">
-                                <div class="progress-fill bg-emerald-500" style="width: {{ $totalRiskCases > 0 ? ($lowRisk / $totalRiskCases) * 100 : 0 }}%"></div>
-                            </div>
-                        </div>
-                        <div>
-                            <div class="flex items-center justify-between mb-1.5">
-                                <div class="flex items-center gap-2">
-                                    <span class="w-3 h-3 rounded-full bg-amber-500 block"></span>
-                                    <p class="text-sm text-slate-600 font-medium">Priority Care</p>
-                                </div>
-                                <p class="text-sm font-bold text-slate-800 mono">{{ $highRisk }}</p>
-                            </div>
-                            <div class="progress-track">
-                                <div class="progress-fill bg-amber-500" style="width: {{ $totalRiskCases > 0 ? ($highRisk / $totalRiskCases) * 100 : 0 }}%"></div>
-                            </div>
-                        </div>
-                        <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <p class="text-xs text-slate-400">Total assessed</p>
-                            <p class="text-sm font-bold text-slate-800 mono">{{ $totalRiskCases }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            
 
-            {{-- Growth Metrics --}}
-            <div class="dash-card">
-                <div class="dash-card-header">
-                    <div>
-                        <h2 class="text-base font-bold text-slate-900">Growth Metrics</h2>
-                        <p class="text-xs text-slate-400 mt-0">Month-over-month performance</p>
-                    </div>
-                </div>
-                <div class="p-5 space-y-5">
-                    {{-- Visit Growth --}}
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm font-medium text-slate-700">Visit Growth</p>
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold
-                                {{ $visitGrowthPercent >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600' }}">
-                                {{ $visitGrowthPercent >= 0 ? '↑' : '↓' }} {{ abs($visitGrowthPercent) }}%
-                            </span>
-                        </div>
-                        <div class="progress-track">
-                            <div class="progress-fill {{ $visitGrowthPercent >= 0 ? 'bg-emerald-500' : 'bg-red-500' }}"
-                                style="width: {{ min(abs($visitGrowthPercent), 100) }}%"></div>
-                        </div>
-                        <div class="flex justify-between mt-1.5">
-                            <p class="text-xs text-slate-400">This month: <span class="font-semibold text-slate-600">{{ $visitsThisMonth }}</span></p>
-                        </div>
-                    </div>
+            {{-- Patient Registration Trend --}}
+<div class="dash-card">
+    <div class="dash-card-header">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">
+                Patient Registration Trend
+            </h2>
 
-                    {{-- Patient Growth --}}
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <p class="text-sm font-medium text-slate-700">Patient Registrations</p>
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold
-                                {{ $patientGrowthPercent >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600' }}">
-                                {{ $patientGrowthPercent >= 0 ? '↑' : '↓' }} {{ abs($patientGrowthPercent) }}%
-                            </span>
-                        </div>
-                        <div class="progress-track">
-                            <div class="progress-fill {{ $patientGrowthPercent >= 0 ? 'bg-emerald-500' : 'bg-red-500' }}"
-                                style="width: {{ min(abs($patientGrowthPercent), 100) }}%"></div>
-                        </div>
-                    </div>
+            <p class="text-xs text-slate-400 mt-0">
+                {{ $registrationGranularity === 'daily'
+                    ? 'Daily new patient registrations for the selected month'
+                    : 'Monthly new patient registrations for the selected year' }}
+            </p>
+        </div>
+    </div>
 
-                    {{-- New Patients bar chart --}}
-                    <div class="pt-2 border-t border-slate-100">
-                        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">New Registrations by Month</p>
-                        <div class="chart-wrap" style="height:120px;">
-                            <canvas id="newPatientsChart"></canvas>
-                        </div>
-                    </div>
+    <div class="p-5">
 
-                    {{-- All-time totals --}}
-                    <div class="pt-2 border-t border-slate-100 grid grid-cols-2 gap-3">
-                        <div>
-                            <p class="text-xs text-slate-400 mb-0">All-time Visits</p>
-                            <p class="text-xl font-bold text-slate-900 mono">{{ $visitsThisMonth + 150 }}</p>
-                        </div>
-                        <div>
-                            <p class="text-xs text-slate-400 mb-0">Avg Monthly</p>
-                            <p class="text-xl font-bold text-slate-900 mono">{{ $totalRiskCases > 0 ? round(($visitsThisMonth + 150) / 12) : 0 }}</p>
-                        </div>
-                    </div>
-                </div>
+        {{-- Registration Chart --}}
+        <div class="pt-4 border-t border-slate-100">
+            <div class="chart-wrap" style="height:220px;">
+                <canvas id="newPatientsChart"></canvas>
             </div>
         </div>
+
+    </div>
+</div>
+{{-- Referral Performance --}}
+<div class="dash-card">
+    <div class="dash-card-header">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">
+                Referral Performance
+            </h2>
+
+            <p class="text-xs text-slate-400 mt-0">
+                {{ $referralTrendGranularity === 'day'
+                    ? 'Daily referral activity for the selected month'
+                    : 'Monthly referral activity for the selected year' }}
+            </p>
+        </div>
+    </div>
+
+    <div class="p-5">
+
+        {{-- Referral Status Summary --}}
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+
+            <div class="rounded-lg bg-emerald-50 px-3 py-3">
+                <p class="text-xs font-medium text-emerald-700">
+                    Completed
+                </p>
+                <p class="mt-1 text-xl font-bold text-slate-900 mono">
+                    {{ $referralCompleted }}
+                </p>
+            </div>
+
+            <div class="rounded-lg bg-amber-50 px-3 py-3">
+                <p class="text-xs font-medium text-amber-700">
+                    Pending
+                </p>
+                <p class="mt-1 text-xl font-bold text-slate-900 mono">
+                    {{ $referralPending }}
+                </p>
+            </div>
+
+            <div class="rounded-lg bg-slate-50 px-3 py-3">
+                <p class="text-xs font-medium text-slate-600">
+                    Refused
+                </p>
+                <p class="mt-1 text-xl font-bold text-slate-900 mono">
+                    {{ $referralRefused }}
+                </p>
+            </div>
+
+            <div class="rounded-lg bg-red-50 px-3 py-3">
+                <p class="text-xs font-medium text-red-700">
+                    Cancelled
+                </p>
+                <p class="mt-1 text-xl font-bold text-slate-900 mono">
+                    {{ $referralCancelled }}
+                </p>
+            </div>
+
+        </div>
+
+        {{-- Referral Activity Chart --}}
+        <div class="pt-4 border-t border-slate-100">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                Referral Activity
+            </p>
+
+            <div class="chart-wrap" style="height:160px;">
+                <canvas id="referralTrendChart"></canvas>
+            </div>
+        </div>
+
+        {{-- Most Referred Facility --}}
+        <div class="pt-4 mt-4 border-t border-slate-100">
+            <p class="text-xs text-slate-400">
+                Most Referred Facility
+            </p>
+
+            <p class="mt-1 text-sm font-semibold text-slate-800">
+                {{ $mostReferredFacility['label'] ?? 'No referral destination recorded' }}
+            </p>
+
+            @if(!empty($mostReferredFacility))
+                <p class="mt-1 text-xs text-slate-400">
+                    {{ $mostReferredFacility['count'] }}
+                    {{ $mostReferredFacility['count'] === 1 ? 'referral' : 'referrals' }}
+                </p>
+            @endif
+        </div>
+
+    </div>
+</div>
+
+        </div>
+
+        </section>
 
     </div>{{-- /main --}}
 </div>{{-- /dash-root --}}
@@ -372,44 +531,20 @@ document.addEventListener('DOMContentLoaded', function () {
         boxWidth: 10, boxHeight: 10, boxPadding: 4,
     };
 
-    // ---- 1. Risk Doughnut ----
-    const highRisk = {{ $highRisk }};
-    const lowRisk  = {{ $lowRisk }};
-    const totalRisk = highRisk + lowRisk;
-
-    new Chart(document.getElementById('riskChart').getContext('2d'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Standard Care', 'Priority Care'],
-            datasets: [{
-                data: [lowRisk, highRisk],
-                backgroundColor: [palette.emerald, palette.amber],
-                borderWidth: 3,
-                borderColor: '#ffffff',
-                hoverOffset: 6,
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false, cutout: '70%',
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    ...sharedTooltip,
-                    callbacks: {
-                        label: ctx => {
-                            const pct = totalRisk > 0 ? ((ctx.raw / totalRisk) * 100).toFixed(1) : 0;
-                            return ` ${ctx.raw} patients (${pct}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
+ 
     // ---- 2. Monthly Visits Trend ----
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const trendLabels = {!! json_encode($trendLabels) !!}.map(m => monthNames[m - 1] || '');
-    const trendData   = {!! json_encode($trendData) !!};
+    const monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+const trendGranularity = @json($trendGranularity);
+const rawTrendLabels = @json($trendLabels);
+const trendData = @json($trendData);
+
+const trendLabels = trendGranularity === 'daily'
+    ? rawTrendLabels.map(day => String(day))
+    : rawTrendLabels.map(month => monthNames[month - 1] || '');
 
     new Chart(document.getElementById('trendChart').getContext('2d'), {
         type: 'line',
@@ -512,39 +647,234 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // ---- 4. New Patients bar (mini) ----
-    new Chart(document.getElementById('newPatientsChart').getContext('2d'), {
-        type: 'bar',
+    // ---- 4. Patient Registration Trend ----
+const registrationLabels = @json($registrationLabels);
+const registrationData = @json($registrationData);
+const registrationGranularity = @json($registrationGranularity);
+
+new Chart(document.getElementById('newPatientsChart').getContext('2d'), {
+    type: 'bar',
+
+    data: {
+        labels: registrationLabels,
+
+        datasets: [{
+            label: 'New Patient Registrations',
+            data: registrationData,
+
+            backgroundColor: 'rgba(8, 145, 178, 0.18)',
+            borderColor: '#0891b2',
+            borderWidth: 2,
+            borderRadius: 5,
+            borderSkipped: false
+        }]
+    },
+
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+
+        plugins: {
+            legend: {
+                display: false
+            },
+
+            tooltip: {
+                ...sharedTooltip,
+                callbacks: {
+                    title: function(items) {
+                        const value = items[0].label;
+
+                        if (registrationGranularity === 'daily') {
+                            return `Day ${value}`;
+                        }
+
+                        const months = [
+                            'January', 'February', 'March', 'April',
+                            'May', 'June', 'July', 'August',
+                            'September', 'October', 'November', 'December'
+                        ];
+
+                        return months[Number(value) - 1] ?? value;
+                    },
+
+                    label: function(context) {
+                        const count = context.parsed.y;
+
+                        return `${count} new patient${count === 1 ? '' : 's'}`;
+                    }
+                }
+            }
+        },
+
+        scales: {
+            y: {
+                beginAtZero: true,
+
+                ticks: {
+                    ...baseFont,
+                    size: 10,
+                    color: '#94a3b8',
+                    precision: 0
+                },
+
+                grid: {
+                    color: palette.gridLine
+                },
+
+                border: {
+                    display: false
+                }
+            },
+
+            x: {
+                grid: {
+                    display: false
+                },
+
+                ticks: {
+                    ...baseFont,
+                    size: 10,
+                    color: '#94a3b8',
+                    autoSkip: registrationGranularity === 'daily',
+                    maxTicksLimit: registrationGranularity === 'daily' ? 16 : 12
+                },
+
+                border: {
+                    display: false
+                }
+            }
+        }
+        }
+});
+
+
+// ---- 5. Referral Activity Trend ----
+
+const referralTrendLabels = @json($referralTrendLabels);
+const referralTrendData = @json($referralTrendData);
+const referralTrendGranularity = @json($referralTrendGranularity);
+
+const referralCanvas = document.getElementById('referralTrendChart');
+
+if (referralCanvas) {
+    new Chart(referralCanvas.getContext('2d'), {
+        type: 'line',
+
         data: {
-            labels: trendLabels,
+            labels: referralTrendLabels,
+
             datasets: [{
-                label: 'Registrations',
-                data: trendData.map(v => Math.max(1, Math.round(v * 0.35))),
-                backgroundColor: 'rgba(5,150,105,0.20)',
+                label: 'Referrals',
+                data: referralTrendData,
+
                 borderColor: palette.emerald,
-                borderWidth: 2,
-                borderRadius: 4,
-                borderSkipped: false,
+
+                backgroundColor: context => {
+                    const gradient = context.chart.ctx.createLinearGradient(
+                        0,
+                        0,
+                        0,
+                        160
+                    );
+
+                    gradient.addColorStop(
+                        0,
+                        'rgba(5, 150, 105, 0.15)'
+                    );
+
+                    gradient.addColorStop(
+                        1,
+                        'rgba(5, 150, 105, 0)'
+                    );
+
+                    return gradient;
+                },
+
+                borderWidth: 2.5,
+                tension: 0.4,
+                fill: true,
+
+                pointBackgroundColor: palette.emerald,
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
             }]
         },
+
         options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false }, tooltip: sharedTooltip },
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    display: false
+                },
+
+                tooltip: {
+                    ...sharedTooltip,
+
+                    callbacks: {
+                        label: function(context) {
+                            const count = context.parsed.y;
+
+                            return `${count} referral${count === 1 ? '' : 's'}`;
+                        }
+                    }
+                }
+            },
+
             scales: {
                 y: {
                     beginAtZero: true,
-                    grid: { color: palette.gridLine },
-                    ticks: { font: { ...baseFont, size: 10 }, color: '#94a3b8', maxTicksLimit: 4 },
-                    border: { display: false },
+
+                    ticks: {
+                        font: baseFont,
+                        color: '#94a3b8',
+                        precision: 0,
+                        stepSize: 1
+                    },
+
+                    grid: {
+                        color: palette.gridLine
+                    },
+
+                    border: {
+                        display: false
+                    }
                 },
+
                 x: {
-                    grid: { display: false },
-                    ticks: { font: { ...baseFont, size: 10 }, color: '#94a3b8' },
-                    border: { display: false },
+                    grid: {
+                        display: false
+                    },
+
+                    ticks: {
+                        font: {
+                            ...baseFont,
+                            size: 10
+                        },
+
+                        color: '#94a3b8',
+
+                        autoSkip: referralTrendGranularity === 'day',
+
+                        maxTicksLimit:
+                            referralTrendGranularity === 'day'
+                                ? 12
+                                : 12
+                    },
+
+                    border: {
+                        display: false
+                    }
                 }
             }
         }
     });
+}
+
 
 });
 </script>

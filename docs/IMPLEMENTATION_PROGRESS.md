@@ -1858,3 +1858,18 @@ Status: UI change complete; automated UI verification blocked by test bootstrap.
 - Verification: Blade view:cache and compiled patient-view PHP lint passed. Structural checks confirm balanced divs, each navigation ID appearing once in source, common full-width ancestors for all six record sections, and unchanged responsive Overview grid. Exact comparison against the pre-edit working copy confirms only the closing div insertion and intact block reordering. git diff --check reports pre-existing trailing whitespace, preserved to avoid unrelated cleanup.
 - Browser verification pending: Check desktop Overview remains two columns, record edges align with navigation, requested section order, mobile stacking/table scrolling, and ultrasound image/PDF behavior. Existing conditional section visibility is unchanged (risk anchor requires an assessment; pregnancy outcome anchor follows existing status conditions).
 - Defense notes: Repair the missing container boundary instead of overriding widths. Retain the existing single-column record wrapper and move whole blocks to preserve explainability and clinical behavior.
+
+## Admin dashboard - Remove risk summary hyperlinks (2026-09-28)
+
+- UI: Removed View all HIGH and View all LOW links from the admin risk cards. Counts, descriptions and card styling remain unchanged.
+- Backend: No changes required for this presentation-only request.
+- Verification: Reviewed the diff: only the two anchor elements were removed from the view. Scoped git diff --check passed. No browser test performed.
+- Defense notes: Remove the requested secondary navigation without changing risk calculations or the dedicated Risk Monitoring module.
+
+## Focused Risk Monitoring dashboard (2026-09-29)
+
+- UI: Replaced two large risk cards with compact High-Risk, Low-Risk and Assessment Incomplete current-state cards. Added Year alongside Risk Type and Month. Kept one adaptive trend, busiest-period summary and High-Risk factor summary; the horizontal factor breakdown is hidden for Low Risk. Removed Age Distribution and Maternal Conditions charts and their JavaScript.
+- Backend: RiskMonitoringController now supplies available assessment years, including current and selected years. Distinct visit dates are mapped to years for MySQL/SQLite compatibility. Existing current counts, assessment queries and analytics endpoint behavior are unchanged. RiskAnalyticsService and RiskMonitoringDataService remain unchanged, including evidence parsing and legacy fallback.
+- Preservation: Exact source comparison confirms Patient Assessments search/filter, mobile cards, desktop table, evidence, actions and pagination markup are unchanged. Admin/Staff dashboards, routes, models, referral analytics and clinical classification were not modified by this task.
+- Verification: RiskMonitoringAccessTest passed (5 tests, 40 assertions), covering authorization, year selection, monthly/daily payloads, leap-year February, latest-assessment counts independent of reporting period, assessment risk filtering and busiest-day summary. Node checks passed for chart payload use, High/Low switching, horizontal factor chart, summary labels, empty states and Year event wiring. PHP syntax and scoped diff checks passed. No visual browser test performed.
+- Defense notes: Use the existing analytics.trend and highestRiskPeriod payload rather than recalculating analytics. Label current-state and selected-period figures separately. Ignore stale requests and restore the last successful selection on errors so filters cannot silently mislabel old charts. Keep backend methods and unused existing controller counts to avoid unrelated cleanup.

@@ -8,58 +8,137 @@ use Illuminate\Http\Request;
 class PatientViewController extends Controller
 {
     public function index(Request $request)
-    {
-        $this->checkAdmin();
+{
+    $this->checkAdmin();
 
-        $request->validate([
-            'status' => ['nullable', 'in:ONGOING,DELIVERED,REFERRED'],
-            'search' => ['nullable', 'string', 'max:255'],
-        ]);
+    $request->validate([
+        'status' => ['nullable', 'in:ONGOING,DELIVERED,REFERRED'],
+        'search' => ['nullable', 'string', 'max:255'],
+    ]);
 
-        $status = $request->query('status', 'ONGOING');
-        $search = trim((string) $request->query('search', ''));
+    $status = (string) $request->query('status', '');
+    $search = trim((string) $request->query('search', ''));
 
-        $query = Patient::query()
-            ->when($status === 'REFERRED', function ($query) {
-                $query->where(function ($query) {
-                    $query->whereHas('referrals', function ($referralQuery) {
-                        $referralQuery->where('status', 'Pending');
-                    })->orWhere('status', 'REFERRED');
-                });
-            }, function ($query) use ($status) {
-                $query->where('status', $status);
-            })
-            ->when($search !== '', function ($query) use ($search) {
-                $query->where(function ($query) use ($search) {
-                    $query->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('middle_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%");
-                });
-            })
-            ->when($status === 'ONGOING', fn ($query) => $query->with('prenatalVisits:id,patient_id,visit_date'))
-            ->when($status === 'REFERRED', fn ($query) => $query->with([
-                'referrals' => fn ($referralQuery) => $referralQuery->where('status', 'Pending'),
-            ]));
+    // Allow searches such as:
+    // PT-0028, PT0028, 28
+    $patientId = preg_match('/^(?:PT-?)?0*([0-9]+)$/i', $search, $matches)
+        ? (int) $matches[1]
+        : null;
 
-        $matchingPatients = $query
-            ->orderBy('first_name')
-            ->orderBy('middle_name')
-            ->orderBy('last_name')
-            ->orderBy('birthdate')
-            ->orderBy('id')
-            ->get();
+    /*
+    |--------------------------------------------------------------------------
+    | Summary Counts
+    |--------------------------------------------------------------------------
+    | These count actual non-deleted Patient records.
+    | They are NOT grouped by patient identity.
+    */
 
-        $sortKeyFor = fn (Patient $patient) => $this->activitySortKey($patient, $status);
+    $totalPatientRecords = Patient::count();
 
-        $patients = $matchingPatients
-            ->groupBy(fn (Patient $patient) => $this->patientHistoryKey($patient))
-            ->map(fn ($group) => $group->sortByDesc($sortKeyFor)->first())
-            ->sortByDesc($sortKeyFor)
-            ->values();
+    $ongoingPatientRecords = Patient::where('status', 'ONGOING')->count();
 
-        return view('patients.view-all-records', compact('patients', 'status', 'search'));
-    }
+    $deliveredPatientRecords = Patient::where('status', 'DELIVERED')->count();
 
+    $referredPatientRecords = Patient::where('status', 'REFERRED')->count();
+
+$pendingReferralRecords = Patient::query()
+    ->whereHas('referrals', function ($query) {
+        $query->where('status', 'Pending');
+    })
+    ->count();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Patient Records
+    |--------------------------------------------------------------------------
+    */
+
+    $patients = Patient::query()
+
+        // Needed for latest activity and referred status.
+        ->with([
+            'prenatalVisits:id,patient_id,visit_date',
+            'referrals' => fn ($query) => $query
+                ->select('id', 'patient_id', 'referral_date', 'status')
+                ->where('status', 'Pending'),
+        ])
+
+        // Status filter
+        ->when($status === 'ONGOING', function ($query) {
+            $query->where('status', 'ONGOING');
+        })
+
+        ->when($status === 'DELIVERED', function ($query) {
+            $query->where('status', 'DELIVERED');
+        })
+
+        ->when($status === 'REFERRED', function ($query) {
+    $query->where('status', 'REFERRED');
+})
+
+        // Search by patient name or Patient ID
+        ->when($search !== '', function ($query) use ($search, $patientId) {
+            $query->where(function ($query) use ($search, $patientId) {
+                $query->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('middle_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
+
+                if ($patientId !== null) {
+                    $query->orWhere('id', $patientId);
+                }
+            });
+        })
+
+        // Most recently created patient records first.
+        ->orderByDesc('created_at')
+        ->orderByDesc('id')
+
+        // Same compact pagination style as Staff Patient Records.
+        ->paginate(10)
+        ->withQueryString();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Display-only values
+    |--------------------------------------------------------------------------
+    */
+
+    $patients->getCollection()->each(function (Patient $patient) {
+
+        /*
+         * A pending referral takes precedence for the directory display.
+         * Otherwise use the Patient record's stored status.
+         */
+        $patient->directory_status = $patient->status;
+$patient->has_pending_referral = $patient->referrals->isNotEmpty();
+
+        /*
+         * Latest relevant activity recorded for this pregnancy record.
+         */
+        $activities = collect([
+            $patient->prenatalVisits->max('visit_date'),
+            $patient->delivery_date,
+            $patient->referrals->max('referral_date'),
+            $patient->created_at,
+        ])->filter();
+
+        $patient->directory_activity = $activities
+            ->map(fn ($date) => \Carbon\Carbon::parse($date))
+            ->sortDesc()
+            ->first();
+    });
+
+    return view('patients.view-all-records', compact(
+    'patients',
+    'status',
+    'search',
+    'totalPatientRecords',
+    'ongoingPatientRecords',
+    'deliveredPatientRecords',
+    'referredPatientRecords',
+    'pendingReferralRecords'
+));
+}
     public function history(Patient $patient)
     {
         $this->checkAdmin();
@@ -123,31 +202,5 @@ class PatientViewController extends Controller
         ]);
     }
 
-    /**
-     * Determines the timestamp used to sort a single Patient row within the
-     * currently selected status. This is computed per matching row (before
-     * grouping by identity) so a person's final position reflects their most
-     * recent activity across all of their matching pregnancy rows.
-     */
-    private function activitySortKey(Patient $patient, string $status): \Illuminate\Support\Carbon
-    {
-        return match ($status) {
-            'ONGOING' => optional($patient->prenatalVisits->sortByDesc('visit_date')->first())->visit_date
-                ?? $patient->created_at,
-            'DELIVERED' => $patient->delivery_date ?? $patient->created_at,
-            'REFERRED' => optional($patient->referrals->sortByDesc('referral_date')->first())->referral_date
-                ?? $patient->created_at,
-            default => $patient->created_at,
-        };
-    }
-
-    private function patientHistoryKey(Patient $patient): string
-    {
-        return strtolower(trim(
-            $patient->first_name.'|'.
-            $patient->middle_name.'|'.
-            $patient->last_name.'|'.
-            $patient->birthdate
-        ));
-    }
+    
 }
