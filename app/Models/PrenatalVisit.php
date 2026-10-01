@@ -64,7 +64,9 @@ class PrenatalVisit extends Model
         'assessment_metadata',
     ];
     protected $casts = [
+    'weight' => 'float',
     'visit_date' => 'date',
+    'gestational_age' => 'float',
     'next_visit_date' => 'date',
     'reminder_tomorrow_sent_at' => 'datetime',
     'reminder_today_sent_at' => 'datetime',

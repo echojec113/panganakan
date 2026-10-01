@@ -46,7 +46,7 @@
             <div class="grid">
                 <div class="box"><div class="label">Full Name</div><div class="value">{{ $baby->full_name ?: 'N/A' }}</div></div>
                 <div class="box"><div class="label">Sex</div><div class="value">{{ $baby->sex ?: 'N/A' }}</div></div>
-                <div class="box"><div class="label">Birth Weight</div><div class="value">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A' }}</div></div>
+                <div class="box"><div class="label">Birth Weight</div><div class="value">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'N/A' }}</div></div>
                 <div class="box"><div class="label">Birth Length</div><div class="value">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A' }}</div></div>
                 <div class="box"><div class="label">Date of Birth</div><div class="value">{{ $baby->date_of_birth ? \Carbon\Carbon::parse($baby->date_of_birth)->format('M d, Y') : 'N/A' }}</div></div>
                 <div class="box"><div class="label">Time of Birth</div><div class="value">{{ $baby->time_of_birth ? \Carbon\Carbon::parse($baby->time_of_birth)->format('h:i A') : 'N/A' }}</div></div>

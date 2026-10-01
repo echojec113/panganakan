@@ -185,7 +185,7 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Gravida <span class="text-red-500">*</span></label>
                                 <input type="number" id="gravida" name="gravida"
                                     value="{{ old('gravida', 1) }}"
-                                    min="0"
+                                    min="1"
                                     class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('gravida') border-red-500 @enderror"
                                     placeholder="Number of pregnancies">
                                 <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
@@ -386,27 +386,39 @@
     // EDD AUTO COMPUTE
     document.getElementById("lmp").addEventListener("change", function() {
         let lmp = new Date(this.value);
-        
+
         if (isNaN(lmp.getTime())) {
             document.getElementById("edd").value = '';
+            hideError(this);
             return;
         }
-        
-        let edd = new Date(lmp);
-        edd.setDate(edd.getDate() + 280);
-        
-        let eddStr = edd.toISOString().split('T')[0];
-        document.getElementById("edd").value = eddStr;
-        
-        // Validate that EDD is after LMP
+
         let today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
+        let earliestValidLmp = new Date();
+        earliestValidLmp.setDate(earliestValidLmp.getDate() - (42 * 7));
+        earliestValidLmp.setHours(0, 0, 0, 0);
+
         if (lmp > today) {
-            showError(this, 'LMP cannot be in the future');
-        } else {
-            hideError(this);
+            document.getElementById("edd").value = '';
+            showError(this, 'Last menstrual period cannot be a future date.');
+            return;
         }
+
+        if (lmp < earliestValidLmp) {
+            document.getElementById("edd").value = '';
+            showError(this, 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.');
+            return;
+        }
+
+        hideError(this);
+
+        let edd = new Date(lmp);
+        edd.setDate(edd.getDate() + 280);
+
+        let eddStr = edd.toISOString().split('T')[0];
+        document.getElementById("edd").value = eddStr;
     });
 
     // CONTACT VALIDATION - Real-time
@@ -479,20 +491,25 @@
         }
     });
 
-    // Name field validation (only letters)
+    // Name field validation (letters + max length)
     const nameFields = ['first_name', 'middle_name', 'last_name'];
+    const nameLabels = { first_name: 'First name', middle_name: 'Middle name', last_name: 'Last name' };
     nameFields.forEach(field => {
         const input = document.querySelector(`[name="${field}"]`);
         if (input) {
             input.addEventListener("input", function() {
-                const pattern = /^[a-zA-Z\s]*$/;
-                if (this.value.length > 0 && !pattern.test(this.value)) {
-                    showError(this, 'Only letters and spaces are allowed');
+                if (this.value.length > 24) {
+                    this.value = this.value.substring(0, 24);
+                    showError(this, nameLabels[field] + ' must not exceed 24 characters.');
                 } else {
                     hideError(this);
                 }
+                const pattern = /^[a-zA-Z\s]*$/;
+                if (this.value.length > 0 && !pattern.test(this.value)) {
+                    showError(this, 'Only letters and spaces are allowed');
+                }
             });
-            
+
             if (field !== 'middle_name') {
                 input.addEventListener("blur", function() {
                     if (this.value.trim() === '') {
@@ -544,15 +561,21 @@
         if (firstName.value.trim() === '') {
             showError(firstName, 'First name is required');
             isValid = false;
+        } else if (firstName.value.length > 24) {
+            showError(firstName, 'First name must not exceed 24 characters.');
+            isValid = false;
         } else if (!/^[a-zA-Z\s]+$/.test(firstName.value)) {
             showError(firstName, 'Only letters and spaces are allowed');
             isValid = false;
         }
-        
+
         // Validate last name
         const lastName = document.querySelector('[name="last_name"]');
         if (lastName.value.trim() === '') {
             showError(lastName, 'Last name is required');
+            isValid = false;
+        } else if (lastName.value.length > 24) {
+            showError(lastName, 'Last name must not exceed 24 characters.');
             isValid = false;
         } else if (!/^[a-zA-Z\s]+$/.test(lastName.value)) {
             showError(lastName, 'Only letters and spaces are allowed');

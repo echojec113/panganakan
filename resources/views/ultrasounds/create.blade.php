@@ -54,11 +54,15 @@
                                 Gestational Age (weeks)
                             </label>
                             <input type="number" name="gestational_age_scan" id="gestational_age" 
-                                value="{{ old('gestational_age_scan') }}" 
-                                step="0.5" min="4" max="42"
+                                value="{{ old('gestational_age_scan', $expectedGestationalAge !== null ? number_format($expectedGestationalAge, 1, '.', '') : '') }}"
+                                data-ga-reference="scan_date"
+                                data-ga-lmp="{{ $patient->lmp?->toDateString() }}"
+                                data-ga-old-input="{{ $hasOldGestationalAge ? 'true' : 'false' }}"
+                                data-ga-initial-expected="{{ $expectedGestationalAge !== null ? number_format($expectedGestationalAge, 1, '.', '') : '' }}"
+                                step="0.1" min="4" max="42"
                                 placeholder="e.g., 28.5"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-                            <p class="text-xs text-gray-500 mt-1" id="ga_hint">Based on patient's LMP: Will auto-validate</p>
+                            <p class="text-xs text-gray-500 mt-1" id="ga_hint">{{ $gestationalAgeHint }}</p>
                         </div>
                     </div>
                 </div>
@@ -251,9 +255,9 @@
         </div>
     </div>
 
-    <script>
-        var patientLmp = '{{ $patient->lmp ? \Carbon\Carbon::parse($patient->lmp)->format("Y-m-d") : "" }}';
+    @include('components.gestational-age-autofill')
 
+    <script>
         document.addEventListener('DOMContentLoaded', function() {
             // File upload preview
             const fileInput = document.getElementById('report_file');
@@ -342,7 +346,6 @@
             const scanDate = document.getElementById('scan_date');
             const gestationalAge = document.getElementById('gestational_age');
             const fetalWeight = document.getElementById('fetal_weight');
-            const gaHint = document.getElementById('ga_hint');
             
             function showError(element, message) {
                 element.classList.add('border-red-500');
@@ -378,31 +381,7 @@
             
             // Gestational Age vs LMP validation (matching Prenatal Visit logic)
             function validateGA() {
-                const lmp = patientLmp;
-                const ga = parseFloat(gestationalAge?.value);
-                const scanDateValue = scanDate?.value;
-
-                if (lmp && ga && scanDateValue) {
-                    const lmpDate = new Date(lmp);
-                    const scanDateObj = new Date(scanDateValue);
-                    const diffDays = (scanDateObj - lmpDate) / (1000 * 60 * 60 * 24);
-                    const expectedWeeks = diffDays / 7;
-                    
-                    if (Math.abs(expectedWeeks - ga) > 3) {
-                        showError(gestationalAge, `Based on LMP (${lmp}), expected GA is ${expectedWeeks.toFixed(1)} weeks. Current GA should be within ±3 weeks.`);
-                        gaHint.innerHTML = `Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
-                        gaHint.classList.add('text-orange-600');
-                        gaHint.classList.remove('text-green-600');
-                        return false;
-                    } else {
-                        hideError(gestationalAge);
-                        gaHint.innerHTML = `✅ Based on LMP, expected GA: ${expectedWeeks.toFixed(1)} weeks`;
-                        gaHint.classList.remove('text-orange-600');
-                        gaHint.classList.add('text-green-600');
-                        return true;
-                    }
-                }
-                return true;
+                return window.validateGestationalAge();
             }
             
             // Validate gestational age range

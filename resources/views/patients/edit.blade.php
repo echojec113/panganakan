@@ -147,7 +147,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Birthdate <span class="text-red-500">*</span></label>
                             <input type="date" id="birthdate" name="birthdate"
-                                value="{{ old('birthdate', $patient->birthdate) }}"
+                                value="{{ old('birthdate', $patient->birthdate?->format('Y-m-d')) }}"
                                 max="{{ date('Y-m-d') }}"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('birthdate') border-red-500 @enderror">
                             <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
@@ -293,7 +293,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Last Menstrual Period <span class="text-red-500">*</span></label>
                             <input type="date" id="lmp" name="lmp"
-                                value="{{ old('lmp', $patient->lmp) }}"
+                                value="{{ old('lmp', $patient->lmp?->format('Y-m-d')) }}"
                                 max="{{ date('Y-m-d') }}"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('lmp') border-red-500 @enderror">
                             <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
@@ -302,7 +302,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Expected Delivery Date</label>
                             <input type="date" id="edd" name="edd"
-                                value="{{ old('edd', $patient->edd) }}"
+                                value="{{ old('edd', $patient->edd?->format('Y-m-d')) }}"
                                 readonly
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed">
                             <p class="text-xs text-gray-500 mt-1">Auto-calculated from LMP (LMP + 280 days)</p>
@@ -368,12 +368,30 @@
     // EDD AUTO COMPUTE
     document.getElementById("lmp").addEventListener("change", function() {
         let lmp = new Date(this.value);
-        if (isNaN(lmp.getTime())) { document.getElementById("edd").value = ''; return; }
+        if (isNaN(lmp.getTime())) { document.getElementById("edd").value = ''; hideError(this); return; }
+
+        let today = new Date(); today.setHours(0,0,0,0);
+        let earliestValidLmp = new Date();
+        earliestValidLmp.setDate(earliestValidLmp.getDate() - (42 * 7));
+        earliestValidLmp.setHours(0,0,0,0);
+
+        if (lmp > today) {
+            document.getElementById("edd").value = '';
+            showError(this, 'Last menstrual period cannot be a future date.');
+            return;
+        }
+
+        if (lmp < earliestValidLmp) {
+            document.getElementById("edd").value = '';
+            showError(this, 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.');
+            return;
+        }
+
+        hideError(this);
+
         let edd = new Date(lmp);
         edd.setDate(edd.getDate() + 280);
         document.getElementById("edd").value = edd.toISOString().split('T')[0];
-        let today = new Date(); today.setHours(0,0,0,0);
-        if (lmp > today) { showError(this, 'LMP cannot be in the future'); } else { hideError(this); }
     });
 
     // CONTACT VALIDATION
@@ -419,13 +437,20 @@
     togglePhilHealth();
 
     // NAME FIELDS
+    const nameLabels = { first_name: 'First name', middle_name: 'Middle name', last_name: 'Last name' };
     ['first_name','middle_name','last_name'].forEach(field => {
         const input = document.querySelector(`[name="${field}"]`);
         if (input) {
             input.addEventListener("input", function() {
+                if (this.value.length > 24) {
+                    this.value = this.value.substring(0, 24);
+                    showError(this, nameLabels[field] + ' must not exceed 24 characters.');
+                } else {
+                    hideError(this);
+                }
                 if (this.value.length > 0 && !/^[a-zA-Z\s]*$/.test(this.value)) {
                     showError(this, 'Only letters and spaces allowed');
-                } else { hideError(this); }
+                }
             });
         }
     });
@@ -435,8 +460,10 @@
         let isValid = true;
         const firstName = document.querySelector('[name="first_name"]');
         if (!firstName.value.trim()) { showError(firstName, 'First name is required'); isValid = false; }
+        else if (firstName.value.length > 24) { showError(firstName, 'First name must not exceed 24 characters.'); isValid = false; }
         const lastName = document.querySelector('[name="last_name"]');
         if (!lastName.value.trim()) { showError(lastName, 'Last name is required'); isValid = false; }
+        else if (lastName.value.length > 24) { showError(lastName, 'Last name must not exceed 24 characters.'); isValid = false; }
         const birthdate = document.getElementById("birthdate");
         if (!birthdate.value) { showError(birthdate, 'Birthdate is required'); isValid = false; } 
         else {

@@ -260,6 +260,12 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
         |--------------------------------------------------------------------------
         */
 
+        Route::get('/prenatal-visits/archived', [PrenatalVisitController::class, 'archived'])
+            ->name('prenatal-visits.archived');
+
+        Route::post('/prenatal-visits/{id}/restore', [PrenatalVisitController::class, 'restoreArchived'])
+            ->name('prenatal-visits.restore');
+
         Route::resource('prenatal-visits', PrenatalVisitController::class);
         Route::resource('medical-histories', MedicalHistoryController::class);
         Route::resource('birth-plans', BirthPlanController::class);

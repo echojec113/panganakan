@@ -149,7 +149,8 @@
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-700">LMP <span class="text-red-500">*</span></label>
-                        <input id="modalLmp" name="lmp" type="date" required class="w-full mt-1 rounded-lg border-gray-300">
+                        <input id="modalLmp" name="lmp" type="date" required max="{{ date('Y-m-d') }}" class="w-full mt-1 rounded-lg border-gray-300">
+                        <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
                     </div>
                     <div>
                         <label class="text-sm font-medium text-gray-700">EDD <span class="text-red-500">*</span></label>
@@ -190,6 +191,24 @@
             document.getElementById('startPregnancyModal').classList.remove('flex');
         }
 
+        function showError(element, message) {
+            const errorSpan = element.nextElementSibling;
+            if (errorSpan && errorSpan.classList.contains('error-message')) {
+                errorSpan.textContent = message;
+                errorSpan.classList.remove('hidden');
+                element.classList.add('border-red-500');
+            }
+        }
+
+        function hideError(element) {
+            const errorSpan = element.nextElementSibling;
+            if (errorSpan && errorSpan.classList.contains('error-message')) {
+                errorSpan.textContent = '';
+                errorSpan.classList.add('hidden');
+                element.classList.remove('border-red-500');
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             const lmpInput = document.getElementById('modalLmp');
             const eddInput = document.getElementById('modalEdd');
@@ -198,8 +217,31 @@
                 lmpInput.addEventListener('change', function () {
                     if (!this.value) {
                         eddInput.value = '';
+                        hideError(this);
                         return;
                     }
+
+                    const lmp = new Date(this.value);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const earliestValidLmp = new Date();
+                    earliestValidLmp.setDate(earliestValidLmp.getDate() - (42 * 7));
+                    earliestValidLmp.setHours(0, 0, 0, 0);
+
+                    if (lmp > today) {
+                        eddInput.value = '';
+                        showError(this, 'Last menstrual period cannot be a future date.');
+                        return;
+                    }
+
+                    if (lmp < earliestValidLmp) {
+                        eddInput.value = '';
+                        showError(this, 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.');
+                        return;
+                    }
+
+                    hideError(this);
 
                     const lmpDate = new Date(this.value);
                     lmpDate.setDate(lmpDate.getDate() + 280);

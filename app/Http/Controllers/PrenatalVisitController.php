@@ -18,6 +18,7 @@ use App\Services\MedicalHistoryConditionSyncService;
 use App\Services\PatientAssessmentRecalculationService;
 use App\Services\RiskAssessmentService;
 use App\Services\SystemNotificationService;
+use App\Services\GestationalAgeCalculator;
 use App\ValueObjects\AssessmentContext;
 
 class PrenatalVisitController extends Controller
@@ -28,6 +29,7 @@ class PrenatalVisitController extends Controller
     private AssessmentMetadataSerializer $metadataSerializer;
     private AssessmentContextBuilder $contextBuilder;
     private SystemNotificationService $notifications;
+    private GestationalAgeCalculator $gestationalAgeCalculator;
 
     public function __construct(
         RiskAssessmentService $riskAssessmentService,
@@ -35,7 +37,8 @@ class PrenatalVisitController extends Controller
         MedicalHistoryConditionSyncService $medicalHistorySyncService,
         AssessmentMetadataSerializer $metadataSerializer,
         AssessmentContextBuilder $contextBuilder,
-        SystemNotificationService $notifications
+        SystemNotificationService $notifications,
+        GestationalAgeCalculator $gestationalAgeCalculator
     ) {
         $this->riskAssessmentService = $riskAssessmentService;
         $this->recalculationService = $recalculationService;
@@ -43,6 +46,7 @@ class PrenatalVisitController extends Controller
         $this->metadataSerializer = $metadataSerializer;
         $this->contextBuilder = $contextBuilder;
         $this->notifications = $notifications;
+        $this->gestationalAgeCalculator = $gestationalAgeCalculator;
     }
 
 
@@ -226,24 +230,83 @@ class PrenatalVisitController extends Controller
     ));
 }
 
+    public function archived()
+    {
+        $visits = PrenatalVisit::onlyTrashed()
+            ->with('patient')
+            ->whereHas('patient')
+            ->orderByDesc('deleted_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('prenatal_visits.archived', compact('visits'));
+    }
+
+    public function restoreArchived($id)
+    {
+        $visit = PrenatalVisit::onlyTrashed()
+            ->whereHas('patient')
+            ->findOrFail($id);
+
+        $visit->restore();
+
+        return redirect()->route('prenatal-visits.index')
+            ->with('success', 'Prenatal visit restored successfully.');
+    }
+
     public function create(Request $request)
     {
-        $patients = Patient::all();
-        $selectedPatient = $request->patient_id;
+        if ($request->has('patient_id')) {
+            $patient = Patient::findOrFail($request->patient_id);
 
-        $sourcePreview = null;
-        if ($selectedPatient) {
-            $patient = Patient::find($selectedPatient);
-            if ($patient) {
-                $sourcePreview = $this->sourcePreview($this->contextBuilder->buildForPatient($patient, null, []));
-            }
+            session([
+                'prenatal_visit_locked_patient_id' => $patient->id,
+            ]);
+
+            $sourcePreview = $this->sourcePreview($this->contextBuilder->buildForPatient($patient, null, []));
+            $referenceDate = $request->old('visit_date', today()->toDateString());
+            $expectedGestationalAge = $this->calculateInitialGestationalAge($patient, $referenceDate);
+            $gestationalAgeHint = $this->gestationalAgeHint($patient, $referenceDate, $expectedGestationalAge);
+
+            return view('prenatal_visits.create', [
+                'lockedPatient' => $patient,
+                'sourcePreview' => $sourcePreview,
+                'expectedGestationalAge' => $expectedGestationalAge,
+                'gestationalAgeHint' => $gestationalAgeHint,
+                'hasOldGestationalAge' => $request->session()->hasOldInput('gestational_age'),
+            ]);
         }
 
-        return view('prenatal_visits.create', compact('patients', 'selectedPatient', 'sourcePreview'));
+        session()->forget('prenatal_visit_locked_patient_id');
+
+        $patients = Patient::all();
+        $selectedPatient = $request->old('patient_id')
+            ? Patient::find($request->old('patient_id'))
+            : null;
+        $referenceDate = $request->old('visit_date', today()->toDateString());
+        $expectedGestationalAge = $this->calculateInitialGestationalAge($selectedPatient, $referenceDate);
+        $gestationalAgeHint = $this->gestationalAgeHint($selectedPatient, $referenceDate, $expectedGestationalAge);
+
+        return view('prenatal_visits.create', [
+            'patients' => $patients,
+            'lockedPatient' => null,
+            'selectedPatient' => $request->old('patient_id'),
+            'expectedGestationalAge' => $expectedGestationalAge,
+            'gestationalAgeHint' => $gestationalAgeHint,
+            'hasOldGestationalAge' => $request->session()->hasOldInput('gestational_age'),
+        ]);
     }
 
     public function store(Request $request)
     {
+        $lockedPatientId = session('prenatal_visit_locked_patient_id');
+
+        if ($lockedPatientId && (int) $request->patient_id !== (int) $lockedPatientId) {
+            return back()->withErrors([
+                'patient_id' => 'Patient mismatch. Please reopen Add Prenatal Visit from the patient\'s profile.',
+            ])->withInput();
+        }
+
         // ======================
         // ENHANCED VALIDATION
         // ======================
@@ -252,14 +315,14 @@ class PrenatalVisitController extends Controller
             'visit_date' => 'required|date|before_or_equal:today',
 
             // Vital Signs
-            'bp_sys' => 'required|numeric|min:60|max:200',
-            'bp_dia' => 'required|numeric|min:40|max:130',
-            'weight' => 'required|numeric|min:30|max:150',
+            'bp_sys' => 'required|numeric|min:60|max:480',
+            'bp_dia' => 'required|numeric|min:40|max:350',
+            'weight' => 'required|numeric|min:30|max:250|regex:/^\d+(\.\d)?$/',
             'temperature' => 'nullable|numeric|min:35|max:40',
 
             // Repeat BP (optional, both-or-neither)
-            'repeat_bp_sys' => 'nullable|required_with:repeat_bp_dia|numeric|min:60|max:200',
-            'repeat_bp_dia' => 'nullable|required_with:repeat_bp_sys|numeric|min:40|max:130',
+            'repeat_bp_sys' => 'nullable|required_with:repeat_bp_dia|numeric|min:60|max:480',
+            'repeat_bp_dia' => 'nullable|required_with:repeat_bp_sys|numeric|min:40|max:350',
             'bp_verification_status' => 'nullable|string|in:UNABLE_TO_REPEAT',
             'bp_verification_note' => 'nullable|string|max:500',
 
@@ -289,11 +352,12 @@ class PrenatalVisitController extends Controller
         ], [
             // Custom error messages
             'bp_sys.min' => 'Systolic BP must be at least 60 mmHg',
-            'bp_sys.max' => 'Systolic BP cannot exceed 200 mmHg',
+            'bp_sys.max' => 'Systolic BP cannot exceed 480 mmHg',
             'bp_dia.min' => 'Diastolic BP must be at least 40 mmHg',
-            'bp_dia.max' => 'Diastolic BP cannot exceed 130 mmHg',
+            'bp_dia.max' => 'Diastolic BP cannot exceed 350 mmHg',
             'weight.min' => 'Weight must be at least 30 kg',
-            'weight.max' => 'Weight cannot exceed 150 kg',
+            'weight.max' => 'Weight cannot exceed 250 kg',
+            'weight.regex' => 'Weight must have at most 1 decimal place',
             'temperature.min' => 'Temperature must be at least 35°C',
             'temperature.max' => 'Temperature cannot exceed 40°C',
             'gestational_age.min' => 'Gestational age must be at least 4 weeks',
@@ -337,13 +401,20 @@ class PrenatalVisitController extends Controller
         // Gestational age vs LMP validation
         $patient = Patient::find($request->patient_id);
         if ($patient && $patient->lmp) {
-            $lmpDate = Carbon::parse($patient->lmp);
-            $visitDate = Carbon::parse($request->visit_date);
-            $expectedWeeks = $lmpDate->diffInWeeks($visitDate);
+            $expectedWeeks = $this->gestationalAgeCalculator->calculate(
+                $patient->lmp->toDateString(),
+                $request->visit_date
+            );
 
-            if (abs($expectedWeeks - $request->gestational_age) > 3) {
+            if ($expectedWeeks === null) {
                 return back()->withErrors([
-                    'gestational_age' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks (±3 weeks allowed)."
+                    'gestational_age' => 'Visit date cannot be before the patient\'s LMP.',
+                ])->withInput();
+            }
+
+            if (abs($expectedWeeks - (float) $request->gestational_age) > 3) {
+                return back()->withErrors([
+                    'gestational_age' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is {$expectedWeeks} weeks (±3 weeks allowed)."
                 ])->withInput();
             }
         }
@@ -500,6 +571,10 @@ class PrenatalVisitController extends Controller
             'Added visit for patient: ' . $patient->first_name . ' ' . $patient->last_name
         );
 
+        if ($lockedPatientId) {
+            session()->forget('prenatal_visit_locked_patient_id');
+        }
+
         return redirect()->route('prenatal-visits.index')
             ->with('success', 'Prenatal visit added successfully with risk assessment');
     }
@@ -523,6 +598,10 @@ class PrenatalVisitController extends Controller
     {
         $visit = PrenatalVisit::findOrFail($id);
         $patients = Patient::all();
+        $referenceDate = request()->old('visit_date', $visit->visit_date?->toDateString());
+        $expectedGestationalAge = $this->calculateInitialGestationalAge($visit->patient, $referenceDate);
+        $gestationalAgeHint = $this->gestationalAgeHint($visit->patient, $referenceDate, $expectedGestationalAge);
+        $hasOldGestationalAge = request()->session()->hasOldInput('gestational_age');
 
         $sourcePreview = $this->sourcePreview(
             $this->contextBuilder->buildForPatient(
@@ -533,7 +612,60 @@ class PrenatalVisitController extends Controller
             )
         );
 
-        return view('prenatal_visits.edit', compact('visit', 'patients', 'sourcePreview'));
+        return view('prenatal_visits.edit', compact(
+            'visit',
+            'patients',
+            'sourcePreview',
+            'expectedGestationalAge',
+            'gestationalAgeHint',
+            'hasOldGestationalAge'
+        ));
+    }
+
+    private function calculateInitialGestationalAge(?Patient $patient, ?string $referenceDate): ?float
+    {
+        if (!$referenceDate || !Carbon::hasFormat($referenceDate, 'Y-m-d')) {
+            return null;
+        }
+
+        $expected = $this->gestationalAgeCalculator->calculate(
+            $patient?->lmp?->toDateString(),
+            $referenceDate
+        );
+
+        return $expected !== null && $expected >= 4 && $expected <= 42 ? $expected : null;
+    }
+
+    private function gestationalAgeHint(?Patient $patient, ?string $referenceDate, ?float $expected): string
+    {
+        if (!$patient) {
+            return 'Select a patient to calculate expected gestational age.';
+        }
+
+        if (!$patient->lmp) {
+            return 'No LMP available for automatic GA calculation.';
+        }
+
+        if (!$referenceDate || !Carbon::hasFormat($referenceDate, 'Y-m-d')) {
+            return 'Enter a valid visit date to calculate expected gestational age.';
+        }
+
+        if ($referenceDate < $patient->lmp->toDateString()) {
+            return 'Visit date cannot be before the patient’s LMP.';
+        }
+
+        if ($expected === null) {
+            $calculated = $this->gestationalAgeCalculator->calculate(
+                $patient->lmp->toDateString(),
+                $referenceDate
+            );
+
+            return $calculated === null
+                ? 'Unable to calculate gestational age from these dates.'
+                : sprintf('Calculated GA: %.1f weeks is outside the allowed 4–42 week range.', $calculated);
+        }
+
+        return sprintf('Expected GA: %.1f weeks based on LMP', $expected);
     }
 
     /**
@@ -572,14 +704,14 @@ class PrenatalVisitController extends Controller
         $validated = $request->validate([
             'patient_id' => 'required|exists:patients,id',
             'visit_date' => 'required|date|before_or_equal:today',
-            'bp_sys' => 'required|numeric|min:60|max:200',
-            'bp_dia' => 'required|numeric|min:40|max:130',
-            'weight' => 'required|numeric|min:30|max:150',
+            'bp_sys' => 'required|numeric|min:60|max:480',
+            'bp_dia' => 'required|numeric|min:40|max:350',
+            'weight' => 'required|numeric|min:30|max:250|regex:/^\d+(\.\d)?$/',
             'temperature' => 'nullable|numeric|min:35|max:40',
 
             // Repeat BP (optional, both-or-neither)
-            'repeat_bp_sys' => 'nullable|required_with:repeat_bp_dia|numeric|min:60|max:200',
-            'repeat_bp_dia' => 'nullable|required_with:repeat_bp_sys|numeric|min:40|max:130',
+            'repeat_bp_sys' => 'nullable|required_with:repeat_bp_dia|numeric|min:60|max:480',
+            'repeat_bp_dia' => 'nullable|required_with:repeat_bp_sys|numeric|min:40|max:350',
             'bp_verification_status' => 'nullable|string|in:UNABLE_TO_REPEAT',
             'bp_verification_note' => 'nullable|string|max:500',
 
@@ -599,11 +731,12 @@ class PrenatalVisitController extends Controller
             'notes' => 'nullable|string'
         ], [
             'bp_sys.min' => 'Systolic BP must be at least 60 mmHg',
-            'bp_sys.max' => 'Systolic BP cannot exceed 200 mmHg',
+            'bp_sys.max' => 'Systolic BP cannot exceed 480 mmHg',
             'bp_dia.min' => 'Diastolic BP must be at least 40 mmHg',
-            'bp_dia.max' => 'Diastolic BP cannot exceed 130 mmHg',
+            'bp_dia.max' => 'Diastolic BP cannot exceed 350 mmHg',
             'weight.min' => 'Weight must be at least 30 kg',
-            'weight.max' => 'Weight cannot exceed 150 kg',
+            'weight.max' => 'Weight cannot exceed 250 kg',
+            'weight.regex' => 'Weight must have at most 1 decimal place',
             'gestational_age.min' => 'Gestational age must be at least 4 weeks',
             'gestational_age.max' => 'Gestational age cannot exceed 42 weeks',
             'visit_date.before_or_equal' => 'Visit date cannot be in the future',
@@ -649,13 +782,20 @@ class PrenatalVisitController extends Controller
         // Gestational age vs LMP validation
         $patient = $visit->patient;
         if ($patient && $patient->lmp) {
-            $lmpDate = Carbon::parse($patient->lmp);
-            $visitDate = Carbon::parse($request->visit_date);
-            $expectedWeeks = $lmpDate->diffInWeeks($visitDate);
+            $expectedWeeks = $this->gestationalAgeCalculator->calculate(
+                $patient->lmp->toDateString(),
+                $request->visit_date
+            );
 
-            if (abs($expectedWeeks - $request->gestational_age) > 3) {
+            if ($expectedWeeks === null) {
                 return back()->withErrors([
-                    'gestational_age' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks (±3 weeks allowed)."
+                    'gestational_age' => 'Visit date cannot be before the patient\'s LMP.',
+                ])->withInput();
+            }
+
+            if (abs($expectedWeeks - (float) $request->gestational_age) > 3) {
+                return back()->withErrors([
+                    'gestational_age' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is {$expectedWeeks} weeks (±3 weeks allowed)."
                 ])->withInput();
             }
         }
@@ -938,13 +1078,12 @@ class PrenatalVisitController extends Controller
 
         // ✅ AUDIT LOG
         $this->logAction(
-            'DELETE',
+            'ARCHIVE',
             'PRENATAL_VISIT',
-            'Deleted visit for patient ID: ' . $patientId
+            'Archived visit for patient ID: ' . $patientId
         );
 
         return redirect()->route('prenatal-visits.index')
-            ->with('success', 'Patient record has been deleted.')
-            ->with('delete_success', true);
+            ->with('success', 'Prenatal visit archived successfully.');
     }
 }

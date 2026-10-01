@@ -46,6 +46,33 @@ it('shows an ONGOING patient prenatal visit on the Prenatal Visits page', functi
     $response->assertSee(route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits']));
 });
 
+it('omits the row edit action while retaining view delete and edit functionality', function () {
+    $user = activeListingUser();
+    $patient = activeListingPatient();
+    $visit = PrenatalVisit::create([
+        'patient_id' => $patient->id,
+        'visit_date' => now()->toDateString(),
+        'bp_sys' => 120,
+        'bp_dia' => 80,
+        'weight' => 60,
+        'gestational_age' => 24,
+        'risk_level' => 'LOW',
+    ]);
+
+    $list = $this->actingAs($user)->get(route('prenatal-visits.index'));
+    $list->assertOk()
+        ->assertSee(route('patients.show', ['patient' => $visit->patient_id, 'from' => 'prenatal-visits']), false)
+        ->assertSee(route('prenatal-visits.destroy', $visit->id), false)
+        ->assertDontSee(route('prenatal-visits.edit', $visit->id), false)
+        ->assertDontSee('title="Edit"', false);
+
+    $profile = $this->actingAs($user)->get(route('patients.show', $patient->id));
+    $profile->assertOk()->assertSee(route('prenatal-visits.edit', $visit->id), false);
+
+    $editPage = $this->actingAs($user)->get(route('prenatal-visits.edit', $visit->id));
+    $editPage->assertOk();
+});
+
 it('hides a DELIVERED patient prenatal visit from the Prenatal Visits page but keeps the record intact', function () {
     $user = activeListingUser();
     $patient = activeListingPatient([

@@ -68,7 +68,12 @@
 
                    <div>
                        <label class="staff-label block text-sm font-medium">Name</label>
-                       <input type="text" name="name" class="staff-input mt-1 block h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+                       <input
+    type="text"
+    name="name"
+    maxlength="24"
+    class="staff-input mt-1 block h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]"
+>
                    </div>
 
                    <div>

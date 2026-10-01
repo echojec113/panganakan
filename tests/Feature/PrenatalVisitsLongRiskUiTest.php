@@ -45,7 +45,8 @@ it('renders a long risk value in full with wrapping enabled and keeps all action
     expect($html)->toContain(route('prenatal-visits.destroy', $visit->id));
     expect($html)->toContain('title="View"');
     expect($html)->toContain('title="Edit"');
-    expect($html)->toContain('title="Delete"');
+    expect($html)->toContain('title="Archive"');
+    expect($html)->toContain('Archive Prenatal Visit?');
 });
 
 it('keeps the normal risk badge variants unchanged for HIGH, LOW, and ASSESSMENT INCOMPLETE', function () {

@@ -43,7 +43,7 @@
         <div class="box"><div class="label">Visit Date</div><div class="value">{{ $visit->visit_date ? \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') : 'N/A' }}</div></div>
         <div class="box"><div class="label">Blood Pressure</div><div class="value">{{ $visit->bp_sys }}/{{ $visit->bp_dia }}</div></div>
         <div class="box"><div class="label">Repeat BP</div><div class="value">{{ ($visit->repeat_bp_sys && $visit->repeat_bp_dia) ? $visit->repeat_bp_sys . '/' . $visit->repeat_bp_dia : 'Not recorded' }}</div></div>
-        <div class="box"><div class="label">Weight</div><div class="value">{{ $visit->weight ?? 'N/A' }} kg</div></div>
+        <div class="box"><div class="label">Weight</div><div class="value">{{ \App\Support\WeightFormatter::formatKg($visit->weight) !== null ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg' : 'N/A' }}</div></div>
         <div class="box"><div class="label">Temperature</div><div class="value">{{ $visit->temperature ?? 'N/A' }}&deg;C</div></div>
         <div class="box"><div class="label">Gestational Age</div><div class="value">{{ $visit->gestational_age ?? 'N/A' }} wks</div></div>
         <div class="box"><div class="label">Fetal Heart Tone</div><div class="value">{{ $visit->fetal_heart_tone ?: 'N/A' }}</div></div>

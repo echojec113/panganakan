@@ -112,3 +112,41 @@ it('renders legacy json-string missing records with a fallback for empty data', 
     $response->assertOk();
     $response->assertSeeText('Laboratory results');
 });
+
+it('places the single sticky profile navigation before the patient header and preserves all section anchors', function () {
+    $user = User::factory()->create(['role' => 'staff']);
+    $patient = legacyShowPatient();
+    legacyShowVisit($patient->id, ['risk_level' => 'HIGH']);
+
+    $response = $this->actingAs($user)->get(route('patients.show', $patient->id));
+
+    $response->assertOk();
+    $content = $response->getContent();
+    $navigationPosition = strpos($content, 'class="patient-profile-nav');
+    $headerPosition = strpos($content, '<!-- Patient Header -->');
+    $attentionPosition = strpos($content, 'Attention Required');
+    $overviewPosition = strpos($content, 'id="overview"');
+
+    expect(substr_count($content, 'class="patient-profile-nav'))->toBe(1)
+        ->and($navigationPosition)->toBeLessThan($headerPosition)
+        ->and($headerPosition)->toBeLessThan($attentionPosition)
+        ->and($attentionPosition)->toBeLessThan($overviewPosition)
+        ->and($content)->toContain('scroll-behavior: smooth;')
+        ->and($content)->toContain('position: sticky;')
+        ->and($content)->toContain('top: var(--profile-header-height, 56px);')
+        ->and($content)->toContain('z-index: 40;')
+        ->and($content)->toContain('bg-white');
+
+    foreach ([
+        'overview',
+        'prenatal-visits',
+        'medical-history',
+        'ultrasound',
+        'birth-plan',
+        'risk-assessment',
+        'referral-follow-through',
+    ] as $section) {
+        $response->assertSee('href="#' . $section . '"', false);
+        $response->assertSee('id="' . $section . '"', false);
+    }
+});

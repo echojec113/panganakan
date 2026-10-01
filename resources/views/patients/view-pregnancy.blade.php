@@ -66,7 +66,7 @@
                             <tr id="visit-details-{{ $visit->id }}" class="hidden bg-gray-50">
                                 <td colspan="4" class="px-5 py-4 text-sm text-gray-700">
                                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                                        <div><span class="font-semibold">Weight:</span> {{ $visit->weight ?? 'N/A' }} kg</div>
+                                        <div><span class="font-semibold">Weight:</span> {{ $visit->weight !== null ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg' : 'N/A' }}</div>
                                         <div><span class="font-semibold">Gestational Age:</span> {{ $visit->gestational_age ?? 'N/A' }} weeks</div>
                                         <div><span class="font-semibold">Temperature:</span> {{ $visit->temperature ?? 'N/A' }}&deg;C</div>
                                         <div><span class="font-semibold">Next Visit:</span> {{ $visit->next_visit_date?->format('M d, Y') ?: 'Not scheduled' }}</div>
@@ -109,7 +109,7 @@
                             <div><dt class="text-gray-500">Sex</dt><dd class="font-medium text-gray-900">{{ $baby->sex ?: 'Not recorded' }}</dd></div>
                             <div><dt class="text-gray-500">Date of Birth</dt><dd class="font-medium text-gray-900">{{ $baby->date_of_birth?->format('M d, Y') ?: 'Not recorded' }}</dd></div>
                             <div><dt class="text-gray-500">Time of Birth</dt><dd class="font-medium text-gray-900">{{ $baby->time_of_birth?->format('h:i A') ?: 'Not recorded' }}</dd></div>
-                            <div><dt class="text-gray-500">Birth Weight</dt><dd class="font-medium text-gray-900">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'Not recorded' }}</dd></div>
+                            <div><dt class="text-gray-500">Birth Weight</dt><dd class="font-medium text-gray-900">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'Not recorded' }}</dd></div>
                             <div><dt class="text-gray-500">Birth Length</dt><dd class="font-medium text-gray-900">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'Not recorded' }}</dd></div>
                         </dl>
                     </div>

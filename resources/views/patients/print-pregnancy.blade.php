@@ -50,7 +50,7 @@
                     <tr>
                         <td>{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
                         <td>{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
-                        <td>{{ $visit->weight ?? 'N/A' }} kg</td>
+                        <td>{{ $visit->weight !== null ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg' : 'N/A' }}</td>
                         <td>{{ $visit->gestational_age ?? 'N/A' }} weeks</td>
                         <td>{{ $visit->risk_level ?: 'Not recorded' }}</td>
                         <td>{{ $visit->assessment ?: 'No assessment recorded.' }}</td>
@@ -83,7 +83,7 @@
             <div class="box"><div class="label">Sex</div><div class="value">{{ $baby->sex ?: 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Date of Birth</div><div class="value">{{ $baby->date_of_birth?->format('M d, Y') ?: 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Time of Birth</div><div class="value">{{ $baby->time_of_birth?->format('h:i A') ?: 'Not recorded' }}</div></div>
-            <div class="box"><div class="label">Birth Weight</div><div class="value">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'Not recorded' }}</div></div>
+            <div class="box"><div class="label">Birth Weight</div><div class="value">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Birth Length</div><div class="value">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'Not recorded' }}</div></div>
         </div>
     @empty

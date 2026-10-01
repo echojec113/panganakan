@@ -15,6 +15,25 @@
 
                 <x-slot name="actions">
                     <a
+                        href="{{ route('prenatal-visits.archived') }}"
+                        class="btn btn-secondary"
+                    >
+                        <svg
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4m4-4v4"
+                            />
+                        </svg>
+                        Archived
+                    </a>
+                    <a
                         href="{{ route('prenatal-visits.create') }}"
                         class="inline-flex items-center gap-2 rounded-xl bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A]/30"
                     >
@@ -430,8 +449,8 @@
 
                                     {{-- Weight --}}
                                     <td class="whitespace-nowrap px-5 py-4 text-gray-700">
-                                        {{ !is_null($visit->weight)
-                                            ? rtrim(rtrim(number_format((float) $visit->weight, 2, '.', ''), '0'), '.') . ' kg'
+                                        {{ \App\Support\WeightFormatter::formatKg($visit->weight) !== null
+                                            ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg'
                                             : '—' }}
                                     </td>
 
@@ -520,8 +539,7 @@
                                                 'patient' => $visit->patient_id,
                                                 'from' => 'prenatal-visits'
                                             ])"
-                                            :editRoute="route('prenatal-visits.edit', $visit->id)"
-                                            :deleteRoute="route('prenatal-visits.destroy', $visit->id)"
+                                            :archiveRoute="route('prenatal-visits.destroy', $visit->id)"
                                         />
 
                                     </td>
@@ -791,6 +809,70 @@
                 prenatalFilterForm.requestSubmit();
             });
         }
+    </script>
+
+    <div id="archiveVisitModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div class="flex items-start gap-4">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Archive Prenatal Visit?</h3>
+                    <p class="mt-1 text-sm leading-6 text-gray-500">
+                        This prenatal visit will be moved to Archived Prenatal Visits and can be restored later.
+                    </p>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" onclick="closeArchiveVisitModal()" class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" id="confirmArchiveVisitButton" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">
+                    Archive Visit
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pendingArchiveVisitForm = null;
+
+        function confirmArchiveVisit(button) {
+            pendingArchiveVisitForm = button.closest('form');
+            const modal = document.getElementById('archiveVisitModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeArchiveVisitModal() {
+            const modal = document.getElementById('archiveVisitModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            pendingArchiveVisitForm = null;
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('confirmArchiveVisitButton')?.addEventListener('click', function () {
+            if (pendingArchiveVisitForm) {
+                pendingArchiveVisitForm.submit();
+            }
+        });
+
+        document.getElementById('archiveVisitModal')?.addEventListener('click', function (event) {
+            if (event.target === this) {
+                closeArchiveVisitModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                closeArchiveVisitModal();
+            }
+        });
     </script>
 
 </x-app-layout>
