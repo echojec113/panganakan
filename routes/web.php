@@ -176,6 +176,15 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     |--------------------------------------------------------------------------
     */
 
+    Route::get('/staff/archived', [StaffController::class, 'archived'])
+        ->name('staff.archived');
+
+    Route::post('/staff/{id}/restore', [StaffController::class, 'restore'])
+        ->name('staff.restore');
+
+    Route::post('/staff/{staff}/reset-account', [StaffController::class, 'resetAccount'])
+        ->name('staff.reset-account');
+
     Route::resource('staff', StaffController::class)->except(['show']);
 
     /*

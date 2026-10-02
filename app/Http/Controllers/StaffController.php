@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 
 class StaffController extends Controller
 {
@@ -28,6 +29,18 @@ class StaffController extends Controller
 
     return view('staff.index', compact('staffs'));
 }
+
+    public function archived()
+    {
+        $this->checkAdmin();
+
+        $staffs = User::onlyTrashed()
+            ->where('role', 'staff')
+            ->orderByDesc('deleted_at')
+            ->get();
+
+        return view('staff.archived', compact('staffs'));
+    }
 
     // ➕ Show create form
     public function create()
@@ -123,19 +136,66 @@ public function update(Request $request, User $staff)
 public function destroy(User $staff)
 {
     $this->checkAdmin();
+    abort_unless($staff->role === 'staff', 404);
 
-    // ✅ save BEFORE delete
     $name = $staff->name;
-
     $staff->delete();
 
-    // ✅ AUDIT LOG
     $this->logAction(
-        'DELETE',
+        'ARCHIVE',
         'STAFF',
-        'Deleted staff: ' . $name
+        'Archived staff: ' . $name
     );
 
-    return redirect()->route('staff.index')->with('success', 'Staff deleted.');
+    return redirect()->route('staff.index')->with('success', 'Staff archived successfully.');
+}
+
+public function resetAccount(User $staff)
+{
+    $this->checkAdmin();
+    abort_unless($staff->role === 'staff', 404);
+
+    $status = Password::sendResetLink([
+        'email' => $staff->email,
+    ]);
+
+    if ($status === Password::RESET_LINK_SENT) {
+        $this->logAction(
+            'PASSWORD_RESET_REQUESTED',
+            'STAFF',
+            'Admin requested password reset for staff: '.$staff->name.' (ID: '.$staff->id.')'
+        );
+
+        return redirect()->route('staff.index')
+            ->with('success', 'Password reset link sent to the staff member\'s registered email.');
+    }
+
+    if ($status === Password::RESET_THROTTLED) {
+        return redirect()->route('staff.index')
+            ->with('error', 'A password reset link was requested recently. Please wait before trying again.');
+    }
+
+    return redirect()->route('staff.index')
+        ->with('error', 'Unable to send a password reset link. Please try again later.');
+}
+
+public function restore($id)
+{
+    $this->checkAdmin();
+
+    $staff = User::onlyTrashed()
+        ->where('role', 'staff')
+        ->findOrFail($id);
+
+    $name = $staff->name;
+    $staff->restore();
+
+    $this->logAction(
+        'RESTORE',
+        'STAFF',
+        'Restored staff: ' . $name
+    );
+
+    return redirect()->route('staff.index')->with('success', 'Staff restored successfully.');
 }
 }

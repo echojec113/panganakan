@@ -14,6 +14,9 @@
             border-color: var(--staff-primary);
             --tw-ring-color: var(--staff-primary);
         }
+        #staff-password::-ms-reveal {
+            display: none;
+        }
         .add-staff-theme .staff-label { color: var(--staff-text); }
         .add-staff-theme .staff-back { color: var(--staff-muted); }
         .add-staff-theme .staff-back:hover { color: var(--staff-primary-hover); }
@@ -83,8 +86,28 @@
 
 
                    <div>
-                       <label class="staff-label block text-sm font-medium">Password</label>
-                       <input type="password" name="password" class="staff-input mt-1 block h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+                       <label for="staff-password" class="staff-label block text-sm font-medium">Password</label>
+                       <div class="relative mt-1">
+                           <input id="staff-password" type="password" name="password" class="staff-input block h-10 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+                           <button
+                               type="button"
+                               data-password-toggle="staff-password"
+                               aria-label="Show password"
+                               aria-pressed="false"
+                               class="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-400 transition hover:text-[#367E4B] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#55B85A]"
+                           >
+                               <svg data-icon="show" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                   <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0z" />
+                                   <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                               </svg>
+                               <svg data-icon="hide" class="hidden h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                                   <path d="M9.88 9.88a3 3 0 1 0 4.243 4.243" />
+                                   <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c4.478 0 8.268 2.943 9.543 7a9.96 9.96 0 0 1-1.563 3.029" />
+                                   <path d="M6.603 6.602A10.08 10.08 0 0 0 2.458 12c1.274 4.057 5.064 7 9.542 7a9.94 9.94 0 0 0 5.399-1.603" />
+                                   <line x1="3" y1="3" x2="21" y2="21" />
+                               </svg>
+                           </button>
+                       </div>
                    </div>
 
                    <div class="flex justify-end border-t border-gray-100 pt-5">
@@ -109,6 +132,22 @@
 
     <!-- Script -->
     <script>
+        document.querySelectorAll('[data-password-toggle]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const input = document.getElementById(button.getAttribute('data-password-toggle'));
+                if (!input) {
+                    return;
+                }
+
+                const willShow = input.type === 'password';
+                input.type = willShow ? 'text' : 'password';
+                button.setAttribute('aria-pressed', willShow ? 'true' : 'false');
+                button.setAttribute('aria-label', willShow ? 'Hide password' : 'Show password');
+                button.querySelector('[data-icon="show"]')?.classList.toggle('hidden', willShow);
+                button.querySelector('[data-icon="hide"]')?.classList.toggle('hidden', !willShow);
+            });
+        });
+
         const form = document.getElementById('staffForm');
         const modal = document.getElementById('popupModal');
         const title = document.getElementById('modalTitle');

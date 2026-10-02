@@ -1944,3 +1944,23 @@ Status: UI change complete; automated UI verification blocked by test bootstrap.
 - Updated the focused Patient Profile history test to assert the removed controls, retained Print links, and preserved row click behavior.
 - Verified the Prenatal Visit archive/restore workflow independently; its list, archive, and restore actions remain intact.
 - Defense notes: limit the removal to the Patient Profile Blade row and retain all resource routes/controller methods for other supported flows.
+
+## Manage Staff Archive and Restore (2026-10-02)
+
+- Reused `User` SoftDeletes and `users.deleted_at`; no migration, archive column, or permanent deletion was introduced.
+- Replaced the broken shared delete-button usage on Manage Staff with a staff-local Archive icon and confirmation modal. The dialog explains login deactivation and later restore, and offers Cancel/Archive actions.
+- Added an Archived link beside Add Staff and an Archived Staff page showing only soft-deleted `role = staff` users, with name, email, role, archived timestamp, and restore action.
+- Added admin-protected `staff.archived` and `staff.restore` routes before the staff resource routes. Controller actions reject non-staff targets; restore selects only trashed staff and calls `restore()`.
+- Archive/restore audit entries use `ARCHIVE` / `Archived staff: {name}` and `RESTORE` / `Restored staff: {name}`. The audit schema stores action as a free-form string.
+- Left `action-buttons.blade.php`, Prenatal Visit archive behavior, login logic, relationships, and foreign keys unchanged.
+- Verification: Staff Account Administration and Prenatal Visit Archive workflows passed (24 tests, 125 assertions); changed PHP files pass `php -l`, staff routes were confirmed by `route:list`, and `git diff --check` passed.
+- Defense notes: keep the archive behavior scoped to Manage Staff instead of changing shared action behavior used by Prenatal Visits and patient archive flows. No relationship cleanup runs because only the staff User row is soft-deleted.
+
+## Admin-Triggered Staff Password Reset (2026-10-02)
+
+- Added an authenticated POST `staff.reset-account` endpoint that uses Laravel's existing `Password::sendResetLink()` broker for the active staff model's registered email. Admin authorization, active-user model binding, and the exact `staff` role are required; archived and non-staff targets are rejected.
+- Added a per-row Reset Account icon and confirmation dialog to Manage Staff. The dialog shows the selected staff name and registered email; Cancel clears the selected form action, and Send Reset Link submits only after confirmation.
+- Broker status handling provides distinct success, throttling, and generic failure feedback. A safe `PASSWORD_RESET_REQUESTED` audit entry is written only after the broker reports success and contains the staff name/ID, not the token or URL.
+- Reused the existing reset notification, token table, expiry, reset form, and password-reset controller. No custom token system or migration was added, and the admin never receives a reset token or URL.
+- Verification: focused reset, Staff Account Administration, and existing password-reset suites passed (33 tests, 163 assertions); PHP syntax checks, reset-route registration, and `git diff --check` passed. Tests use `Notification::fake()` and PHPUnit's in-memory SQLite configuration; no real email or development/production database was involved.
+- Defense notes: resolve the target by route-bound User and derive the destination email from that persisted model, preventing client-supplied email/role values from changing the reset recipient or privilege. The reset request only issues a link and does not mutate staff or assigned patient data.

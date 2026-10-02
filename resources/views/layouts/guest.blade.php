@@ -457,14 +457,30 @@
                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                              </div>
                              <div>
-                                 <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Welcome Back</h2>
-                                 <p class="text-xs text-[#657083]">Sign in to your healthcare portal</p>
+                                 {{-- Header copy adapts per guest route; the DEPLA "Welcome Back" login copy is preserved exactly as before. --}}
+                                 @if (request()->routeIs('login'))
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Welcome Back</h2>
+                                     <p class="text-xs text-[#657083]">Sign in to your healthcare portal</p>
+                                 @elseif (request()->routeIs('register'))
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Create Account</h2>
+                                     <p class="text-xs text-[#657083]">Join the Depla Family Care portal</p>
+                                 @elseif (request()->routeIs('password.request'))
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Forgot Password</h2>
+                                     <p class="text-xs text-[#657083]">We'll email you a reset link</p>
+                                 @elseif (request()->routeIs('password.reset'))
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Reset Password</h2>
+                                     <p class="text-xs text-[#657083]">Choose a new password for your account</p>
+                                 @else
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Welcome</h2>
+                                     <p class="text-xs text-[#657083]">Depla Family Care Portal</p>
+                                 @endif
                              </div>
                          </div>
                      </div>
 
                      <!-- Card Body -->
                      <div class="px-8 py-8">
+                     @if (request()->routeIs('login'))
                          <x-auth-session-status class="mb-6" :status="session('status')" />
 
                          <form method="POST" action="{{ route('login') }}" class="space-y-5">
@@ -546,6 +562,12 @@
                                  </button>
                              </div>
                          </form>
+                     @else
+                         {{-- Non-login guest pages (register, forgot-password, reset-password, etc.)
+                              render their own page-specific form/content here instead of the
+                              hardcoded DEPLA login form above. --}}
+                         {{ $slot }}
+                     @endif
                      </div>
                  </div>
 
