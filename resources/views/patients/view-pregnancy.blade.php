@@ -34,7 +34,7 @@
                 <div><p class="text-xs font-medium text-gray-500">Contact Number</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->contact_number ?: 'Not recorded' }}</p></div>
                 <div><p class="text-xs font-medium text-gray-500">PhilHealth Member</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->philhealth_member ? 'Yes' : 'No' }}</p></div>
                 <div><p class="text-xs font-medium text-gray-500">PhilHealth Number</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->philhealth_number ?: 'Not recorded' }}</p></div>
-                <div class="sm:col-span-2"><p class="text-xs font-medium text-gray-500">Address</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->address ?: 'Not recorded' }}</p></div>
+                <div class="sm:col-span-2"><p class="text-xs font-medium text-gray-500">Address</p><p class="mt-1 font-semibold text-gray-900">{!! $patient->formatted_address !== '' ? nl2br(e($patient->formatted_address)) : 'Not recorded' !!}</p></div>
             </div>
         </section>
 

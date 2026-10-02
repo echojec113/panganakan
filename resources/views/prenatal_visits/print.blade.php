@@ -35,7 +35,7 @@
     <div class="grid">
         <div class="box"><div class="label">Age</div><div class="value">{{ $visit->patient->age ?: 'N/A' }}</div></div>
         <div class="box"><div class="label">Gravida / Para</div><div class="value">{{ $visit->patient->gravida ?? 'N/A' }} / {{ $visit->patient->para ?? 'N/A' }}</div></div>
-        <div class="box"><div class="label">Address</div><div class="value">{{ $visit->patient->address ?: 'N/A' }}</div></div>
+        <div class="box"><div class="label">Address</div><div class="value">{!! $visit->patient->formatted_address !== '' ? nl2br(e($visit->patient->formatted_address)) : 'N/A' !!}</div></div>
     </div>
 
     <h2>Visit Findings</h2>

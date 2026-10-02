@@ -93,13 +93,34 @@
                         </div>
 
                         <div class="mt-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Address <span class="text-red-500">*</span></label>
-                            <input type="text" name="address" 
-                                value="{{ old('address') }}"
-                                class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('address') border-red-500 @enderror"
-                                placeholder="Enter complete address">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Address Line <span class="text-red-500">*</span></label>
+                            <input type="text" name="address_line"
+                                value="{{ old('address_line') }}"
+                                class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('address_line') border-red-500 @enderror"
+                                placeholder="House/Unit/Bldg No., Street Name, Subdivision/Village">
                             <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
-                            @error('address')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                            @error('address_line')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Barangay <span class="text-red-500">*</span></label>
+                                <input type="text" name="barangay"
+                                    value="{{ old('barangay') }}"
+                                    class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('barangay') border-red-500 @enderror"
+                                    placeholder="Barangay name">
+                                <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                                @error('barangay')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">City / Municipality <span class="text-red-500">*</span></label>
+                                <input type="text" name="city_municipality"
+                                    value="{{ old('city_municipality') }}"
+                                    class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('city_municipality') border-red-500 @enderror"
+                                    placeholder="City or Municipality">
+                                <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                                @error('city_municipality')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -520,17 +541,21 @@
         }
     });
 
-    // Address validation
-    const addressInput = document.querySelector('[name="address"]');
-    if (addressInput) {
-        addressInput.addEventListener("blur", function() {
-            if (this.value.trim() === '') {
-                showError(this, 'Address is required');
-            } else {
-                hideError(this);
-            }
-        });
-    }
+    // Address validation (structured fields: address_line is free-text and
+    // never requires every placeholder component to be present)
+    const addressLabels = { address_line: 'Address Line', barangay: 'Barangay', city_municipality: 'City/Municipality' };
+    ['address_line', 'barangay', 'city_municipality'].forEach(field => {
+        const input = document.querySelector(`[name="${field}"]`);
+        if (input) {
+            input.addEventListener("blur", function() {
+                if (this.value.trim() === '') {
+                    showError(this, addressLabels[field] + ' is required');
+                } else {
+                    hideError(this);
+                }
+            });
+        }
+    });
 
     // Civil status validation
     const civilStatus = document.querySelector('[name="civil_status"]');
@@ -595,11 +620,14 @@
             }
         }
         
-        // Validate address
-        if (addressInput.value.trim() === '') {
-            showError(addressInput, 'Address is required');
-            isValid = false;
-        }
+        // Validate address (structured fields)
+        ['address_line', 'barangay', 'city_municipality'].forEach(field => {
+            const input = document.querySelector(`[name="${field}"]`);
+            if (input && input.value.trim() === '') {
+                showError(input, addressLabels[field] + ' is required');
+                isValid = false;
+            }
+        });
         
         // Validate contact
         if (!/^09\d{9}$/.test(contactInput.value)) {

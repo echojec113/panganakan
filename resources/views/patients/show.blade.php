@@ -279,9 +279,18 @@
                             @endif
                         </div>
 
-                        @if($patient->address)
-                            <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-                                {{ $patient->address }}
+                        @if($patient->formatted_address)
+                            {{-- Profile header only: present the full address as one
+                                 inline, comma-separated line (legacy addresses are
+                                 already single-line and pass through unchanged).
+                                 Print/export views keep using the multiline
+                                 formatted_address accessor untouched. --}}
+                            <p class="mt-2 flex max-w-2xl items-start gap-1.5 text-sm leading-6 text-gray-600">
+                                <svg class="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21.75c4.5-5.25 7.5-9.202 7.5-12.75a7.5 7.5 0 10-15 0c0 3.548 3 7.5 7.5 12.75z" />
+                                </svg>
+                                <span>{{ str_replace("\n", ', ', $patient->formatted_address) }}</span>
                             </p>
                         @endif
 
@@ -446,20 +455,13 @@
                             </a>
 
                             @if(auth()->user()->role !== 'admin')
-                                <form
-                                    method="POST"
-                                    action="{{ route('patients.start-new-pregnancy', $patient->id) }}"
+                                <button
+                                    type="button"
+                                    onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ str_replace("\n", ', ', $patient->formatted_address) }}', '{{ $patient->contact_number }}')"
+                                    class="btn btn-primary w-full justify-center"
                                 >
-                                    @csrf
-
-                                    <button
-                                        type="submit"
-                                        onclick="return confirm('Start a new pregnancy record for this patient? The completed record will remain unchanged.')"
-                                        class="btn btn-primary w-full justify-center"
-                                    >
-                                        Start New Pregnancy
-                                    </button>
-                                </form>
+                                    Start New Pregnancy
+                                </button>
                             @endif
 
                         @endif
@@ -3857,6 +3859,63 @@
     </div>
 </div>
 
+@if($patient->status === 'DELIVERED' && auth()->user()->role !== 'admin')
+{{-- Start New Pregnancy modal: same workflow/requirements as the
+     delivered-patients list (resources/views/patients/delivered.blade.php),
+     reused here so the patient profile entry point can no longer submit an
+     incomplete request to PatientController::startNewPregnancy(). --}}
+<div id="startPregnancyModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
+    <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl overflow-hidden">
+        <div class="bg-gray-50 px-6 py-5 border-b">
+            <h2 class="text-xl font-bold text-gray-800">Start New Pregnancy</h2>
+            <p id="modalPatientName" class="text-sm text-gray-600"></p>
+        </div>
+
+        <form id="startPregnancyForm" method="POST" class="p-6 space-y-5">
+            @csrf
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                This will create a new ongoing pregnancy record. The completed record will stay unchanged.
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-gray-700">Previous Delivery Date</label>
+                    <input id="modalDeliveryDate" type="text" readonly class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">New Gravida</label>
+                    <input id="modalGravida" name="gravida" type="number" readonly class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">New Para</label>
+                    <input id="modalPara" name="para" type="number" readonly class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">LMP <span class="text-red-500">*</span></label>
+                    <input id="modalLmp" name="lmp" type="date" required max="{{ date('Y-m-d') }}" class="w-full mt-1 rounded-lg border-gray-300">
+                    <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">EDD <span class="text-red-500">*</span></label>
+                    <input id="modalEdd" name="edd" type="date" readonly required class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">Contact Number</label>
+                    <input id="modalContact" name="contact_number" type="text" class="w-full mt-1 rounded-lg border-gray-300">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-gray-700">Address</label>
+                    <input id="modalAddress" name="address" type="text" class="w-full mt-1 rounded-lg border-gray-300">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button type="button" onclick="closeStartPregnancyModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create New Pregnancy</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
     <script>
         // Toggle visit details
         function toggleVisitDetails(visitId) {
@@ -3878,7 +3937,85 @@
             modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
-        
+
+        // Start New Pregnancy modal functions — same workflow/field
+        // requirements as resources/views/patients/delivered.blade.php.
+        function openStartPregnancyModal(action, name, deliveryDate, gravida, para, address, contact) {
+            document.getElementById('startPregnancyForm').action = action;
+            document.getElementById('modalPatientName').innerText = name;
+            document.getElementById('modalDeliveryDate').value = deliveryDate;
+            document.getElementById('modalGravida').value = gravida;
+            document.getElementById('modalPara').value = para;
+            document.getElementById('modalAddress').value = address;
+            document.getElementById('modalContact').value = contact;
+            document.getElementById('startPregnancyModal').classList.remove('hidden');
+            document.getElementById('startPregnancyModal').classList.add('flex');
+        }
+
+        function closeStartPregnancyModal() {
+            document.getElementById('startPregnancyModal').classList.add('hidden');
+            document.getElementById('startPregnancyModal').classList.remove('flex');
+        }
+
+        function showStartPregnancyError(element, message) {
+            const errorSpan = element.nextElementSibling;
+            if (errorSpan && errorSpan.classList.contains('error-message')) {
+                errorSpan.textContent = message;
+                errorSpan.classList.remove('hidden');
+                element.classList.add('border-red-500');
+            }
+        }
+
+        function hideStartPregnancyError(element) {
+            const errorSpan = element.nextElementSibling;
+            if (errorSpan && errorSpan.classList.contains('error-message')) {
+                errorSpan.textContent = '';
+                errorSpan.classList.add('hidden');
+                element.classList.remove('border-red-500');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const lmpInput = document.getElementById('modalLmp');
+            const eddInput = document.getElementById('modalEdd');
+
+            if (lmpInput && eddInput) {
+                lmpInput.addEventListener('change', function () {
+                    if (!this.value) {
+                        eddInput.value = '';
+                        hideStartPregnancyError(this);
+                        return;
+                    }
+
+                    const lmp = new Date(this.value);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const earliestValidLmp = new Date();
+                    earliestValidLmp.setDate(earliestValidLmp.getDate() - (42 * 7));
+                    earliestValidLmp.setHours(0, 0, 0, 0);
+
+                    if (lmp > today) {
+                        eddInput.value = '';
+                        showStartPregnancyError(this, 'Last menstrual period cannot be a future date.');
+                        return;
+                    }
+
+                    if (lmp < earliestValidLmp) {
+                        eddInput.value = '';
+                        showStartPregnancyError(this, 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.');
+                        return;
+                    }
+
+                    hideStartPregnancyError(this);
+
+                    const lmpDate = new Date(this.value);
+                    lmpDate.setDate(lmpDate.getDate() + 280);
+                    eddInput.value = lmpDate.toISOString().split('T')[0];
+                });
+            }
+        });
+
         // Close modal on escape key
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
@@ -3905,7 +4042,7 @@
                 'last_name' => $patient->last_name,
                 'birthdate' => $patient->birthdate,
                 'age' => $patient->age,
-                'address' => $patient->address,
+                'address' => $patient->formatted_address,
                 'contact_number' => $patient->contact_number,
                 'civil_status' => $patient->civil_status,
                 'philhealth_member' => $patient->philhealth_member,

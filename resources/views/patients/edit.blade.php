@@ -163,13 +163,42 @@
                     </div>
 
                     <div class="mt-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Address <span class="text-red-500">*</span></label>
-                        <input type="text" name="address"
-                            value="{{ old('address', $patient->address) }}"
-                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('address') border-red-500 @enderror"
-                            placeholder="Enter complete address">
+                        @if($patient->address)
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 mb-4">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Previous Address (Legacy)</p>
+                                <p class="mt-1 text-sm text-gray-700">{{ $patient->address }}</p>
+                                <p class="mt-1 text-xs text-gray-400">Kept for reference only. It is not edited here — use the structured fields below to add or update this patient's address.</p>
+                            </div>
+                        @endif
+
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Address Line</label>
+                        <input type="text" name="address_line"
+                            value="{{ old('address_line', $patient->address_line) }}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('address_line') border-red-500 @enderror"
+                            placeholder="House/Unit/Bldg No., Street Name, Subdivision/Village">
                         <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
-                        @error('address')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                        @error('address_line')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Barangay</label>
+                            <input type="text" name="barangay"
+                                value="{{ old('barangay', $patient->barangay) }}"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('barangay') border-red-500 @enderror"
+                                placeholder="Barangay name">
+                            <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                            @error('barangay')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">City / Municipality</label>
+                            <input type="text" name="city_municipality"
+                                value="{{ old('city_municipality', $patient->city_municipality) }}"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('city_municipality') border-red-500 @enderror"
+                                placeholder="City or Municipality">
+                            <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                            @error('city_municipality')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -470,8 +499,20 @@
             const age = parseInt(document.getElementById("age").value);
             if (age < 10 || age > 60) { showError(birthdate, 'Age must be between 10 and 60'); isValid = false; }
         }
-        const address = document.querySelector('[name="address"]');
-        if (!address.value.trim()) { showError(address, 'Address is required'); isValid = false; }
+        // Structured address: all 3 fields are optional for a legacy patient
+        // edit (so an unrelated field can still be saved without forcing an
+        // address conversion), but once staff start filling any one of the
+        // three, all three are required together for a consistent record.
+        const addressLine = document.querySelector('[name="address_line"]');
+        const barangay = document.querySelector('[name="barangay"]');
+        const cityMunicipality = document.querySelector('[name="city_municipality"]');
+        const addressFields = { address_line: [addressLine, 'Address line'], barangay: [barangay, 'Barangay'], city_municipality: [cityMunicipality, 'City/Municipality'] };
+        const anyAddressFilled = Object.values(addressFields).some(([el]) => el && el.value.trim() !== '');
+        if (anyAddressFilled) {
+            Object.values(addressFields).forEach(([el, label]) => {
+                if (el && el.value.trim() === '') { showError(el, label + ' is required once any address field is filled'); isValid = false; }
+            });
+        }
         if (!/^09\d{9}$/.test(contactInput.value)) { showError(contactInput, 'Must start with 09 and be exactly 11 digits'); isValid = false; }
         const gravida = document.getElementById("gravida");
         if (gravida.value === '' || parseInt(gravida.value) < 0) { showError(gravida, 'Gravida is required and must be 0 or greater'); isValid = false; }

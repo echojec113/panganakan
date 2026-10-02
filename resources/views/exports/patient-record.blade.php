@@ -215,7 +215,7 @@
                 <td class="lbl">PhilHealth Number</td><td>{{ $patient->philhealth_number ?: 'N/A' }}</td>
             </tr>
             <tr>
-                <td class="lbl">Address</td><td colspan="3">{{ $dash($patient->address) }}</td>
+                <td class="lbl">Address</td><td colspan="3">{!! nl2br(e($dash($patient->formatted_address))) !!}</td>
             </tr>
             <tr>
                 <td class="lbl">Contact Number</td><td colspan="3">{{ $dash($patient->contact_number) }}</td>

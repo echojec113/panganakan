@@ -38,7 +38,7 @@
         <div class="box"><div class="label">Contact Number</div><div class="value">{{ $patient->contact_number ?: 'Not recorded' }}</div></div>
         <div class="box"><div class="label">PhilHealth Member</div><div class="value">{{ $patient->philhealth_member ? 'Yes' : 'No' }}</div></div>
         <div class="box"><div class="label">PhilHealth Number</div><div class="value">{{ $patient->philhealth_number ?: 'Not recorded' }}</div></div>
-        <div class="box"><div class="label">Address</div><div class="value">{{ $patient->address ?: 'Not recorded' }}</div></div>
+        <div class="box"><div class="label">Address</div><div class="value">{!! $patient->formatted_address !== '' ? nl2br(e($patient->formatted_address)) : 'Not recorded' !!}</div></div>
     </div>
 
     <h2>Prenatal Visits / Checkups</h2>

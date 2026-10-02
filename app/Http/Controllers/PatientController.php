@@ -189,7 +189,12 @@ class PatientController extends Controller
         'birthdate' => 'required|date|before:today',
         'age' => 'required|integer|min:10|max:60',
 
-        'address' => 'required|string|max:255',
+        // New patients always provide the structured address fields. The
+        // legacy `address` column is intentionally left blank for new
+        // patients (never populated with a duplicated combined value).
+        'address_line' => 'required|string|max:255',
+        'barangay' => 'required|string|max:255',
+        'city_municipality' => 'required|string|max:255',
 
         'contact_number' => ['required','regex:/^09\d{9}$/'],
         'email' => 'nullable|email|max:255',
@@ -371,7 +376,7 @@ class PatientController extends Controller
         if (!$patient->age) {
             $missing[] = 'Age';
         }
-        if (!$patient->address) {
+        if (!$patient->hasRecordedAddress()) {
             $missing[] = 'Address';
         }
         if (!$patient->contact_number) {
@@ -497,7 +502,7 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
             'Name' => trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name),
             'Age' => $patient->age,
             'Birthdate' => $patient->birthdate,
-            'Address' => $patient->address,
+            'Address' => str_replace("\n", ', ', $patient->formatted_address),
             'Contact Number' => $patient->contact_number,
             'Civil Status' => $patient->civil_status,
             'PhilHealth Member' => $patient->philhealth_member ? 'Yes' : 'No',
@@ -670,7 +675,14 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
     'birthdate' => 'required|date|before:today',
     'age' => 'required|integer|min:10|max:60',
 
-    'address' => 'required|string|max:255',
+    // Structured address fields are optional on edit so a legacy patient
+    // (who only has the old `address` value) can still be updated without
+    // being forced to convert their address. Once staff start filling in
+    // any one of the three, all three become required together so the
+    // structured address is never left half-entered.
+    'address_line' => 'nullable|string|max:255|required_with:barangay,city_municipality',
+    'barangay' => 'nullable|string|max:255|required_with:address_line,city_municipality',
+    'city_municipality' => 'nullable|string|max:255|required_with:address_line,barangay',
 
     'contact_number' => ['required','regex:/^09\d{9}$/'],
     'email' => 'nullable|email|max:255',

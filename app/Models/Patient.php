@@ -32,6 +32,9 @@ class Patient extends Model
         'last_name',
         'age',
         'address',
+        'address_line',
+        'barangay',
+        'city_municipality',
         'contact_number',
         'email',
         'gravida',
@@ -174,5 +177,54 @@ public function isDelivered(): bool
 public function hasActiveReferral(): bool
 {
     return $this->referrals()->where('status', 'Pending')->exists();
+}
+
+/**
+ * Centralized address presentation for every view/export/print.
+ *
+ * When any structured component (address_line/barangay/city_municipality)
+ * is present, it takes display precedence and is assembled into clean
+ * lines with no dangling punctuation, no duplicated "Barangay" label, and
+ * no empty lines for components that were never entered. When none of the
+ * structured components are present, this falls back to the legacy
+ * single-string `address` column so older patient records keep displaying
+ * exactly as before. The legacy column itself is never modified by this
+ * accessor.
+ */
+public function getFormattedAddressAttribute(): string
+{
+    $lines = [];
+
+    $addressLine = trim((string) $this->address_line);
+    if ($addressLine !== '') {
+        $lines[] = $addressLine;
+    }
+
+    $barangay = trim((string) $this->barangay);
+    if ($barangay !== '') {
+        $lines[] = 'Barangay ' . $barangay;
+    }
+
+    $cityMunicipality = trim((string) $this->city_municipality);
+    if ($cityMunicipality !== '') {
+        $lines[] = $cityMunicipality;
+    }
+
+    if (empty($lines)) {
+        return trim((string) $this->address);
+    }
+
+    return implode("\n", $lines);
+}
+
+/**
+ * True when the patient has an address recorded in either the structured
+ * fields or the legacy `address` column. Used by download/export
+ * completeness checks so legacy patients never fail a check solely
+ * because the newer structured fields are still empty.
+ */
+public function hasRecordedAddress(): bool
+{
+    return $this->formatted_address !== '';
 }
 }

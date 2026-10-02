@@ -100,7 +100,7 @@
                                                 </a>
                                                 @if(auth()->user()->role !== 'admin')
                                                 <button type="button"
-                                                    onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ $patient->address }}', '{{ $patient->contact_number }}')"
+                                                    onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ str_replace("\n", ', ', $patient->formatted_address) }}', '{{ $patient->contact_number }}')"
                                                     class="btn btn-primary">
                                                     Start New Pregnancy
                                                 </button>
