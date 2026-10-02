@@ -1,6 +1,7 @@
 <?php
 
 use App\Mail\StaffCredentialMail;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -17,10 +18,23 @@ use Illuminate\Support\Facades\Mail;
 test('admin can open manage staff', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $staff = User::factory()->create(['role' => 'staff']);
+    $otherStaff = User::factory()->create(['role' => 'staff']);
 
     $this->actingAs($admin)->get(route('staff.index'))
         ->assertOk()
-        ->assertSee($staff->name);
+        ->assertSee($staff->name)
+        ->assertSee('data-archive-url="'.route('staff.destroy', $staff).'"', false)
+        ->assertSee('data-archive-url="'.route('staff.destroy', $otherStaff).'"', false)
+        ->assertSee(route('staff.archived'), false)
+        ->assertSee('Archive Staff?')
+        ->assertSee('You can restore the account later.')
+        ->assertSee('title="Archive"', false)
+        ->assertSee('onclick="confirmArchiveStaff(this)"', false)
+        ->assertSee('type="submit" id="confirmArchiveStaffButton"', false)
+        ->assertSee('.staff-modal .staff-delete { background: #dc2626; }', false)
+        ->assertSee('archiveStaffForm.action = archiveUrl', false)
+        ->assertSee("archiveStaffForm.removeAttribute('action')", false)
+        ->assertDontSee('permanently delete');
 });
 
 test('staff receives 403 when opening manage staff', function () {
@@ -169,14 +183,146 @@ test('staff cannot delete their own account through the profile', function () {
     expect($staff->fresh())->not->toBeNull();
 });
 
-test('admin can still remove a staff account through manage staff', function () {
+test('admin can archive a staff account through manage staff', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $target = User::factory()->create(['role' => 'staff']);
 
     $this->actingAs($admin)->delete(route('staff.destroy', $target))
-        ->assertRedirect(route('staff.index'));
+        ->assertRedirect(route('staff.index'))
+        ->assertSessionHas('success', 'Staff archived successfully.');
 
     $this->assertSoftDeleted('users', ['id' => $target->id]);
+    $this->assertDatabaseHas('users', [
+        'id' => $target->id,
+        'name' => $target->name,
+    ]);
+
+    expect(AuditLog::where('action', 'ARCHIVE')
+        ->where('module', 'STAFF')
+        ->where('description', 'Archived staff: '.$target->name)
+        ->exists())->toBeTrue();
+
+    $this->get(route('staff.index'))
+        ->assertOk()
+        ->assertDontSeeText($target->name);
+});
+
+test('archived staff page shows only soft-deleted staff accounts', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $archivedStaff = User::factory()->create(['role' => 'staff', 'name' => 'Archived Staff Member']);
+    $archivedAdmin = User::factory()->create(['role' => 'admin', 'name' => 'Archived Admin Account']);
+    $activeStaff = User::factory()->create(['role' => 'staff', 'name' => 'Active Staff Member']);
+
+    $archivedStaff->delete();
+    $archivedAdmin->delete();
+
+    $this->actingAs($admin)
+        ->get(route('staff.archived'))
+        ->assertOk()
+        ->assertSeeText('Archived Staff')
+        ->assertSeeText('Archived Staff Member')
+        ->assertSeeText($archivedStaff->email)
+        ->assertSeeText('Staff')
+        ->assertSee(route('staff.restore', $archivedStaff->id), false)
+        ->assertDontSeeText('Archived Admin Account')
+        ->assertDontSeeText('Active Staff Member');
+});
+
+test('admin can restore an archived staff account and audit the restoration', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $staff = User::factory()->create(['role' => 'staff', 'name' => 'Restored Staff Member']);
+    $staff->delete();
+
+    $this->actingAs($admin)
+        ->post(route('staff.restore', $staff->id))
+        ->assertRedirect(route('staff.index'))
+        ->assertSessionHas('success', 'Staff restored successfully.');
+
+    $this->assertDatabaseHas('users', [
+        'id' => $staff->id,
+        'name' => 'Restored Staff Member',
+        'deleted_at' => null,
+    ]);
+
+    expect(AuditLog::where('action', 'RESTORE')
+        ->where('module', 'STAFF')
+        ->where('description', 'Restored staff: Restored Staff Member')
+        ->exists())->toBeTrue();
+
+    $this->get(route('staff.index'))
+        ->assertOk()
+        ->assertSeeText('Restored Staff Member');
+
+    $this->get(route('staff.archived'))
+        ->assertOk()
+        ->assertDontSeeText('Restored Staff Member');
+});
+
+test('staff archive and restore routes are admin-only', function () {
+    $staff = User::factory()->create(['role' => 'staff']);
+    $archivedStaff = User::factory()->create(['role' => 'staff']);
+    $archivedStaff->delete();
+
+    $this->actingAs($staff)
+        ->get(route('staff.archived'))
+        ->assertForbidden();
+
+    $this->post(route('staff.restore', $archivedStaff->id))
+        ->assertForbidden();
+
+    $this->delete(route('staff.destroy', $staff))
+        ->assertForbidden();
+
+    $this->assertSoftDeleted('users', ['id' => $archivedStaff->id]);
+    $this->assertDatabaseHas('users', [
+        'id' => $staff->id,
+        'deleted_at' => null,
+    ]);
+});
+
+test('staff archive and restore routes cannot target admin accounts', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $archivedAdmin = User::factory()->create(['role' => 'admin']);
+    $archivedAdmin->delete();
+
+    $this->actingAs($admin)
+        ->delete(route('staff.destroy', $admin))
+        ->assertNotFound();
+
+    $this->post(route('staff.restore', $archivedAdmin->id))
+        ->assertNotFound();
+
+    $this->assertDatabaseHas('users', [
+        'id' => $admin->id,
+        'deleted_at' => null,
+    ]);
+    $this->assertSoftDeleted('users', ['id' => $archivedAdmin->id]);
+});
+
+test('archived staff cannot log in but restored staff can', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+    $staff = User::factory()->create([
+        'role' => 'staff',
+        'password' => Hash::make('staff-password'),
+    ]);
+
+    $this->actingAs($admin)->delete(route('staff.destroy', $staff));
+    $this->post(route('logout'));
+
+    $this->post(route('login'), [
+        'email' => $staff->email,
+        'password' => 'staff-password',
+    ])->assertSessionHasErrors('email');
+
+    $this->actingAs($admin)->post(route('staff.restore', $staff->id));
+    $this->post(route('logout'));
+
+    $this->post(route('login'), [
+        'email' => $staff->email,
+        'password' => 'staff-password',
+    ])->assertRedirect(route('dashboard'));
+
+    $this->assertAuthenticatedAs($staff);
 });
 
 test('profile update cannot modify role or account-administration fields', function () {

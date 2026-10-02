@@ -90,7 +90,7 @@
                                 </div>
                                 <div>
                                     <div class="text-xs font-semibold text-blue-600">Birth Weight</div>
-                                    <div class="mt-1 font-semibold text-gray-900">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A' }}</div>
+                                    <div class="mt-1 font-semibold text-gray-900">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'N/A' }}</div>
                                 </div>
                                 <div>
                                     <div class="text-xs font-semibold text-blue-600">Birth Length</div>

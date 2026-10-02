@@ -95,13 +95,34 @@
                         </div>
 
                         <div class="mt-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Address <span class="text-red-500">*</span></label>
-                            <input type="text" name="address" 
-                                value="{{ old('address') }}"
-                                class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('address') border-red-500 @enderror"
-                                placeholder="Enter complete address">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Address Line <span class="text-red-500">*</span></label>
+                            <input type="text" name="address_line"
+                                value="{{ old('address_line') }}"
+                                class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('address_line') border-red-500 @enderror"
+                                placeholder="House/Unit/Bldg No., Street Name, Subdivision/Village">
                             <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
-                            @error('address')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                            @error('address_line')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Barangay <span class="text-red-500">*</span></label>
+                                <input type="text" name="barangay"
+                                    value="{{ old('barangay') }}"
+                                    class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('barangay') border-red-500 @enderror"
+                                    placeholder="Barangay name">
+                                <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                                @error('barangay')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">City / Municipality <span class="text-red-500">*</span></label>
+                                <input type="text" name="city_municipality"
+                                    value="{{ old('city_municipality') }}"
+                                    class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('city_municipality') border-red-500 @enderror"
+                                    placeholder="City or Municipality">
+                                <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                                @error('city_municipality')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -187,7 +208,7 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Gravida <span class="text-red-500">*</span></label>
                                 <input type="number" id="gravida" name="gravida"
                                     value="{{ old('gravida', 1) }}"
-                                    min="0"
+                                    min="1"
                                     class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('gravida') border-red-500 @enderror"
                                     placeholder="Number of pregnancies">
                                 <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
@@ -388,27 +409,39 @@
     // EDD AUTO COMPUTE
     document.getElementById("lmp").addEventListener("change", function() {
         let lmp = new Date(this.value);
-        
+
         if (isNaN(lmp.getTime())) {
             document.getElementById("edd").value = '';
+            hideError(this);
             return;
         }
-        
-        let edd = new Date(lmp);
-        edd.setDate(edd.getDate() + 280);
-        
-        let eddStr = edd.toISOString().split('T')[0];
-        document.getElementById("edd").value = eddStr;
-        
-        // Validate that EDD is after LMP
+
         let today = new Date();
         today.setHours(0, 0, 0, 0);
-        
+
+        let earliestValidLmp = new Date();
+        earliestValidLmp.setDate(earliestValidLmp.getDate() - (42 * 7));
+        earliestValidLmp.setHours(0, 0, 0, 0);
+
         if (lmp > today) {
-            showError(this, 'LMP cannot be in the future');
-        } else {
-            hideError(this);
+            document.getElementById("edd").value = '';
+            showError(this, 'Last menstrual period cannot be a future date.');
+            return;
         }
+
+        if (lmp < earliestValidLmp) {
+            document.getElementById("edd").value = '';
+            showError(this, 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.');
+            return;
+        }
+
+        hideError(this);
+
+        let edd = new Date(lmp);
+        edd.setDate(edd.getDate() + 280);
+
+        let eddStr = edd.toISOString().split('T')[0];
+        document.getElementById("edd").value = eddStr;
     });
 
     // CONTACT VALIDATION - Real-time
@@ -481,20 +514,25 @@
         }
     });
 
-    // Name field validation (only letters)
+    // Name field validation (letters + max length)
     const nameFields = ['first_name', 'middle_name', 'last_name'];
+    const nameLabels = { first_name: 'First name', middle_name: 'Middle name', last_name: 'Last name' };
     nameFields.forEach(field => {
         const input = document.querySelector(`[name="${field}"]`);
         if (input) {
             input.addEventListener("input", function() {
-                const pattern = /^[a-zA-Z\s]*$/;
-                if (this.value.length > 0 && !pattern.test(this.value)) {
-                    showError(this, 'Only letters and spaces are allowed');
+                if (this.value.length > 24) {
+                    this.value = this.value.substring(0, 24);
+                    showError(this, nameLabels[field] + ' must not exceed 24 characters.');
                 } else {
                     hideError(this);
                 }
+                const pattern = /^[a-zA-Z\s]*$/;
+                if (this.value.length > 0 && !pattern.test(this.value)) {
+                    showError(this, 'Only letters and spaces are allowed');
+                }
             });
-            
+
             if (field !== 'middle_name') {
                 input.addEventListener("blur", function() {
                     if (this.value.trim() === '') {
@@ -505,17 +543,21 @@
         }
     });
 
-    // Address validation
-    const addressInput = document.querySelector('[name="address"]');
-    if (addressInput) {
-        addressInput.addEventListener("blur", function() {
-            if (this.value.trim() === '') {
-                showError(this, 'Address is required');
-            } else {
-                hideError(this);
-            }
-        });
-    }
+    // Address validation (structured fields: address_line is free-text and
+    // never requires every placeholder component to be present)
+    const addressLabels = { address_line: 'Address Line', barangay: 'Barangay', city_municipality: 'City/Municipality' };
+    ['address_line', 'barangay', 'city_municipality'].forEach(field => {
+        const input = document.querySelector(`[name="${field}"]`);
+        if (input) {
+            input.addEventListener("blur", function() {
+                if (this.value.trim() === '') {
+                    showError(this, addressLabels[field] + ' is required');
+                } else {
+                    hideError(this);
+                }
+            });
+        }
+    });
 
     // Civil status validation
     const civilStatus = document.querySelector('[name="civil_status"]');
@@ -546,15 +588,21 @@
         if (firstName.value.trim() === '') {
             showError(firstName, 'First name is required');
             isValid = false;
+        } else if (firstName.value.length > 24) {
+            showError(firstName, 'First name must not exceed 24 characters.');
+            isValid = false;
         } else if (!/^[a-zA-Z\s]+$/.test(firstName.value)) {
             showError(firstName, 'Only letters and spaces are allowed');
             isValid = false;
         }
-        
+
         // Validate last name
         const lastName = document.querySelector('[name="last_name"]');
         if (lastName.value.trim() === '') {
             showError(lastName, 'Last name is required');
+            isValid = false;
+        } else if (lastName.value.length > 24) {
+            showError(lastName, 'Last name must not exceed 24 characters.');
             isValid = false;
         } else if (!/^[a-zA-Z\s]+$/.test(lastName.value)) {
             showError(lastName, 'Only letters and spaces are allowed');
@@ -574,11 +622,14 @@
             }
         }
         
-        // Validate address
-        if (addressInput.value.trim() === '') {
-            showError(addressInput, 'Address is required');
-            isValid = false;
-        }
+        // Validate address (structured fields)
+        ['address_line', 'barangay', 'city_municipality'].forEach(field => {
+            const input = document.querySelector(`[name="${field}"]`);
+            if (input && input.value.trim() === '') {
+                showError(input, addressLabels[field] + ' is required');
+                isValid = false;
+            }
+        });
         
         // Validate contact
         if (!/^09\d{9}$/.test(contactInput.value)) {

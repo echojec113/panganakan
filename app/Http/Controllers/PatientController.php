@@ -7,6 +7,7 @@ use App\Models\PrenatalVisit;
 use App\Services\PregnancyOutcomeRecordingService;
 use App\Services\PregnancyOutcomeMonitoringService;
 use App\Support\PregnancyOutcomeVocabulary;
+use App\Support\WeightFormatter;
 use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\Request;
@@ -181,14 +182,19 @@ class PatientController extends Controller
    public function store(Request $request)
 {
     $validated = $request->validate([
-        'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
-        'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:255',
-        'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
+        'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:24',
+        'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:24',
+        'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:24',
 
         'birthdate' => 'required|date|before:today',
         'age' => 'required|integer|min:10|max:60',
 
-        'address' => 'required|string|max:255',
+        // New patients always provide the structured address fields. The
+        // legacy `address` column is intentionally left blank for new
+        // patients (never populated with a duplicated combined value).
+        'address_line' => 'required|string|max:255',
+        'barangay' => 'required|string|max:255',
+        'city_municipality' => 'required|string|max:255',
 
         'contact_number' => ['required','regex:/^09\d{9}$/'],
         'email' => 'nullable|email|max:255',
@@ -205,9 +211,20 @@ class PatientController extends Controller
         'previous_cs' => 'required|in:0,1',
         'miscarriage' => 'required|integer|min:0',
 
-        'lmp' => 'required|date|before_or_equal:today',
+        'lmp' => 'required|date|before_or_equal:today|after_or_equal:' . now()->subWeeks(42)->toDateString(),
         'edd' => 'required|date|after:lmp',
-    ]);
+    ],  [
+        'first_name.max' => 'First name must not exceed 24 characters.',
+        'middle_name.max' => 'Middle name must not exceed 24 characters.',
+        'last_name.max' => 'Last name must not exceed 24 characters.',
+
+        'first_name.regex' => 'First name contains invalid characters.',
+        'middle_name.regex' => 'Middle name contains invalid characters.',
+        'last_name.regex' => 'Last name contains invalid characters.',
+
+        'lmp.before_or_equal' => 'Last menstrual period cannot be a future date.',
+        'lmp.after_or_equal' => 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.',
+]);
 
     // LOGIC VALIDATION
     if ($request->para > $request->gravida) {
@@ -359,7 +376,7 @@ class PatientController extends Controller
         if (!$patient->age) {
             $missing[] = 'Age';
         }
-        if (!$patient->address) {
+        if (!$patient->hasRecordedAddress()) {
             $missing[] = 'Address';
         }
         if (!$patient->contact_number) {
@@ -420,10 +437,13 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
     }
 
     $request->validate([
-        'lmp' => 'required|date|before_or_equal:today',
+        'lmp' => 'required|date|before_or_equal:today|after_or_equal:' . now()->subWeeks(42)->toDateString(),
         'edd' => 'required|date|after:lmp',
         'address' => 'required|string|max:255',
         'contact_number' => ['required', 'regex:/^09\d{9}$/'],
+    ], [
+        'lmp.before_or_equal' => 'Last menstrual period cannot be a future date.',
+        'lmp.after_or_equal' => 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.',
     ]);
 
     $hasActivePregnancy = Patient::where('first_name', $oldPatient->first_name)
@@ -482,7 +502,7 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
             'Name' => trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name),
             'Age' => $patient->age,
             'Birthdate' => $patient->birthdate,
-            'Address' => $patient->address,
+            'Address' => str_replace("\n", ', ', $patient->formatted_address),
             'Contact Number' => $patient->contact_number,
             'Civil Status' => $patient->civil_status,
             'PhilHealth Member' => $patient->philhealth_member ? 'Yes' : 'No',
@@ -530,7 +550,9 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
             $latestVisitInfo = collect([
                 'Visit Date' => $latestVisit->visit_date,
                 'Blood Pressure' => $latestVisit->bp_sys . '/' . $latestVisit->bp_dia,
-                'Weight' => $latestVisit->weight,
+                'Weight' => $latestVisit->weight !== null
+                    ? WeightFormatter::formatKg($latestVisit->weight) . ' kg'
+                    : null,
                 'Temperature' => $latestVisit->temperature,
                 'Gestational Age' => $latestVisit->gestational_age,
                 'Assessment' => $latestVisit->assessment,
@@ -562,7 +584,9 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
                     'Sex' => $baby->sex ?: 'N/A',
                     'Date of Birth' => $baby->date_of_birth ? Carbon::parse($baby->date_of_birth)->format('M d, Y') : 'N/A',
                     'Time of Birth' => $baby->time_of_birth ? Carbon::parse($baby->time_of_birth)->format('g:i A') : 'N/A',
-                    'Birth Weight' => $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A',
+                    'Birth Weight' => $baby->birth_weight !== null
+                        ? WeightFormatter::formatKg($baby->birth_weight) . ' kg'
+                        : 'N/A',
                     'Birth Length' => $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A',
                 ])->map(fn($value, $key) => "$key: $value")->implode("\n");
 
@@ -644,14 +668,21 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
     // VALIDATION
     // ======================
     $validated = $request->validate([
-    'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
-    'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:255',
-    'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:255',
+    'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:24',
+    'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:24',
+    'last_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:24',
 
     'birthdate' => 'required|date|before:today',
     'age' => 'required|integer|min:10|max:60',
 
-    'address' => 'required|string|max:255',
+    // Structured address fields are optional on edit so a legacy patient
+    // (who only has the old `address` value) can still be updated without
+    // being forced to convert their address. Once staff start filling in
+    // any one of the three, all three become required together so the
+    // structured address is never left half-entered.
+    'address_line' => 'nullable|string|max:255|required_with:barangay,city_municipality',
+    'barangay' => 'nullable|string|max:255|required_with:address_line,city_municipality',
+    'city_municipality' => 'nullable|string|max:255|required_with:address_line,barangay',
 
     'contact_number' => ['required','regex:/^09\d{9}$/'],
     'email' => 'nullable|email|max:255',
@@ -667,8 +698,11 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
     'previous_cs' => 'required|in:0,1',
     'miscarriage' => 'required|integer|min:0',
 
-    'lmp' => 'nullable|date|before_or_equal:today',
+    'lmp' => 'required|date|before_or_equal:today|after_or_equal:' . now()->subWeeks(42)->toDateString(),
     'edd' => 'nullable|date|after:lmp',
+], [
+    'lmp.before_or_equal' => 'Last menstrual period cannot be a future date.',
+    'lmp.after_or_equal' => 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.',
 ]);
 if ($request->para > $request->gravida) {
     return back()->withErrors([
@@ -741,12 +775,14 @@ public function markDelivered(Request $request, $id)
         'babies' => 'array|min:1',
         'babies.*.date_of_birth' => 'required|date|before_or_equal:today|same:delivery_date',
         'babies.*.time_of_birth' => 'required|date_format:H:i',
-        'babies.*.first_name' => 'nullable|string|max:255',
-        'babies.*.middle_name' => 'nullable|string|max:255',
-        'babies.*.last_name' => 'nullable|string|max:255',
+        'babies.*.first_name' => 'nullable|string|max:24',
+        'babies.*.middle_name' => 'nullable|string|max:24',
+        'babies.*.last_name' => 'nullable|string|max:24',
         'babies.*.sex' => 'nullable|in:Male,Female',
-        'babies.*.birth_weight' => 'nullable|numeric|min:0|max:10',
+        'babies.*.birth_weight' => ['nullable', 'numeric', 'min:0', 'max:10', 'regex:/^\d+(\.\d)?$/'],
         'babies.*.birth_length' => 'nullable|numeric|min:0|max:100',
+    ], [
+        'babies.*.birth_weight.regex' => 'Birth weight must have at most 1 decimal place.',
     ]);
 
     // Check if at least one baby has required fields
@@ -916,14 +952,16 @@ private function patientHistoryKey(Patient $patient): string
 public function updateBaby(Request $request, $id)
 {
     $request->validate([
-        'first_name' => 'nullable|string|max:255',
-        'middle_name' => 'nullable|string|max:255',
-        'last_name' => 'nullable|string|max:255',
+        'first_name' => 'nullable|string|max:24',
+        'middle_name' => 'nullable|string|max:24',
+        'last_name' => 'nullable|string|max:24',
         'sex' => 'nullable|in:Male,Female',
         'date_of_birth' => 'required|date',
         'time_of_birth' => 'required|date_format:H:i',
-        'birth_weight' => 'nullable|numeric|min:0|max:10',
+        'birth_weight' => ['nullable', 'numeric', 'min:0', 'max:10', 'regex:/^\d+(\.\d)?$/'],
         'birth_length' => 'nullable|numeric|min:0|max:100',
+    ], [
+        'birth_weight.regex' => 'Birth weight must have at most 1 decimal place.',
     ]);
 
     $baby = Baby::with('patient')->findOrFail($id);
@@ -957,12 +995,12 @@ public function updateBaby(Request $request, $id)
 
     return response()->json([
         'success' => true,
-        'baby' => $baby,
+        'baby' => array_merge($baby->toArray(), [
+            'birth_weight_display' => WeightFormatter::formatKg($baby->birth_weight),
+        ]),
         'message' => 'Baby information updated successfully.'
     ]);
 }
 
 
 }   
-
-

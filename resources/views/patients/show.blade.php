@@ -2,6 +2,10 @@
     @include('patients.partials.responsive-styles')
     <div class="patient-module">
     <style>
+        html {
+            scroll-behavior: smooth;
+        }
+
         .patient-profile-theme {
             --color-primary: #55B85A;
             --color-primary-hover: #4aa04c;
@@ -118,6 +122,84 @@
 
         <x-error-summary :errors="$errors" title="Please review the highlighted issues." class="mb-6" />
 
+        {{-- =========================================================
+     Phase 4: Patient Profile Navigation
+========================================================= --}}
+        <nav
+            class="patient-profile-nav mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm"
+            aria-label="Patient profile sections"
+        >
+            <div class="flex min-w-max items-center px-2 py-2">
+                <a
+                    href="#overview"
+                    class="rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-gray-100"
+                >
+                    Overview
+                </a>
+
+                <a
+                    href="#prenatal-visits"
+                    class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                >
+                    Prenatal Visits
+                </a>
+
+                <a
+                    href="#medical-history"
+                    class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                >
+                    Medical History
+                </a>
+
+                <a
+                    href="#ultrasound"
+                    class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                >
+                    Ultrasound
+                </a>
+
+                <a
+                    href="#birth-plan"
+                    class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                >
+                    Birth Plan
+                </a>
+
+                <a
+                    href="#risk-assessment"
+                    class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                >
+                    Risk Assessment
+                </a>
+
+                <a
+                    href="#referral-follow-through"
+                    class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                >
+                    Referrals
+                </a>
+            </div>
+        </nav>
+        <script>
+            (() => {
+                const nav = document.querySelector('.patient-profile-nav');
+                const profile = nav.closest('.patient-profile-theme');
+                const header = document.querySelector('.main-wrapper > .topbar');
+                const updateOffsets = () => {
+                    profile.style.setProperty('--profile-header-height', (header?.getBoundingClientRect().height ?? 56) + 'px');
+                    profile.style.setProperty('--profile-nav-height', nav.getBoundingClientRect().height + 'px');
+                };
+                updateOffsets();
+                if ('ResizeObserver' in window) {
+                    const observer = new ResizeObserver(updateOffsets);
+                    observer.observe(nav);
+                    if (header) observer.observe(header);
+                } else {
+                    window.addEventListener('resize', updateOffsets);
+                }
+            })();
+        </script>
+
         @if($patient->status === 'DELIVERED')
             <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 shadow-sm">
                 <div class="flex items-start gap-3">
@@ -199,9 +281,18 @@
                             @endif
                         </div>
 
-                        @if($patient->address)
-                            <p class="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-                                {{ $patient->address }}
+                        @if($patient->formatted_address)
+                            {{-- Profile header only: present the full address as one
+                                 inline, comma-separated line (legacy addresses are
+                                 already single-line and pass through unchanged).
+                                 Print/export views keep using the multiline
+                                 formatted_address accessor untouched. --}}
+                            <p class="mt-2 flex max-w-2xl items-start gap-1.5 text-sm leading-6 text-gray-600">
+                                <svg class="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 21.75c4.5-5.25 7.5-9.202 7.5-12.75a7.5 7.5 0 10-15 0c0 3.548 3 7.5 7.5 12.75z" />
+                                </svg>
+                                <span>{{ str_replace("\n", ', ', $patient->formatted_address) }}</span>
                             </p>
                         @endif
 
@@ -366,20 +457,13 @@
                             </a>
 
                             @if(auth()->user()->role !== 'admin')
-                                <form
-                                    method="POST"
-                                    action="{{ route('patients.start-new-pregnancy', $patient->id) }}"
+                                <button
+                                    type="button"
+                                    onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ str_replace("\n", ', ', $patient->formatted_address) }}', '{{ $patient->contact_number }}')"
+                                    class="btn btn-primary w-full justify-center"
                                 >
-                                    @csrf
-
-                                    <button
-                                        type="submit"
-                                        onclick="return confirm('Start a new pregnancy record for this patient? The completed record will remain unchanged.')"
-                                        class="btn btn-primary w-full justify-center"
-                                    >
-                                        Start New Pregnancy
-                                    </button>
-                                </form>
+                                    Start New Pregnancy
+                                </button>
                             @endif
 
                         @endif
@@ -558,84 +642,6 @@
 @endif
 
 
-        {{-- =========================================================
-     Phase 4: Patient Profile Navigation
-========================================================= --}}
-<nav
-    class="patient-profile-nav mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm"
-    aria-label="Patient profile sections"
->
-    <div class="flex min-w-max items-center px-2 py-2">
-        <a
-            href="#overview"
-            class="rounded-lg px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:bg-gray-100"
-        >
-            Overview
-        </a>
-
-        <a
-            href="#prenatal-visits"
-            class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-        >
-            Prenatal Visits
-        </a>
-
-        <a
-            href="#medical-history"
-            class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-        >
-            Medical History
-        </a>
-
-        <a
-            href="#ultrasound"
-            class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-        >
-            Ultrasound
-        </a>
-
-        <a
-            href="#birth-plan"
-            class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-        >
-            Birth Plan
-        </a>
-
-        <a
-            href="#risk-assessment"
-            class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-        >
-            Risk Assessment
-        </a>
-
-        <a
-            href="#referral-follow-through"
-            class="rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
-        >
-            Referrals
-        </a>
-    </div>
-</nav>
-<script>
-    (() => {
-        const nav = document.querySelector('.patient-profile-nav');
-        const profile = nav.closest('.patient-profile-theme');
-        const header = document.querySelector('.main-wrapper > .topbar');
-        const updateOffsets = () => {
-            profile.style.setProperty('--profile-header-height', (header?.getBoundingClientRect().height ?? 56) + 'px');
-            profile.style.setProperty('--profile-nav-height', nav.getBoundingClientRect().height + 'px');
-        };
-        updateOffsets();
-        if ('ResizeObserver' in window) {
-            const observer = new ResizeObserver(updateOffsets);
-            observer.observe(nav);
-            if (header) observer.observe(header);
-        } else {
-            window.addEventListener('resize', updateOffsets);
-        }
-    })();
-</script>
-                                            
         {{-- Priority strip: Current Pregnancy + Basic Information --}}
         <div
     id="overview"
@@ -911,7 +917,7 @@
                         Weight
                     </dt>
                     <dd class="mt-1 text-sm font-semibold text-gray-900">
-                        {{ $latestVisit->weight !== null ? $latestVisit->weight . ' kg' : '—' }}
+                        {{ $latestVisit->weight !== null ? \App\Support\WeightFormatter::formatKg($latestVisit->weight) . ' kg' : '—' }}
                     </dd>
                 </div>
 
@@ -1051,7 +1057,7 @@
                                         </div>
                                         <div class="stat-cell">
                                             <div class="stat-label">Birth Weight</div>
-                                            <p class="stat-value">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A' }}</p>
+                                            <p class="stat-value">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'N/A' }}</p>
                                         </div>
                                         <div class="stat-cell">
                                             <div class="stat-label">Birth Length</div>
@@ -1098,7 +1104,7 @@
                                             </div>
                                             <div>
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Birth Weight (kg)</label>
-                                                <input type="number" name="birth_weight" value="{{ $baby->birth_weight }}" step="0.01" min="0" max="10" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                <input type="number" name="birth_weight" value="{{ \App\Support\WeightFormatter::formatKg($baby->birth_weight) }}" step="0.1" min="0" max="10" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                             </div>
                                             <div class="md:col-span-2 lg:col-span-1">
                                                 <label class="block text-sm font-medium text-gray-700 mb-1">Birth Length (cm)</label>
@@ -1250,7 +1256,7 @@
 
                             <td role="cell" data-label="Weight" class="td-cell text-gray-900">
                                 @if($visit->weight !== null)
-                                    {{ $visit->weight }} kg
+                                    {{ \App\Support\WeightFormatter::formatKg($visit->weight) }} kg
                                 @else
                                     <span class="text-gray-400">Not recorded</span>
                                 @endif
@@ -1290,33 +1296,9 @@
                             <td role="cell" data-label="Actions" class="td-cell">
                                 @if($patient->status === 'ONGOING')
                                     <div
-                                        class="flex flex-wrap items-center gap-x-3 gap-y-2"
+                                        class="flex flex-wrap items-center gap-3"
                                         onclick="event.stopPropagation()"
                                     >
-                                        <a
-                                            href="{{ route('prenatal-visits.edit', $visit->id) }}"
-                                            class="text-sm font-medium text-blue-600 hover:text-blue-800"
-                                        >
-                                            Edit
-                                        </a>
-
-                                        <form
-                                            action="{{ route('prenatal-visits.destroy', $visit->id) }}"
-                                            method="POST"
-                                            class="inline"
-                                        >
-                                            @csrf
-                                            @method('DELETE')
-
-                                            <button
-                                                type="submit"
-                                                onclick="return confirm('Delete this prenatal visit?')"
-                                                class="text-sm font-medium text-red-600 hover:text-red-800"
-                                            >
-                                                Delete
-                                            </button>
-                                        </form>
-
                                         <a
                                             href="{{ route('prenatal-visits.print', $visit->id) }}"
                                             target="_blank"
@@ -3855,7 +3837,7 @@
                                 <div class="grid grid-cols-2 gap-3">
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Weight (kg)</label>
-                                        <input type="number" name="babies[0][birth_weight]" step="0.01" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                        <input type="number" name="babies[0][birth_weight]" value="{{ old('babies.0.birth_weight') }}" step="0.1" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Length (cm)</label>
@@ -3880,6 +3862,63 @@
     </div>
 </div>
 
+@if($patient->status === 'DELIVERED' && auth()->user()->role !== 'admin')
+{{-- Start New Pregnancy modal: same workflow/requirements as the
+     delivered-patients list (resources/views/patients/delivered.blade.php),
+     reused here so the patient profile entry point can no longer submit an
+     incomplete request to PatientController::startNewPregnancy(). --}}
+<div id="startPregnancyModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
+    <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl overflow-hidden">
+        <div class="bg-gray-50 px-6 py-5 border-b">
+            <h2 class="text-xl font-bold text-gray-800">Start New Pregnancy</h2>
+            <p id="modalPatientName" class="text-sm text-gray-600"></p>
+        </div>
+
+        <form id="startPregnancyForm" method="POST" class="p-6 space-y-5">
+            @csrf
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                This will create a new ongoing pregnancy record. The completed record will stay unchanged.
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="text-sm font-medium text-gray-700">Previous Delivery Date</label>
+                    <input id="modalDeliveryDate" type="text" readonly class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">New Gravida</label>
+                    <input id="modalGravida" name="gravida" type="number" readonly class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">New Para</label>
+                    <input id="modalPara" name="para" type="number" readonly class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">LMP <span class="text-red-500">*</span></label>
+                    <input id="modalLmp" name="lmp" type="date" required max="{{ date('Y-m-d') }}" class="w-full mt-1 rounded-lg border-gray-300">
+                    <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">EDD <span class="text-red-500">*</span></label>
+                    <input id="modalEdd" name="edd" type="date" readonly required class="w-full mt-1 rounded-lg border-gray-300 bg-gray-100">
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-gray-700">Contact Number</label>
+                    <input id="modalContact" name="contact_number" type="text" class="w-full mt-1 rounded-lg border-gray-300">
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="text-sm font-medium text-gray-700">Address</label>
+                    <input id="modalAddress" name="address" type="text" class="w-full mt-1 rounded-lg border-gray-300">
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button type="button" onclick="closeStartPregnancyModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create New Pregnancy</button>
+            </div>
+        </form>
+    </div>
+</div>
+@endif
+
     <script>
         // Toggle visit details
         function toggleVisitDetails(visitId) {
@@ -3901,7 +3940,85 @@
             modal.classList.add('hidden');
             document.body.style.overflow = '';
         }
-        
+
+        // Start New Pregnancy modal functions — same workflow/field
+        // requirements as resources/views/patients/delivered.blade.php.
+        function openStartPregnancyModal(action, name, deliveryDate, gravida, para, address, contact) {
+            document.getElementById('startPregnancyForm').action = action;
+            document.getElementById('modalPatientName').innerText = name;
+            document.getElementById('modalDeliveryDate').value = deliveryDate;
+            document.getElementById('modalGravida').value = gravida;
+            document.getElementById('modalPara').value = para;
+            document.getElementById('modalAddress').value = address;
+            document.getElementById('modalContact').value = contact;
+            document.getElementById('startPregnancyModal').classList.remove('hidden');
+            document.getElementById('startPregnancyModal').classList.add('flex');
+        }
+
+        function closeStartPregnancyModal() {
+            document.getElementById('startPregnancyModal').classList.add('hidden');
+            document.getElementById('startPregnancyModal').classList.remove('flex');
+        }
+
+        function showStartPregnancyError(element, message) {
+            const errorSpan = element.nextElementSibling;
+            if (errorSpan && errorSpan.classList.contains('error-message')) {
+                errorSpan.textContent = message;
+                errorSpan.classList.remove('hidden');
+                element.classList.add('border-red-500');
+            }
+        }
+
+        function hideStartPregnancyError(element) {
+            const errorSpan = element.nextElementSibling;
+            if (errorSpan && errorSpan.classList.contains('error-message')) {
+                errorSpan.textContent = '';
+                errorSpan.classList.add('hidden');
+                element.classList.remove('border-red-500');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const lmpInput = document.getElementById('modalLmp');
+            const eddInput = document.getElementById('modalEdd');
+
+            if (lmpInput && eddInput) {
+                lmpInput.addEventListener('change', function () {
+                    if (!this.value) {
+                        eddInput.value = '';
+                        hideStartPregnancyError(this);
+                        return;
+                    }
+
+                    const lmp = new Date(this.value);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+
+                    const earliestValidLmp = new Date();
+                    earliestValidLmp.setDate(earliestValidLmp.getDate() - (42 * 7));
+                    earliestValidLmp.setHours(0, 0, 0, 0);
+
+                    if (lmp > today) {
+                        eddInput.value = '';
+                        showStartPregnancyError(this, 'Last menstrual period cannot be a future date.');
+                        return;
+                    }
+
+                    if (lmp < earliestValidLmp) {
+                        eddInput.value = '';
+                        showStartPregnancyError(this, 'Last menstrual period must be within the last 42 weeks for an ongoing pregnancy.');
+                        return;
+                    }
+
+                    hideStartPregnancyError(this);
+
+                    const lmpDate = new Date(this.value);
+                    lmpDate.setDate(lmpDate.getDate() + 280);
+                    eddInput.value = lmpDate.toISOString().split('T')[0];
+                });
+            }
+        });
+
         // Close modal on escape key
         document.addEventListener('keydown', function(event) {
             if (event.key === 'Escape') {
@@ -3928,7 +4045,7 @@
                 'last_name' => $patient->last_name,
                 'birthdate' => $patient->birthdate,
                 'age' => $patient->age,
-                'address' => $patient->address,
+                'address' => $patient->formatted_address,
                 'contact_number' => $patient->contact_number,
                 'civil_status' => $patient->civil_status,
                 'philhealth_member' => $patient->philhealth_member,
@@ -4133,7 +4250,7 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Weight (kg)</label>
-                        <input type="number" name="babies[${babyIndex}][birth_weight]" step="0.01" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                        <input type="number" name="babies[${babyIndex}][birth_weight]" step="0.1" min="0" max="10" class="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Birth Length (cm)</label>
@@ -4147,6 +4264,34 @@
 
             // Show remove button on first baby if more than one baby
             updateRemoveButtons();
+        }
+
+        const previousBabyInput = @json(is_array(old('babies')) ? array_values(old('babies')) : []);
+        if (previousBabyInput.length > 0) {
+            previousBabyInput.forEach((babyData, index) => {
+                if (!babyData || typeof babyData !== 'object') {
+                    return;
+                }
+
+                if (index > 0) {
+                    addAnotherBaby();
+                }
+
+                ['first_name', 'middle_name', 'last_name', 'sex', 'date_of_birth', 'time_of_birth', 'birth_weight', 'birth_length']
+                    .forEach((field) => {
+                        const input = document.querySelector(`[name="babies[${index}][${field}]"]`);
+                        if (input && babyData[field] !== undefined && babyData[field] !== null) {
+                            input.value = babyData[field];
+                        }
+                    });
+            });
+
+            const oldDeliveryDate = @json(old('delivery_date'));
+            const deliveryDateInput = document.querySelector('[name="delivery_date"]');
+            if (deliveryDateInput && oldDeliveryDate) {
+                deliveryDateInput.value = oldDeliveryDate;
+            }
+            openDeliveryModal();
         }
 
         function removeBaby(button) {
@@ -4318,7 +4463,10 @@
 
             // Update birth weight
             const weightElement = babyCard.querySelector('.baby-display-mode .grid > div:nth-child(3) p');
-            weightElement.textContent = babyData.birth_weight ? babyData.birth_weight + ' kg' : 'N/A';
+            weightElement.textContent = babyData.birth_weight_display !== null
+                && babyData.birth_weight_display !== undefined
+                ? babyData.birth_weight_display + ' kg'
+                : 'N/A';
 
             // Update birth length
             const lengthElement = babyCard.querySelector('.baby-display-mode .grid > div:nth-child(4) p');
@@ -4372,6 +4520,68 @@
                 }
             }, 5000);
         }
+
+        // Baby name max-length validation
+        const babyNameLabels = { first_name: 'First name', middle_name: 'Middle name', last_name: 'Last name' };
+
+        function attachBabyNameValidation(input) {
+            if (!input || input.dataset.maxLengthAttached) return;
+            input.dataset.maxLengthAttached = 'true';
+            input.addEventListener('input', function() {
+                if (this.value.length > 24) {
+                    this.value = this.value.substring(0, 24);
+                    const label = babyNameLabels[this.name.match(/(\w+)$/)?.[1]] || 'Name';
+                    this.style.borderColor = '#ef4444';
+                    let errorEl = this.nextElementSibling;
+                    if (!errorEl || !errorEl.classList.contains('baby-name-error')) {
+                        errorEl = document.createElement('span');
+                        errorEl.className = 'baby-name-error text-red-500 text-xs mt-1 hidden';
+                        this.parentNode.insertBefore(errorEl, this.nextSibling);
+                    }
+                    errorEl.textContent = label + ' must not exceed 24 characters.';
+                    errorEl.classList.remove('hidden');
+                } else {
+                    this.style.borderColor = '';
+                    const errorEl = this.nextElementSibling;
+                    if (errorEl && errorEl.classList.contains('baby-name-error')) {
+                        errorEl.classList.add('hidden');
+                    }
+                }
+            });
+        }
+
+        // Baby edit form fields
+        document.querySelectorAll('.baby-edit-form input[name="first_name"], .baby-edit-form input[name="middle_name"], .baby-edit-form input[name="last_name"]').forEach(attachBabyNameValidation);
+
+        // Pregnancy outcome form - first baby
+        document.querySelectorAll('input[name="babies[0][first_name]"], input[name="babies[0][middle_name]"], input[name="babies[0][last_name]"]').forEach(attachBabyNameValidation);
+
+        // Dynamic baby fields - event delegation
+        document.getElementById('babiesContainer')?.addEventListener('input', function(e) {
+            const input = e.target;
+            if (input.tagName === 'INPUT' && /babies\[\d+\]\[(first_name|middle_name|last_name)\]$/.test(input.name)) {
+                attachBabyNameValidation(input);
+                if (input.value.length > 24) {
+                    input.value = input.value.substring(0, 24);
+                    const label = babyNameLabels[input.name.match(/(\w+)$/)?.[1]] || 'Name';
+                    input.style.borderColor = '#ef4444';
+                    let errorEl = input.nextElementSibling;
+                    if (!errorEl || !errorEl.classList.contains('baby-name-error')) {
+                        errorEl = document.createElement('span');
+                        errorEl.className = 'baby-name-error text-red-500 text-xs mt-1 hidden';
+                        input.parentNode.insertBefore(errorEl, input.nextSibling);
+                    }
+                    errorEl.textContent = label + ' must not exceed 24 characters.';
+                    errorEl.classList.remove('hidden');
+                } else {
+                    input.style.borderColor = '';
+                    const errorEl = input.nextElementSibling;
+                    if (errorEl && errorEl.classList.contains('baby-name-error')) {
+                        errorEl.classList.add('hidden');
+                    }
+                }
+            }
+        });
     </script>
 
     @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')

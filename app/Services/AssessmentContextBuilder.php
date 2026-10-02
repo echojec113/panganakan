@@ -72,7 +72,7 @@ class AssessmentContextBuilder
 
         $visitDate = $visit?->visit_date?->toDateString() ?? $prePersistenceVisitDate;
         $gestationalAge = isset($inputs['gestational_age']) && $inputs['gestational_age'] !== null
-            ? (int) $inputs['gestational_age']
+            ? (float) $inputs['gestational_age']
             : $visit?->gestational_age;
 
         return new AssessmentContext(
@@ -95,7 +95,7 @@ class AssessmentContextBuilder
             miscarriage: $patient->miscarriage !== null ? (int) $patient->miscarriage : null,
             lmp: $patient->lmp?->toDateString(),
             edd: $patient->edd?->toDateString(),
-            gestational_age: $gestationalAge !== null ? (int) $gestationalAge : null,
+            gestational_age: $gestationalAge !== null ? (float) $gestationalAge : null,
             ultrasound_present: $ultrasound !== null,
             visit_inputs: $this->sanitizeInputs($inputs),
             source_summary: $this->buildSourceSummary($visit, $ultrasound, $medicalHistory, $birthPlan),

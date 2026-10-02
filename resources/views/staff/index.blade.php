@@ -16,8 +16,8 @@
         .manage-staff-theme .staff-name,
         .manage-staff-theme .staff-modal-title { color: var(--staff-text); }
         .manage-staff-theme .staff-muted { color: var(--staff-muted); }
-        .manage-staff-theme .staff-delete { background: #dc2626; }
-        .manage-staff-theme .staff-delete:hover { background: #b91c1c; }
+        .staff-modal .staff-delete { background: #dc2626; }
+        .staff-modal .staff-delete:hover { background: #b91c1c; }
     </style>
 
     <div class="manage-staff-theme min-h-screen bg-[#FCFBF8]">
@@ -31,6 +31,7 @@
                     <x-slot name="subtitle">Create and manage clinic staff accounts</x-slot>
                     <x-slot name="actions">
                         <a href="{{ route('staff.create') }}" class="inline-flex items-center gap-2 rounded-xl bg-[#55B85A] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2">+ Add Staff</a>
+                        <a href="{{ route('staff.archived') }}" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2">Archived</a>
                     </x-slot>
                 </x-app-header>
             </div>
@@ -39,6 +40,7 @@
             <div class="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
 
                 <x-flash type="success" :message="session('success')" class="mb-6" />
+                <x-flash type="error" :message="session('error')" class="mb-6" />
 
                 {{-- STAFF CARD --}}
                 <div class="staff-card overflow-hidden rounded-2xl border bg-white shadow-sm">
@@ -81,10 +83,28 @@
 
                                         {{-- ACTIONS --}}
                                         <td class="px-6 py-4 align-middle">
-                                            <div class="flex justify-end">
+                                            <div class="flex justify-end gap-1">
                                                 <x-action-buttons 
-                                                    :editRoute="route('staff.edit', $staff)"
-                                                    :deleteRoute="route('staff.destroy', $staff)" />
+                                                    :editRoute="route('staff.edit', $staff)" />
+                                                <button type="button" onclick="confirmResetStaff(this)"
+                                                    data-reset-url="{{ route('staff.reset-account', $staff) }}"
+                                                    data-staff-name="{{ $staff->name }}"
+                                                    data-staff-email="{{ $staff->email }}"
+                                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#6B4EFF] transition-all duration-150 hover:bg-purple-50 hover:text-[#5139D8]"
+                                                    title="Reset Account" aria-label="Reset account for {{ $staff->name }}">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.75a3 3 0 0 0-4.16 4.33l-5.4 5.4a1.5 1.5 0 0 0 2.12 2.12l5.4-5.4a3 3 0 0 0 4.33-4.16l-2.12 2.12-2.12-2.12 1.95-2.29Z" />
+                                                    </svg>
+                                                </button>
+                                                <button type="button" onclick="confirmArchiveStaff(this)"
+                                                    data-archive-url="{{ route('staff.destroy', $staff) }}"
+                                                    class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-700 transition-all duration-150 hover:bg-red-50 hover:text-red-900"
+                                                    title="Archive" aria-label="Archive staff account">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </td>
 
@@ -107,52 +127,142 @@
         </div>
     </div>
 
-    {{-- DELETE MODAL --}}
-    <div id="deleteModal" class="fixed inset-0 backdrop-blur-md bg-black/20 hidden flex items-center justify-center z-50">
-        <div class="staff-modal w-80 rounded-2xl border bg-white p-6 shadow-xl">
-
-            <div class="flex items-center gap-3 mb-3">
-                <div class="bg-red-100 text-red-600 p-2 rounded-full">❗</div>
-                <h2 class="staff-modal-title text-lg font-semibold">Delete Staff</h2>
+    <div id="archiveStaffModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm">
+        <div class="staff-modal mx-4 w-full max-w-md rounded-xl border bg-white p-6 shadow-xl">
+            <div class="flex items-start gap-4">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="staff-modal-title text-base font-semibold">Archive Staff?</h2>
+                    <p class="staff-muted mt-1 text-sm leading-6">
+                        Are you sure you want to archive this staff account? The staff member will no longer be able to log in and will be moved to Archived Staff. You can restore the account later.
+                    </p>
+                </div>
             </div>
-
-            <p class="staff-muted mb-6 text-sm">
-                This will permanently delete this staff.
-            </p>
-
-            <div class="flex justify-end gap-3">
-                <button onclick="closeDeleteModal()"
-                    class="staff-cancel rounded-lg border px-4 py-2 text-gray-700">
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" onclick="closeArchiveStaffModal()" class="staff-cancel rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
                     Cancel
                 </button>
-
-                <button id="confirmDeleteBtn"
-                    class="staff-delete rounded-lg px-4 py-2 text-white">
-                    Delete
-                </button>
+                <form id="archiveStaffForm" method="POST" class="inline">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" id="confirmArchiveStaffButton" disabled class="staff-delete inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
+                        Archive
+                    </button>
+                </form>
             </div>
         </div>
     </div>
 
-    {{-- SCRIPT --}}
+    <div id="resetStaffModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm"
+        role="dialog" aria-modal="true" aria-labelledby="resetStaffModalTitle" aria-describedby="resetStaffModalMessage">
+        <div class="staff-modal mx-4 w-full max-w-md rounded-xl border bg-white p-6 shadow-xl">
+            <div class="flex items-start gap-4">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-[#6B4EFF]">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 6.75a3 3 0 0 0-4.16 4.33l-5.4 5.4a1.5 1.5 0 0 0 2.12 2.12l5.4-5.4a3 3 0 0 0 4.33-4.16l-2.12 2.12-2.12-2.12 1.95-2.29Z" />
+                    </svg>
+                </div>
+                <div>
+                    <h2 id="resetStaffModalTitle" class="staff-modal-title text-base font-semibold">Reset Staff Account?</h2>
+                    <p id="resetStaffModalMessage" class="staff-muted mt-1 text-sm leading-6">
+                        Send a password reset link to <span id="resetStaffName" class="font-semibold text-gray-800"></span>
+                        at <span id="resetStaffEmail" class="font-semibold text-gray-800"></span>?
+                        The staff member will create their own new password using the secure reset link. Their profile and records will not be changed.
+                    </p>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" onclick="closeResetStaffModal()" class="staff-cancel rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50">
+                    Cancel
+                </button>
+                <form id="resetStaffForm" method="POST" class="inline">
+                    @csrf
+                    <button type="submit" id="sendResetStaffButton" disabled class="inline-flex items-center justify-center rounded-lg bg-[#6B4EFF] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#5139D8] disabled:cursor-not-allowed disabled:opacity-60">
+                        Send Reset Link
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
-        let selectedForm = null;
+        const archiveStaffForm = document.getElementById('archiveStaffForm');
+        const confirmArchiveStaffButton = document.getElementById('confirmArchiveStaffButton');
+        const resetStaffForm = document.getElementById('resetStaffForm');
+        const sendResetStaffButton = document.getElementById('sendResetStaffButton');
 
-        document.querySelectorAll('.deleteForm').forEach(form => {
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                selectedForm = form;
-                document.getElementById('deleteModal').classList.remove('hidden');
-            });
-        });
+        function confirmArchiveStaff(button) {
+            const archiveUrl = button.dataset.archiveUrl;
+            if (!archiveUrl) {
+                return;
+            }
 
-        function closeDeleteModal() {
-            document.getElementById('deleteModal').classList.add('hidden');
+            archiveStaffForm.action = archiveUrl;
+            confirmArchiveStaffButton.disabled = false;
+            const modal = document.getElementById('archiveStaffModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
         }
 
-        document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
-            if (selectedForm) {
-                selectedForm.submit();
+        function closeArchiveStaffModal() {
+            const modal = document.getElementById('archiveStaffModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            archiveStaffForm.removeAttribute('action');
+            confirmArchiveStaffButton.disabled = true;
+            document.body.style.overflow = '';
+        }
+
+        function confirmResetStaff(button) {
+            const resetUrl = button.dataset.resetUrl;
+            if (!resetUrl) {
+                return;
+            }
+
+            resetStaffForm.action = resetUrl;
+            sendResetStaffButton.disabled = false;
+            document.getElementById('resetStaffName').textContent = button.dataset.staffName || '';
+            document.getElementById('resetStaffEmail').textContent = button.dataset.staffEmail || '';
+
+            const modal = document.getElementById('resetStaffModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeResetStaffModal() {
+            const modal = document.getElementById('resetStaffModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            resetStaffForm.removeAttribute('action');
+            sendResetStaffButton.disabled = true;
+            document.getElementById('resetStaffName').textContent = '';
+            document.getElementById('resetStaffEmail').textContent = '';
+            document.body.style.overflow = '';
+        }
+
+        document.getElementById('archiveStaffModal')?.addEventListener('click', function (event) {
+            if (event.target === this) {
+                closeArchiveStaffModal();
+            }
+        });
+
+        document.getElementById('resetStaffModal')?.addEventListener('click', function (event) {
+            if (event.target === this) {
+                closeResetStaffModal();
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && !document.getElementById('resetStaffModal').classList.contains('hidden')) {
+                closeResetStaffModal();
+            } else if (event.key === 'Escape') {
+                closeArchiveStaffModal();
             }
         });
     </script>

@@ -36,7 +36,7 @@
                 <div><p class="text-xs font-medium text-gray-500">Contact Number</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->contact_number ?: 'Not recorded' }}</p></div>
                 <div><p class="text-xs font-medium text-gray-500">PhilHealth Member</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->philhealth_member ? 'Yes' : 'No' }}</p></div>
                 <div><p class="text-xs font-medium text-gray-500">PhilHealth Number</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->philhealth_number ?: 'Not recorded' }}</p></div>
-                <div class="sm:col-span-2"><p class="text-xs font-medium text-gray-500">Address</p><p class="mt-1 font-semibold text-gray-900">{{ $patient->address ?: 'Not recorded' }}</p></div>
+                <div class="sm:col-span-2"><p class="text-xs font-medium text-gray-500">Address</p><p class="mt-1 font-semibold text-gray-900">{!! $patient->formatted_address !== '' ? nl2br(e($patient->formatted_address)) : 'Not recorded' !!}</p></div>
             </div>
         </section>
 
@@ -68,7 +68,7 @@
                             <tr role="row" id="visit-details-{{ $visit->id }}" class="hidden bg-gray-50">
                                 <td role="cell" colspan="4" class="px-5 py-4 text-sm text-gray-700">
                                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                                        <div><span class="font-semibold">Weight:</span> {{ $visit->weight ?? 'N/A' }} kg</div>
+                                        <div><span class="font-semibold">Weight:</span> {{ $visit->weight !== null ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg' : 'N/A' }}</div>
                                         <div><span class="font-semibold">Gestational Age:</span> {{ $visit->gestational_age ?? 'N/A' }} weeks</div>
                                         <div><span class="font-semibold">Temperature:</span> {{ $visit->temperature ?? 'N/A' }}&deg;C</div>
                                         <div><span class="font-semibold">Next Visit:</span> {{ $visit->next_visit_date?->format('M d, Y') ?: 'Not scheduled' }}</div>
@@ -111,7 +111,7 @@
                             <div><dt class="text-gray-500">Sex</dt><dd class="font-medium text-gray-900">{{ $baby->sex ?: 'Not recorded' }}</dd></div>
                             <div><dt class="text-gray-500">Date of Birth</dt><dd class="font-medium text-gray-900">{{ $baby->date_of_birth?->format('M d, Y') ?: 'Not recorded' }}</dd></div>
                             <div><dt class="text-gray-500">Time of Birth</dt><dd class="font-medium text-gray-900">{{ $baby->time_of_birth?->format('h:i A') ?: 'Not recorded' }}</dd></div>
-                            <div><dt class="text-gray-500">Birth Weight</dt><dd class="font-medium text-gray-900">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'Not recorded' }}</dd></div>
+                            <div><dt class="text-gray-500">Birth Weight</dt><dd class="font-medium text-gray-900">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'Not recorded' }}</dd></div>
                             <div><dt class="text-gray-500">Birth Length</dt><dd class="font-medium text-gray-900">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'Not recorded' }}</dd></div>
                         </dl>
                     </div>

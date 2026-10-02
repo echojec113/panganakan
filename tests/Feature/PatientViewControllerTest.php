@@ -7,7 +7,6 @@ use App\Models\PrenatalVisit;
 use App\Models\Referral;
 use App\Models\User;
 
-uses(\Tests\TestCase::class, \Illuminate\Foundation\Testing\RefreshDatabase::class);
 
 beforeEach(function () {
     $this->withoutVite();

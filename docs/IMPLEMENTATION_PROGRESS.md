@@ -1873,3 +1873,94 @@ Status: UI change complete; automated UI verification blocked by test bootstrap.
 - Preservation: Exact source comparison confirms Patient Assessments search/filter, mobile cards, desktop table, evidence, actions and pagination markup are unchanged. Admin/Staff dashboards, routes, models, referral analytics and clinical classification were not modified by this task.
 - Verification: RiskMonitoringAccessTest passed (5 tests, 40 assertions), covering authorization, year selection, monthly/daily payloads, leap-year February, latest-assessment counts independent of reporting period, assessment risk filtering and busiest-day summary. Node checks passed for chart payload use, High/Low switching, horizontal factor chart, summary labels, empty states and Year event wiring. PHP syntax and scoped diff checks passed. No visual browser test performed.
 - Defense notes: Use the existing analytics.trend and highestRiskPeriod payload rather than recalculating analytics. Label current-state and selected-period figures separately. Ignore stale requests and restore the last successful selection on errors so filters cannot silently mislabel old charts. Keep backend methods and unused existing controller counts to avoid unrelated cleanup.
+
+## Decimal Gestational Age Auto-Fill (2026-10-01)
+
+- Added `GestationalAgeCalculator` for elapsed LMP-to-clinical-date days divided by seven and rounded to one decimal, with reversed dates rejected.
+- Added a reversible migration for `prenatal_visits.gestational_age` and `ultrasounds.gestational_age_scan` to `DECIMAL(4,1)`, and float-compatible model/context handling.
+- Prenatal Visit CREATE/EDIT and Ultrasound CREATE/EDIT now receive a server-calculated initial GA and expected-GA helper text. The shared Blade auto-fill script recalculates on relevant date and patient changes, preserves old input on initial render, and keeps GA manually editable until those inputs change.
+- LMP is supplied from the existing locked patient hidden input, dropdown option, or the record's patient on edit. Patient locking/session behavior was not changed.
+- Reversed dates and calculated GA outside 4–42 are not auto-filled. Existing ±3-week tolerance and other clinical rules are unchanged.
+- Verification: 12 targeted tests passed (72 assertions), covering all four rendered forms, locked profile LMP, old-input precedence, missing LMP, reversed dates, out-of-range GA, and decimal storage/context. Direct browser-script event simulation passed for initial display, manual edit, date/patient changes, old input, missing LMP, reversed dates, and range guards. Migration apply/rollback/reapply and Blade view compilation passed.
+- Defense notes: Calculate initial values server-side with the shared service so the input and helper are present in the first response; use one shared client script only for recalculation after user changes. This avoids four independent page-load implementations while preserving the locked-patient flow.
+
+## System-Wide Kilogram Weight Precision (2026-10-01)
+
+- Changed the existing pending prenatal weight migration to `DECIMAL(5,1)`. The target MySQL database was confirmed as `maternity_system1`; the migration had no applied migration row. A separate pending GA migration was deliberately left untouched and will remain pending.
+- Prenatal Visit create/edit now use `step="0.1"` and backend validation allows at most one fractional digit while retaining the 30–250 kg limits. Create old input remains direct; edit uses the existing old value ahead of a one-decimal stored fallback.
+- Added `WeightFormatter::formatKg()` as the shared one-decimal formatter for nullable kilogram values. Maternal weight displays in profile/history/tables/print/PDF/CSV and baby birth-weight displays in profile/history/print/PDF/CSV now use the same formatter. The dynamically refreshed baby card uses equivalent one-decimal output.
+- Birth-weight create/edit inputs and both controller validation paths now enforce one decimal place; its existing `DECIMAL(5,2)` database storage and model cast are unchanged.
+- Estimated fetal weight in grams, clinical/risk/ML calculations, GA, BP, LMP, EDD, patient locking, and referral behavior were not changed.
+- Verification: applied only this pending migration to `maternity_system1` with Laravel's targeted `migrate --path` option. The live column is now `DECIMAL(5,1)`; its migration row is applied while the separate GA migration remains pending and `gestational_age` remains `INT`. Focused prenatal, birth-weight, print/history/profile, CSV/PDF, and formatter tests pass; Blade compilation and PHP lint pass.
+- Defense notes: Formatting is display-only and never changes risk/ML numeric inputs. One decimal is persisted for prenatal weight; existing baby storage precision is retained to avoid an unnecessary schema change. Null weight remains null so each view keeps its current empty/N/A/dash label.
+
+## Patient Records Row Action Adjustment (2026-10-01)
+
+- Removed only the Edit action from each row in the staff Patient Records list. The centered Actions container, View action, and archive action remain unchanged.
+- Patient edit routes, controller actions, update logic, edit page, and the Edit Patient action within Patient Profile remain available.
+- Verification: focused `StaffAccessControlTest` passed (1 test, 8 assertions); confirmed edit/update routes remain registered and `git diff --check` passed for the scoped files.
+- Defense notes: This is a list-level affordance change only; direct profile editing and backend behavior remain intact.
+
+## Prenatal Visit Next Visit Date Validation (2026-10-01)
+
+- Prenatal Visit Create and Edit validate a complete Next Visit Date immediately on `input` and `change`, using a server-rendered current date and the existing backend rule: optional, today or later.
+- Empty or incomplete input clears/does not show the inline error. A complete past date gets the existing DEPLA-style red field and inline message; today remains valid.
+- Removed the `min` attribute from this date input so the application can provide the inline response rather than the browser's native validation popup. The backend `nullable|date|after_or_equal:today` rules remain unchanged.
+- Create and Edit recheck the date on form submission, and their confirmation buttons recheck before submitting.
+- Verification: three focused tests in `PrenatalVisitHistoryAndPrintTest` passed (21 assertions), covering both rendered forms and backend store/update enforcement. A Node runtime check exercised the actual Blade validation functions for empty/incomplete input, a 1991 date, yesterday, and today on both forms. Blade view cache and PHP syntax checks passed.
+- No clinical/risk logic or other prenatal fields changed.
+- Defense notes: the comparison uses normalized `YYYY-MM-DD` strings, avoiding timezone conversion at the client; the dynamic server date stays aligned with Laravel's business-date rule.
+
+## Prenatal Visit Archive and Restore Workflow (2026-10-01)
+
+- Reused `PrenatalVisit` SoftDeletes and the existing `deleted_at` column. No migration, new archive column, or force delete was introduced.
+- Added an archive-only variant of the shared action-buttons component, used only by the Prenatal Visits row. The red trash icon now says Archive and opens a confirmation explaining that the visit moves to Archived Prenatal Visits and can be restored. The existing destroy method still calls `delete()` and now uses archive-specific audit/success wording.
+- Added the Archived button beside Add Prenatal Visit and an Archived Prenatal Visits page showing patient, visit date, BP, shared one-decimal weight formatting, GA, assessment, next visit, archive date, and restore action. The page has no permanent-delete action.
+- Added staff-protected `prenatal-visits.archived` and `prenatal-visits.restore` routes before the resource routes. Both controller queries use `onlyTrashed()` and `whereHas('patient')`, which excludes soft-deleted parents. Restore calls `restore()` only for a trashed visit with an active parent.
+- No Patient model, cascade/restore behavior, GA/weight calculations, other clinical logic, or dashboards/reports/referrals were changed.
+- Added `tests/Feature/PrenatalVisitArchiveWorkflowTest.php`; updated the existing prenatal visit row-action test assertions for the Archive label.
+- Verification: archive workflow (5 tests, 39 assertions), GA auto-fill (8 tests, 64 assertions), and prenatal weight (19 tests, 42 assertions) passed. Blade compilation, PHP syntax checks, route listing, and scoped `git diff --check` are also verified.
+- Defense notes: keep archive behavior scoped to the prenatal row action rather than changing the shared Delete action used elsewhere. Restrict standalone archive/restore to visits whose parent Patient is not trashed, without changing Patient archive cascades.
+
+## Patient Edit Date Field Display (2026-10-01)
+
+- Formatted the saved Birthdate, LMP, and EDD date-cast values as `Y-m-d` in the Edit Patient Blade bindings, preserving `old()` precedence and empty values for database NULL.
+- Did not add page-load date recalculation or change the existing LMP validation and LMP-change-triggered EDD calculation.
+- Added focused regression coverage for saved date display, NULL values, and old-input precedence after validation failure.
+- Defense notes: format dates at the HTML input boundary; keep persisted clinical values and backend validation unchanged.
+
+## Patient Profile Sticky Navigation and Smooth Scrolling (2026-10-01)
+
+- Moved the existing single Patient Profile navigation row from below Patient Header and Attention Required to the top of profile content, before the existing status banner/header content.
+- Preserved the measured application-header offset (56px in the current layout), opaque white navigation background, z-index below the application header, and existing section scroll margins.
+- Enabled native smooth scrolling for the profile page so the existing seven hash links move smoothly without custom click interception or a double jump.
+- Added a focused rendered-view test for navigation uniqueness/order, sticky layout properties, and all seven unchanged anchor targets.
+- Defense notes: native anchor scrolling retains URL/hash behavior and existing scroll margins; the global topbar remains above the navigation (z-index 50 versus 40).
+
+## Patient Profile Prenatal Visit History Actions (2026-10-02)
+
+- Removed only the Edit link and Delete form from ongoing-visit rows in Patient Profile → Prenatal Visit History. The Print link remains, and the row's click-to-view-details behavior is unchanged.
+- Kept the remaining Print action in a compact flex group without the former Edit/Delete spacing.
+- Updated the focused Patient Profile history test to assert the removed controls, retained Print links, and preserved row click behavior.
+- Verified the Prenatal Visit archive/restore workflow independently; its list, archive, and restore actions remain intact.
+- Defense notes: limit the removal to the Patient Profile Blade row and retain all resource routes/controller methods for other supported flows.
+
+## Manage Staff Archive and Restore (2026-10-02)
+
+- Reused `User` SoftDeletes and `users.deleted_at`; no migration, archive column, or permanent deletion was introduced.
+- Replaced the broken shared delete-button usage on Manage Staff with a staff-local Archive icon and confirmation modal. The dialog explains login deactivation and later restore, and offers Cancel/Archive actions.
+- Added an Archived link beside Add Staff and an Archived Staff page showing only soft-deleted `role = staff` users, with name, email, role, archived timestamp, and restore action.
+- Added admin-protected `staff.archived` and `staff.restore` routes before the staff resource routes. Controller actions reject non-staff targets; restore selects only trashed staff and calls `restore()`.
+- Archive/restore audit entries use `ARCHIVE` / `Archived staff: {name}` and `RESTORE` / `Restored staff: {name}`. The audit schema stores action as a free-form string.
+- Left `action-buttons.blade.php`, Prenatal Visit archive behavior, login logic, relationships, and foreign keys unchanged.
+- Verification: Staff Account Administration and Prenatal Visit Archive workflows passed (24 tests, 125 assertions); changed PHP files pass `php -l`, staff routes were confirmed by `route:list`, and `git diff --check` passed.
+- Defense notes: keep the archive behavior scoped to Manage Staff instead of changing shared action behavior used by Prenatal Visits and patient archive flows. No relationship cleanup runs because only the staff User row is soft-deleted.
+
+## Admin-Triggered Staff Password Reset (2026-10-02)
+
+- Added an authenticated POST `staff.reset-account` endpoint that uses Laravel's existing `Password::sendResetLink()` broker for the active staff model's registered email. Admin authorization, active-user model binding, and the exact `staff` role are required; archived and non-staff targets are rejected.
+- Added a per-row Reset Account icon and confirmation dialog to Manage Staff. The dialog shows the selected staff name and registered email; Cancel clears the selected form action, and Send Reset Link submits only after confirmation.
+- Broker status handling provides distinct success, throttling, and generic failure feedback. A safe `PASSWORD_RESET_REQUESTED` audit entry is written only after the broker reports success and contains the staff name/ID, not the token or URL.
+- Reused the existing reset notification, token table, expiry, reset form, and password-reset controller. No custom token system or migration was added, and the admin never receives a reset token or URL.
+- Verification: focused reset, Staff Account Administration, and existing password-reset suites passed (33 tests, 163 assertions); PHP syntax checks, reset-route registration, and `git diff --check` passed. Tests use `Notification::fake()` and PHPUnit's in-memory SQLite configuration; no real email or development/production database was involved.
+- Defense notes: resolve the target by route-bound User and derive the destination email from that persisted model, preventing client-supplied email/role values from changing the reset recipient or privilege. The reset request only issues a link and does not mutate staff or assigned patient data.

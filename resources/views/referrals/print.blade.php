@@ -249,7 +249,7 @@
 
                 <div class="info-item">
                     <div class="info-label">Address:</div>
-                    <div class="info-text">{{ $referral->patient->address }}</div>
+                    <div class="info-text">{!! nl2br(e($referral->patient->formatted_address)) !!}</div>
                 </div>
 
                 <div class="info-item">

@@ -88,7 +88,7 @@ class AssessmentContext
     public readonly ?int $miscarriage;
     public readonly ?string $lmp;
     public readonly ?string $edd;
-    public readonly ?int $gestational_age;
+    public readonly ?float $gestational_age;
     public readonly bool $ultrasound_present;
     public readonly array $visit_inputs;
     public readonly array $source_summary;
@@ -114,7 +114,7 @@ class AssessmentContext
         ?int $miscarriage = null,
         ?string $lmp = null,
         ?string $edd = null,
-        ?int $gestational_age = null,
+        ?float $gestational_age = null,
         bool $ultrasound_present = false,
         array $visit_inputs = [],
         array $source_summary = [],
@@ -248,7 +248,7 @@ class AssessmentContext
             miscarriage: isset($normalized['miscarriage']) && $normalized['miscarriage'] !== null ? (int) $normalized['miscarriage'] : null,
             lmp: isset($normalized['lmp']) && $normalized['lmp'] !== null ? (string) $normalized['lmp'] : null,
             edd: isset($normalized['edd']) && $normalized['edd'] !== null ? (string) $normalized['edd'] : null,
-            gestational_age: isset($normalized['gestational_age']) && $normalized['gestational_age'] !== null ? (int) $normalized['gestational_age'] : null,
+            gestational_age: isset($normalized['gestational_age']) && $normalized['gestational_age'] !== null ? (float) $normalized['gestational_age'] : null,
             ultrasound_present: (bool) ($normalized['ultrasound_present'] ?? false),
             visit_inputs: isset($normalized['visit_inputs']) && is_array($normalized['visit_inputs']) ? $normalized['visit_inputs'] : [],
             source_summary: isset($normalized['source_summary']) && is_array($normalized['source_summary']) ? $normalized['source_summary'] : [],

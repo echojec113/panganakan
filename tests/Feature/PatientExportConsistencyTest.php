@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\MedicalHistory;
+use App\Models\Baby;
 use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use App\Models\User;
@@ -156,4 +157,87 @@ it('pdf view data uses the newer visit when two visits share the same visit date
     expect($pdf->viewData)->toHaveKey('latestVisit');
     expect($pdf->viewData['latestVisit']->id)->toBe($newer->id);
     expect($pdf->viewData['latestVisit']->assessment)->toBe('Newer PDF assessment text');
+});
+
+it('uses one-decimal kilogram formatting across profile history print and exports', function () {
+    $user = exportStaff();
+    $patient = exportPatient([
+        'status' => 'DELIVERED',
+        'delivery_date' => '2026-09-01',
+    ]);
+    $visit = exportVisit($patient->id, [
+        'visit_date' => '2026-09-01',
+        'weight' => 60.5,
+    ]);
+    MedicalHistory::create(['patient_id' => $patient->id]);
+    Baby::create([
+        'patient_id' => $patient->id,
+        'date_of_birth' => '2026-09-01',
+        'time_of_birth' => '09:30',
+        'birth_weight' => '3.25',
+    ]);
+
+    $profile = $this->actingAs($user)->get(route('patients.show', $patient->id));
+    $profile->assertOk()->assertSee('60.5 kg')->assertSee('3.3 kg');
+
+    $activePatient = exportPatient([
+        'first_name' => 'Active',
+        'status' => 'ONGOING',
+    ]);
+    exportVisit($activePatient->id, [
+        'visit_date' => '2026-09-01',
+        'weight' => 60.5,
+    ]);
+
+    $visitIndex = $this->actingAs($user)->get(route('prenatal-visits.index'));
+    $visitIndex->assertOk()->assertSee('60.5 kg');
+
+    $babyInformation = $this->actingAs($user)->get(route('patients.delivered.babies', $patient->id));
+    $babyInformation->assertOk()->assertSee('3.3 kg');
+
+    $babyPrint = $this->actingAs($user)->get(route('patients.delivered.print-babies', $patient->id));
+    $babyPrint->assertOk()->assertSee('3.3 kg');
+
+    $admin = User::factory()->create(['role' => 'admin']);
+    $pregnancyView = $this->actingAs($admin)
+        ->get(route('view-all-records.pregnancy', $patient->id));
+    $pregnancyView->assertOk()->assertSee('60.5 kg')->assertSee('3.3 kg');
+
+    $pregnancyPrint = $this->actingAs($admin)
+        ->get(route('view-all-records.pregnancy.print', $patient->id));
+    $pregnancyPrint->assertOk()->assertSee('60.5 kg')->assertSee('3.3 kg');
+
+    $visitPrint = $this->actingAs($user)->get(route('prenatal-visits.print', $visit->id));
+    $visitPrint->assertOk()->assertSee('60.5 kg');
+
+    $csv = $this->actingAs($user)->post(route('patients.download', $patient->id), ['format' => 'csv']);
+    $csv->assertOk();
+    expect($csv->getContent())->toContain('Weight: 60.5 kg')
+        ->and($csv->getContent())->toContain('Birth Weight: 3.3 kg');
+
+    $pdf = new class {
+        public ?string $html = null;
+
+        public function loadView(string $view, array $data = [], array $mergeData = []): static
+        {
+            $this->html = view($view, $data)->render();
+
+            return $this;
+        }
+
+        public function setPaper(mixed $paper, string $orientation = 'portrait'): static
+        {
+            return $this;
+        }
+
+        public function download(string $filename = 'document.pdf')
+        {
+            return response('pdf', 200);
+        }
+    };
+    $this->app->instance('dompdf.wrapper', $pdf);
+
+    $pdfResponse = $this->actingAs($user)->post(route('patients.download', $patient->id), ['format' => 'pdf']);
+    $pdfResponse->assertOk();
+    expect($pdf->html)->toContain('60.5 kg')->toContain('3.3 kg');
 });

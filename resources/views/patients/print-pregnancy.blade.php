@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pregnancy Record - {{ $patient->first_name }} {{ $patient->last_name }}</title>
     <style>
         body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
@@ -19,22 +18,6 @@
         th { background: #f9fafb; }
         .no-print { float: right; padding: 8px 14px; }
         @media print { .no-print { display: none; } body { margin: 18px; } }
-
-        /* Screen preview only: retain the existing printed document layout. */
-        @media screen {
-            body { margin: 16px; overflow-wrap: anywhere; }
-            .grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
-            .grid > * { min-width: 0; }
-            button { min-height: 44px; }
-            table { table-layout: fixed; }
-            th, td { overflow-wrap: anywhere; }
-        }
-        @media screen and (max-width: 767px) {
-            table, tbody, tr { display: block; width: 100%; }
-            thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-            td { display: block; padding: 8px; }
-            td[data-label]::before { content: attr(data-label); display: block; font-weight: bold; margin-bottom: 4px; }
-        }
     </style>
 </head>
 <body>
@@ -55,22 +38,22 @@
         <div class="box"><div class="label">Contact Number</div><div class="value">{{ $patient->contact_number ?: 'Not recorded' }}</div></div>
         <div class="box"><div class="label">PhilHealth Member</div><div class="value">{{ $patient->philhealth_member ? 'Yes' : 'No' }}</div></div>
         <div class="box"><div class="label">PhilHealth Number</div><div class="value">{{ $patient->philhealth_number ?: 'Not recorded' }}</div></div>
-        <div class="box"><div class="label">Address</div><div class="value">{{ $patient->address ?: 'Not recorded' }}</div></div>
+        <div class="box"><div class="label">Address</div><div class="value">{!! $patient->formatted_address !== '' ? nl2br(e($patient->formatted_address)) : 'Not recorded' !!}</div></div>
     </div>
 
     <h2>Prenatal Visits / Checkups</h2>
     @if($patient->prenatalVisits->isNotEmpty())
-        <table role="table">
-            <thead><tr role="row"><th>Date</th><th>BP</th><th>Weight</th><th>Gestational Age</th><th>Risk</th><th>Assessment</th></tr></thead>
+        <table>
+            <thead><tr><th>Date</th><th>BP</th><th>Weight</th><th>Gestational Age</th><th>Risk</th><th>Assessment</th></tr></thead>
             <tbody>
                 @foreach($patient->prenatalVisits as $visit)
-                    <tr role="row">
-                        <td role="cell" data-label="Visit date">{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
-                        <td role="cell" data-label="Blood pressure">{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
-                        <td role="cell" data-label="Weight">{{ $visit->weight ?? 'N/A' }} kg</td>
-                        <td role="cell" data-label="Gestational age">{{ $visit->gestational_age ?? 'N/A' }} weeks</td>
-                        <td role="cell" data-label="Risk">{{ $visit->risk_level ?: 'Not recorded' }}</td>
-                        <td role="cell" data-label="Assessment">{{ $visit->assessment ?: 'No assessment recorded.' }}</td>
+                    <tr>
+                        <td>{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
+                        <td>{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
+                        <td>{{ $visit->weight !== null ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg' : 'N/A' }}</td>
+                        <td>{{ $visit->gestational_age ?? 'N/A' }} weeks</td>
+                        <td>{{ $visit->risk_level ?: 'Not recorded' }}</td>
+                        <td>{{ $visit->assessment ?: 'No assessment recorded.' }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -100,7 +83,7 @@
             <div class="box"><div class="label">Sex</div><div class="value">{{ $baby->sex ?: 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Date of Birth</div><div class="value">{{ $baby->date_of_birth?->format('M d, Y') ?: 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Time of Birth</div><div class="value">{{ $baby->time_of_birth?->format('h:i A') ?: 'Not recorded' }}</div></div>
-            <div class="box"><div class="label">Birth Weight</div><div class="value">{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'Not recorded' }}</div></div>
+            <div class="box"><div class="label">Birth Weight</div><div class="value">{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'Not recorded' }}</div></div>
             <div class="box"><div class="label">Birth Length</div><div class="value">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'Not recorded' }}</div></div>
         </div>
     @empty

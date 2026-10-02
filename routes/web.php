@@ -176,6 +176,15 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     |--------------------------------------------------------------------------
     */
 
+    Route::get('/staff/archived', [StaffController::class, 'archived'])
+        ->name('staff.archived');
+
+    Route::post('/staff/{id}/restore', [StaffController::class, 'restore'])
+        ->name('staff.restore');
+
+    Route::post('/staff/{staff}/reset-account', [StaffController::class, 'resetAccount'])
+        ->name('staff.reset-account');
+
     Route::resource('staff', StaffController::class)->except(['show']);
 
     /*
@@ -259,6 +268,12 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
         | Write Resources
         |--------------------------------------------------------------------------
         */
+
+        Route::get('/prenatal-visits/archived', [PrenatalVisitController::class, 'archived'])
+            ->name('prenatal-visits.archived');
+
+        Route::post('/prenatal-visits/{id}/restore', [PrenatalVisitController::class, 'restoreArchived'])
+            ->name('prenatal-visits.restore');
 
         Route::resource('prenatal-visits', PrenatalVisitController::class);
         Route::resource('medical-histories', MedicalHistoryController::class);

@@ -215,7 +215,7 @@
                 <td class="lbl">PhilHealth Number</td><td>{{ $patient->philhealth_number ?: 'N/A' }}</td>
             </tr>
             <tr>
-                <td class="lbl">Address</td><td colspan="3">{{ $dash($patient->address) }}</td>
+                <td class="lbl">Address</td><td colspan="3">{!! nl2br(e($dash($patient->formatted_address))) !!}</td>
             </tr>
             <tr>
                 <td class="lbl">Contact Number</td><td colspan="3">{{ $dash($patient->contact_number) }}</td>
@@ -253,7 +253,7 @@
             </tr>
             <tr>
                 <td class="lbl">Blood Pressure</td><td>{{ ($latestVisit->bp_sys && $latestVisit->bp_dia) ? $latestVisit->bp_sys . '/' . $latestVisit->bp_dia : '—' }}</td>
-                <td class="lbl">Weight</td><td>{{ $latestVisit->weight ? $latestVisit->weight . ' kg' : '—' }}</td>
+                <td class="lbl">Weight</td><td>{{ $latestVisit->weight !== null ? \App\Support\WeightFormatter::formatKg($latestVisit->weight) . ' kg' : '—' }}</td>
             </tr>
             <tr>
                 <td class="lbl">Temperature</td><td colspan="3">{{ $latestVisit->temperature ? $latestVisit->temperature . ' °C' : '—' }}</td>
@@ -628,7 +628,7 @@
                     </tr>
                     <tr>
                         <td class="lbl">Time of Birth</td><td>{{ $baby->time_of_birth ? \Carbon\Carbon::parse($baby->time_of_birth)->format('g:i A') : 'N/A' }}</td>
-                        <td class="lbl">Birth Weight</td><td>{{ $baby->birth_weight ? $baby->birth_weight . ' kg' : 'N/A' }}</td>
+                        <td class="lbl">Birth Weight</td><td>{{ $baby->birth_weight !== null ? \App\Support\WeightFormatter::formatKg($baby->birth_weight) . ' kg' : 'N/A' }}</td>
                     </tr>
                     <tr>
                         <td class="lbl">Birth Length</td><td colspan="3">{{ $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A' }}</td>

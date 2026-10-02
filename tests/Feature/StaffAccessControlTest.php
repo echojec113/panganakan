@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Patient;
+use App\Models\MedicalHistory;
 use App\Models\User;
 
 beforeEach(function () {
@@ -51,6 +52,37 @@ it('allows staff access to patients.index', function () {
     $response = $this->actingAs($staff)->get(route('patients.index'));
 
     $response->assertOk();
+});
+
+it('hides Patient Records edit action while keeping profile and profile edit available', function () {
+    $patient = Patient::create([
+        'first_name' => 'Ana',
+        'last_name' => 'Cruz',
+        'birthdate' => '1995-01-01',
+        'age' => 30,
+        'address' => 'Test',
+        'contact_number' => '09171234567',
+        'civil_status' => 'Single',
+        'gravida' => 1,
+        'para' => 0,
+        'status' => 'ONGOING',
+    ]);
+    MedicalHistory::create(['patient_id' => $patient->id]);
+    $staff = User::factory()->create(['role' => 'staff']);
+
+    $recordsPage = $this->actingAs($staff)->get(route('patients.index'));
+    $recordsPage->assertOk()
+        ->assertSee(route('patients.show', $patient->id), false)
+        ->assertDontSee('title="Edit patient"', false)
+        ->assertDontSee(route('patients.edit', $patient->id), false);
+
+    $profile = $this->actingAs($staff)->get(route('patients.show', $patient->id));
+    $profile->assertOk()
+        ->assertSee(route('patients.edit', $patient->id), false)
+        ->assertSeeText('Edit Patient');
+
+    $editPage = $this->actingAs($staff)->get(route('patients.edit', $patient->id));
+    $editPage->assertOk();
 });
 
 it('allows staff access to patients.create', function () {

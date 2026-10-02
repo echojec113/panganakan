@@ -53,6 +53,22 @@ function phpStorePayload(array $overrides = []): array
     ], $overrides);
 }
 
+function prenatalVisitHistoryRiskPanelText(\Illuminate\Testing\TestResponse $response): string
+{
+    $document = new DOMDocument();
+    $previousLibxmlState = libxml_use_internal_errors(true);
+    $document->loadHTML($response->getContent());
+    libxml_clear_errors();
+    libxml_use_internal_errors($previousLibxmlState);
+
+    $panel = $document->getElementById('risk-assessment');
+    if ($panel === null) {
+        throw new RuntimeException('Risk Assessment panel was not rendered.');
+    }
+
+    return $panel->textContent;
+}
+
 // ---------------------------------------------------------------------
 // A. Every prenatal visit must remain separately saved
 // ---------------------------------------------------------------------
@@ -83,7 +99,7 @@ it('does not increase the row count when updating an existing prenatal visit', f
 
     $this->assertDatabaseCount('prenatal_visits', 1);
     $visit->refresh();
-    expect($visit->weight)->toBe(65);
+    expect($visit->weight)->toBe(65.0);
     expect($visit->notes)->toBe('Updated during edit');
 });
 
@@ -107,8 +123,10 @@ it('selects the visit with the latest visit_date as the current assessment', fun
     $response->assertOk();
     // The current-assessment panel headline reflects the visit with the
     // latest visit_date (HIGH), not the older LOW visit.
-    $response->assertSeeText('HIGH RISK');
-    $response->assertDontSeeText('LOW RISK');
+    $riskPanelText = prenatalVisitHistoryRiskPanelText($response);
+    expect($riskPanelText)->toContain('High Risk')
+        ->toContain('Newer HIGH assessment text')
+        ->not->toContain('Older LOW assessment text');
 });
 
 it('uses the highest id as a tie-breaker when visit_date is the same', function () {
@@ -135,8 +153,10 @@ it('uses the highest id as a tie-breaker when visit_date is the same', function 
     $response->assertOk();
     // The current-assessment panel headline reflects the highest id when
     // visit_date is tied (HIGH), not the earlier same-date LOW visit.
-    $response->assertSeeText('HIGH RISK');
-    $response->assertDontSeeText('LOW RISK');
+    $riskPanelText = prenatalVisitHistoryRiskPanelText($response);
+    expect($riskPanelText)->toContain('High Risk')
+        ->toContain('Second same-date assessment text')
+        ->not->toContain('First same-date assessment text');
 });
 
 it('ignores soft-deleted visits when selecting the current assessment and history', function () {
@@ -213,7 +233,7 @@ it('orders the Patient Profile visit history by visit_date desc then id desc', f
 // C/D/E/F. Per-visit Print action, route, controller, and print view data
 // ---------------------------------------------------------------------
 
-it('shows a Print action inside the Action column for every prenatal visit row', function () {
+it('shows only the Print action in Patient Profile prenatal visit history', function () {
     $user = phpStaffUser();
     $patient = phpPatient();
 
@@ -223,10 +243,16 @@ it('shows a Print action inside the Action column for every prenatal visit row',
     $response = $this->actingAs($user)->get(route('patients.show', $patient->id));
 
     $response->assertOk();
-    $response->assertSee('>Edit<', false);
-    $response->assertSee('>Delete<', false);
-    $response->assertSee(route('prenatal-visits.print', $visitOne->id));
-    $response->assertSee(route('prenatal-visits.print', $visitTwo->id));
+    $response->assertDontSee('href="' . route('prenatal-visits.edit', $visitOne->id) . '"', false);
+    $response->assertDontSee('href="' . route('prenatal-visits.edit', $visitTwo->id) . '"', false);
+    $response->assertDontSee('action="' . route('prenatal-visits.destroy', $visitOne->id) . '"', false);
+    $response->assertDontSee('action="' . route('prenatal-visits.destroy', $visitTwo->id) . '"', false);
+    $response->assertDontSee('Delete this prenatal visit?', false);
+    $response->assertSee('href="' . route('prenatal-visits.print', $visitOne->id) . '"', false);
+    $response->assertSee('href="' . route('prenatal-visits.print', $visitTwo->id) . '"', false);
+    $response->assertSeeText('Click to view details');
+    $response->assertSee('onclick="toggleVisitDetails(' . $visitOne->id . ')"', false);
+    $response->assertSee('onclick="toggleVisitDetails(' . $visitTwo->id . ')"', false);
 });
 
 it('points each Print action to that specific prenatal visit id', function () {
@@ -377,7 +403,7 @@ it('still allows editing an existing prenatal visit through the existing Edit ac
     $response->assertOk();
 });
 
-it('still allows deleting an existing prenatal visit through the existing Delete action', function () {
+it('still allows archiving an existing prenatal visit through its row action', function () {
     $user = phpStaffUser();
     $patient = phpPatient();
     $visit = phpVisit($patient->id);
@@ -401,5 +427,61 @@ it('still shows the existing risk panel behavior on the Patient Profile', functi
     $response = $this->actingAs($user)->get(route('patients.show', $patient->id));
 
     $response->assertOk();
-    $response->assertSeeText('HIGH RISK');
+    expect(prenatalVisitHistoryRiskPanelText($response))->toContain('High Risk');
+});
+
+it('renders create and edit with dynamic inline next visit date validation', function () {
+    $user = phpStaffUser();
+    $patient = phpPatient();
+    $visit = phpVisit($patient->id);
+
+    foreach ([
+        $this->actingAs($user)->get(route('prenatal-visits.create')),
+        $this->actingAs($user)->get(route('prenatal-visits.edit', $visit->id)),
+    ] as $response) {
+        $response->assertOk()
+            ->assertSee('id="next_visit_date"', false)
+            ->assertSee('data-min-date="' . today()->toDateString() . '"', false)
+            ->assertDontSee('min="' . today()->toDateString() . '"', false)
+            ->assertSee('addEventListener(\'input\', validateNextVisitDate)', false)
+            ->assertSee('addEventListener(\'change\', validateNextVisitDate)', false)
+            ->assertSee('Next visit date must be today or in the future');
+    }
+});
+
+it('keeps today valid and rejects a past next visit date on create', function () {
+    $user = phpStaffUser();
+    $patient = phpPatient();
+
+    $this->actingAs($user)
+        ->post(route('prenatal-visits.store'), phpStorePayload([
+            'patient_id' => $patient->id,
+            'next_visit_date' => today()->toDateString(),
+        ]))
+        ->assertSessionDoesntHaveErrors(['next_visit_date']);
+
+    $this->actingAs($user)
+        ->post(route('prenatal-visits.store'), phpStorePayload([
+            'patient_id' => $patient->id,
+            'next_visit_date' => today()->subDay()->toDateString(),
+        ]))
+        ->assertSessionHasErrors(['next_visit_date']);
+
+    expect(PrenatalVisit::where('patient_id', $patient->id)->count())->toBe(1);
+});
+
+it('rejects a past next visit date on update and keeps the stored value', function () {
+    $user = phpStaffUser();
+    $patient = phpPatient();
+    $existingDate = today()->addDays(5)->toDateString();
+    $visit = phpVisit($patient->id, ['next_visit_date' => $existingDate]);
+
+    $this->actingAs($user)
+        ->put(route('prenatal-visits.update', $visit->id), phpStorePayload([
+            'patient_id' => $patient->id,
+            'next_visit_date' => today()->subDay()->toDateString(),
+        ]))
+        ->assertSessionHasErrors(['next_visit_date']);
+
+    expect($visit->fresh()->next_visit_date->toDateString())->toBe($existingDate);
 });

@@ -45,7 +45,7 @@ function pregnancyOutcomeRecordingPayload(array $overrides = []): array
                 'sex' => 'Female',
                 'date_of_birth' => '2026-08-05',
                 'time_of_birth' => '09:30',
-                'birth_weight' => '2.80',
+                'birth_weight' => '2.8',
                 'birth_length' => '48',
             ],
         ],
@@ -119,6 +119,65 @@ it('A B E F G H J K L N O — records a confirmed THIS_CLINIC delivery end to en
     $audit = AuditLog::where('module', 'PATIENT')->orderByDesc('id')->first();
     expect($audit)->not->toBeNull();
     expect($audit->description)->toContain('Recorded confirmed delivery outcome');
+});
+
+it('accepts one decimal place and rejects two decimal places for birth weight', function () {
+    $user = pregnancyOutcomeRecordingUser();
+    $patient = pregnancyOutcomeRecordingPatient();
+
+    $valid = pregnancyOutcomeRecordingPayload([
+        'babies' => [[
+            'date_of_birth' => '2026-08-05',
+            'time_of_birth' => '09:30',
+            'birth_weight' => '3.5',
+        ]],
+    ]);
+
+    $this->actingAs($user)->post(route('patients.deliver', $patient->id), $valid)
+        ->assertSessionDoesntHaveErrors(['babies.0.birth_weight']);
+
+    $anotherPatient = pregnancyOutcomeRecordingPatient(['first_name' => 'Second']);
+    $invalid = pregnancyOutcomeRecordingPayload([
+        'babies' => [[
+            'date_of_birth' => '2026-08-05',
+            'time_of_birth' => '09:30',
+            'birth_weight' => '3.25',
+        ]],
+    ]);
+
+    $this->actingAs($user)->from(route('patients.show', $anotherPatient->id))
+        ->post(route('patients.deliver', $anotherPatient->id), $invalid)
+        ->assertRedirect(route('patients.show', $anotherPatient->id))
+        ->assertSessionHasErrors(['babies.0.birth_weight'])
+        ->assertSessionHas('_old_input.babies.0.birth_weight', '3.25');
+
+    $profile = $this->actingAs($user)->get(route('patients.show', $anotherPatient->id));
+    $profile->assertOk()->assertSee('value="3.25"', false);
+});
+
+it('validates the baby edit birth weight to one decimal place', function () {
+    $user = pregnancyOutcomeRecordingUser();
+    $patient = pregnancyOutcomeRecordingPatient();
+    $baby = Baby::create([
+        'patient_id' => $patient->id,
+        'date_of_birth' => '2026-08-05',
+        'time_of_birth' => '09:30',
+    ]);
+    $payload = [
+        'date_of_birth' => '2026-08-05',
+        'time_of_birth' => '09:30',
+        'birth_weight' => '3.5',
+    ];
+
+    $this->actingAs($user)->postJson(route('patients.update-baby', $baby->id), $payload)
+        ->assertOk()
+        ->assertJsonPath('baby.birth_weight', '3.50')
+        ->assertJsonPath('baby.birth_weight_display', '3.5');
+
+    $this->actingAs($user)->postJson(route('patients.update-baby', $baby->id), array_merge($payload, [
+        'birth_weight' => '3.25',
+    ]))->assertUnprocessable()
+        ->assertJsonValidationErrors(['birth_weight']);
 });
 
 it('B — records an ANOTHER_FACILITY delivery from an other-facility report', function () {

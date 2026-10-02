@@ -590,30 +590,6 @@
                                             </svg>
                                         </a>
 
-
-                                        {{-- Edit --}}
-                                        <a
-                                            href="{{ route('patients.edit', $patient->id) }}"
-                                            class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-600 transition hover:bg-teal-50"
-                                            title="Edit patient"
-                                            aria-label="Edit {{ $fullName }}"
-                                        >
-                                            <svg
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M16.862 3.487a2.25 2.25 0 113.182 3.182L8.25 18.463 4 20l1.537-4.25L16.862 3.487z"
-                                                />
-                                            </svg>
-                                        </a>
-
-
                                         {{-- Archive/Delete --}}
                                         <button
                                             type="button"

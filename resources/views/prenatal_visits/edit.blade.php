@@ -176,7 +176,7 @@
                             </label>
                             <input type="number" name="bp_sys" id="bp_sys" 
                                 value="{{ old('bp_sys', $visit->bp_sys) }}" 
-                                min="60" max="200" required
+                                min="60" max="480" required
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
@@ -185,7 +185,7 @@
                             </label>
                             <input type="number" name="bp_dia" id="bp_dia" 
                                 value="{{ old('bp_dia', $visit->bp_dia) }}" 
-                                min="40" max="130" required
+                                min="40" max="350" required
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
@@ -193,8 +193,8 @@
                                 Weight (kg) <span class="text-red-500">*</span>
                             </label>
                             <input type="number" name="weight" id="weight" 
-                                value="{{ old('weight', $visit->weight) }}" 
-                                step="0.1" min="30" max="150" required
+                                value="{{ old('weight', \App\Support\WeightFormatter::formatKg($visit->weight)) }}"
+                                step="0.1" min="30" max="250" required
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
@@ -222,19 +222,19 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Repeat BP Systolic (mmHg)</label>
                                 <input type="number" name="repeat_bp_sys" id="repeat_bp_sys"
                                     value="{{ old('repeat_bp_sys', $visit->repeat_bp_sys) }}"
-                                    min="60" max="200" step="1"
+                                    min="60" max="480" step="1"
                                     placeholder="e.g., 130"
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
-                                <p class="text-xs text-gray-500 mt-1">Range: 60-200 mmHg</p>
+                                <p class="text-xs text-gray-500 mt-1">Range: 60-480 mmHg</p>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">Repeat BP Diastolic (mmHg)</label>
                                 <input type="number" name="repeat_bp_dia" id="repeat_bp_dia"
                                     value="{{ old('repeat_bp_dia', $visit->repeat_bp_dia) }}"
-                                    min="40" max="130" step="1"
+                                    min="40" max="350" step="1"
                                     placeholder="e.g., 85"
                                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition">
-                                <p class="text-xs text-gray-500 mt-1">Range: 40-130 mmHg</p>
+                                <p class="text-xs text-gray-500 mt-1">Range: 40-350 mmHg</p>
                             </div>
                         </div>
                         <div class="mt-3">
@@ -270,10 +270,14 @@
                                 Gestational Age (weeks) <span class="text-red-500">*</span>
                             </label>
                             <input type="number" name="gestational_age" id="gestational_age" 
-                                value="{{ old('gestational_age', $visit->gestational_age) }}" 
-                                step="0.5" min="4" max="42" required
+                                value="{{ old('gestational_age', $expectedGestationalAge !== null ? number_format($expectedGestationalAge, 1, '.', '') : ($visit->gestational_age !== null ? number_format((float) $visit->gestational_age, 1, '.', '') : '')) }}"
+                                data-ga-reference="visit_date"
+                                data-ga-lmp="{{ $visit->patient?->lmp?->toDateString() }}"
+                                data-ga-old-input="{{ $hasOldGestationalAge ? 'true' : 'false' }}"
+                                data-ga-initial-expected="{{ $expectedGestationalAge !== null ? number_format($expectedGestationalAge, 1, '.', '') : '' }}"
+                                step="0.1" min="4" max="42" required
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <p class="text-xs text-gray-500 mt-1" id="ga_hint">Based on LMP: Will auto-validate</p>
+                            <p class="text-xs text-gray-500 mt-1" id="ga_hint">{{ $gestationalAgeHint }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -412,7 +416,7 @@
                             <label class="block text-sm font-medium text-gray-700 mb-2">Next Visit Date</label>
                             <input type="date" name="next_visit_date" id="next_visit_date" 
                                 value="{{ old('next_visit_date', $visit->next_visit_date) }}" 
-                                min="{{ date('Y-m-d') }}"
+                                data-min-date="{{ today()->toDateString() }}"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <p class="text-xs text-gray-500 mt-1">Current risk level: <strong class="{{ $visit->risk_level == 'HIGH' ? 'text-red-600' : 'text-green-600' }}">{{ $visit->risk_level }}</strong></p>
                         </div>
@@ -492,7 +496,8 @@
         </div>
     </div>
 
-    <div id="patientData" data-json='@json($visit->patient)' class="hidden"></div>
+    @include('components.gestational-age-autofill')
+
     <script>
         // Same JavaScript validation as create form
         document.addEventListener('DOMContentLoaded', function() {
@@ -500,11 +505,7 @@
             const bpDia = document.getElementById('bp_dia');
             const weight = document.getElementById('weight');
             const temperature = document.getElementById('temperature');
-            const gestationalAge = document.getElementById('gestational_age');
-            const patientDataEl = document.getElementById('patientData');
-            const patientData = patientDataEl ? JSON.parse(patientDataEl.dataset.json || '{}') : {};
-            const visitDate = document.getElementById('visit_date');
-            const gaHint = document.getElementById('ga_hint');
+            const nextVisitDate = document.getElementById('next_visit_date');
 
             function showError(element, message) {
                 element.classList.add('border-red-500');
@@ -521,6 +522,40 @@
                 element.classList.remove('border-red-500');
                 const errorDiv = element.parentElement.querySelector('.error-message');
                 if (errorDiv) errorDiv.remove();
+            }
+
+            function validateNextVisitDate() {
+                if (!nextVisitDate || !/^\d{4}-\d{2}-\d{2}$/.test(nextVisitDate.value)) {
+                    if (nextVisitDate) hideError(nextVisitDate);
+                    return true;
+                }
+
+                if (nextVisitDate.value < nextVisitDate.dataset.minDate) {
+                    showError(nextVisitDate, 'Next visit date must be today or in the future');
+                    return false;
+                }
+
+                hideError(nextVisitDate);
+                return true;
+            }
+
+            function validateBPRange(input, min, max, fieldName) {
+                const val = parseFloat(input.value);
+                if (isNaN(val)) {
+                    hideError(input);
+                    return true;
+                }
+                if (val > max) {
+                    input.value = max;
+                    showError(input, fieldName + ' must not exceed ' + max + ' mmHg');
+                    return false;
+                }
+                if (val < min) {
+                    showError(input, fieldName + ' must be at least ' + min + ' mmHg');
+                    return false;
+                }
+                hideError(input);
+                return true;
             }
 
             function validateBP() {
@@ -546,38 +581,32 @@
                 return true;
             }
 
-            function validateGA() {
-                const lmp = patientData?.lmp;
-                const ga = parseFloat(gestationalAge.value);
-                const visitDateValue = visitDate.value;
-
-                if (lmp && ga && visitDateValue) {
-                    const lmpDate = new Date(lmp);
-                    const visitDateObj = new Date(visitDateValue);
-                    const diffDays = (visitDateObj - lmpDate) / (1000 * 60 * 60 * 24);
-                    const expectedWeeks = diffDays / 7;
-                    
-                    if (Math.abs(expectedWeeks - ga) > 3) {
-                        showError(gestationalAge, `Based on LMP (${lmp}), expected GA is ${expectedWeeks.toFixed(1)} weeks`);
-                        gaHint.innerHTML = `Expected GA: ${expectedWeeks.toFixed(1)} weeks based on LMP`;
-                        gaHint.classList.add('text-orange-600');
-                        return false;
-                    } else {
-                        hideError(gestationalAge);
-                        gaHint.innerHTML = `✅ Based on LMP, expected GA: ${expectedWeeks.toFixed(1)} weeks`;
-                        gaHint.classList.remove('text-orange-600');
-                        gaHint.classList.add('text-green-600');
-                        return true;
-                    }
+            function validateWeight() {
+                const wt = parseFloat(weight.value);
+                if (wt && (wt < 30 || wt > 250)) {
+                    showError(weight, 'Weight must be between 30kg and 250kg');
+                    return false;
                 }
+                hideError(weight);
                 return true;
             }
 
-            bpSys?.addEventListener('input', validateBP);
-            bpDia?.addEventListener('input', validateBP);
-            gestationalAge?.addEventListener('input', validateGA);
-            visitDate?.addEventListener('change', validateGA);
+            function validateGA() {
+                return window.validateGestationalAge();
+            }
 
+            bpSys?.addEventListener('input', function() {
+                validateBPRange(this, 60, 480, 'Systolic blood pressure');
+                validateBP();
+            });
+            bpDia?.addEventListener('input', function() {
+                validateBPRange(this, 40, 350, 'Diastolic blood pressure');
+                validateBP();
+            });
+            weight?.addEventListener('input', validateWeight);
+            nextVisitDate?.addEventListener('input', validateNextVisitDate);
+            nextVisitDate?.addEventListener('change', validateNextVisitDate);
+            validateNextVisitDate();
             const prenatalForm = document.getElementById('prenatalForm');
             const updateConfirmationModal = document.getElementById('updateConfirmationModal');
             const confirmUpdateBtn = document.getElementById('confirmUpdateBtn');
@@ -603,9 +632,15 @@
                     return;
                 }
 
+                if (!validateNextVisitDate()) {
+                    event.preventDefault();
+                    return;
+                }
+
                 const validBP = validateBP();
+                const validWeight = validateWeight();
                 const validGA = validateGA();
-                if (!validBP || !validGA) {
+                if (!validBP || !validWeight || !validGA) {
                     return;
                 }
 
@@ -614,6 +649,11 @@
             });
 
             confirmUpdateBtn?.addEventListener('click', function() {
+                if (!validateNextVisitDate()) {
+                    closeUpdateConfirmationModal();
+                    return;
+                }
+
                 updateSubmitConfirmed = true;
                 closeUpdateConfirmationModal();
                 prenatalForm?.submit();
@@ -640,8 +680,14 @@
                 return true;
             }
 
-            document.getElementById('repeat_bp_sys')?.addEventListener('input', validateRepeatBP);
-            document.getElementById('repeat_bp_dia')?.addEventListener('input', validateRepeatBP);
+            document.getElementById('repeat_bp_sys')?.addEventListener('input', function() {
+                validateBPRange(this, 60, 480, 'Systolic blood pressure');
+                validateRepeatBP();
+            });
+            document.getElementById('repeat_bp_dia')?.addEventListener('input', function() {
+                validateBPRange(this, 40, 350, 'Diastolic blood pressure');
+                validateRepeatBP();
+            });
         });
     </script>
 </x-app-layout>

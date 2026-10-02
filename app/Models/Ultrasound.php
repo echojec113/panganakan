@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Ultrasound extends Model
 {
     use HasFactory,SoftDeletes;
+    protected $casts = [
+        'scan_date' => 'date',
+        'gestational_age_scan' => 'float',
+    ];
     protected $fillable = [
         'patient_id',
         'scan_date',

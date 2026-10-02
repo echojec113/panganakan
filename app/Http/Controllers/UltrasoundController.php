@@ -8,14 +8,20 @@ use App\Models\Ultrasound;
 use App\Models\Patient;
 use Carbon\Carbon;
 use App\Services\PatientAssessmentRecalculationService;
+use App\Services\GestationalAgeCalculator;
 
 class UltrasoundController extends Controller
 {
     private PatientAssessmentRecalculationService $recalculationService;
+    private GestationalAgeCalculator $gestationalAgeCalculator;
 
-    public function __construct(PatientAssessmentRecalculationService $recalculationService)
+    public function __construct(
+        PatientAssessmentRecalculationService $recalculationService,
+        GestationalAgeCalculator $gestationalAgeCalculator
+    )
     {
         $this->recalculationService = $recalculationService;
+        $this->gestationalAgeCalculator = $gestationalAgeCalculator;
     }
 
     public function create($patient_id)
@@ -23,7 +29,18 @@ class UltrasoundController extends Controller
         // Verify patient exists
         $patient = Patient::findOrFail($patient_id);
         
-        return view('ultrasounds.create', compact('patient_id', 'patient'));
+        $referenceDate = old('scan_date', today()->toDateString());
+        $expectedGestationalAge = $this->calculateInitialGestationalAge($patient, $referenceDate);
+        $gestationalAgeHint = $this->gestationalAgeHint($patient, $referenceDate, $expectedGestationalAge);
+        $hasOldGestationalAge = session()->hasOldInput('gestational_age_scan');
+
+        return view('ultrasounds.create', compact(
+            'patient_id',
+            'patient',
+            'expectedGestationalAge',
+            'gestationalAgeHint',
+            'hasOldGestationalAge'
+        ));
     }
 
     public function store(Request $request)
@@ -77,11 +94,18 @@ class UltrasoundController extends Controller
         
         // Validate gestational age vs patient's LMP (if available)
         if ($patient && $patient->lmp && $request->gestational_age_scan) {
-            $lmpDate = Carbon::parse($patient->lmp);
-            $scanDate = Carbon::parse($request->scan_date);
-            $expectedWeeks = $lmpDate->diffInWeeks($scanDate);
+            $expectedWeeks = $this->gestationalAgeCalculator->calculate(
+                $patient->lmp->toDateString(),
+                $request->scan_date
+            );
+
+            if ($expectedWeeks === null) {
+                return back()->withErrors([
+                    'gestational_age_scan' => 'Scan date cannot be before the patient\'s LMP.',
+                ])->withInput();
+            }
             
-            if (abs($expectedWeeks - $request->gestational_age_scan) > 3) {
+            if (abs($expectedWeeks - (float) $request->gestational_age_scan) > 3) {
                 return back()->withErrors([
                     'gestational_age_scan' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks (±3 weeks allowed)."
                 ])->withInput();
@@ -164,8 +188,60 @@ class UltrasoundController extends Controller
     {
         $ultrasound = Ultrasound::findOrFail($id);
         $patient = $ultrasound->patient;
+        $referenceDate = old('scan_date', $ultrasound->scan_date?->toDateString());
+        $expectedGestationalAge = $this->calculateInitialGestationalAge($patient, $referenceDate);
+        $gestationalAgeHint = $this->gestationalAgeHint($patient, $referenceDate, $expectedGestationalAge);
+        $hasOldGestationalAge = session()->hasOldInput('gestational_age_scan');
 
-        return view('ultrasounds.edit', compact('ultrasound', 'patient'));
+        return view('ultrasounds.edit', compact(
+            'ultrasound',
+            'patient',
+            'expectedGestationalAge',
+            'gestationalAgeHint',
+            'hasOldGestationalAge'
+        ));
+    }
+
+    private function calculateInitialGestationalAge(?Patient $patient, ?string $referenceDate): ?float
+    {
+        if (!$referenceDate || !Carbon::hasFormat($referenceDate, 'Y-m-d')) {
+            return null;
+        }
+
+        $expected = $this->gestationalAgeCalculator->calculate(
+            $patient?->lmp?->toDateString(),
+            $referenceDate
+        );
+
+        return $expected !== null && $expected >= 4 && $expected <= 42 ? $expected : null;
+    }
+
+    private function gestationalAgeHint(?Patient $patient, ?string $referenceDate, ?float $expected): string
+    {
+        if (!$patient?->lmp) {
+            return 'No LMP available for automatic GA calculation.';
+        }
+
+        if (!$referenceDate || !Carbon::hasFormat($referenceDate, 'Y-m-d')) {
+            return 'Enter a valid scan date to calculate expected gestational age.';
+        }
+
+        if ($referenceDate < $patient->lmp->toDateString()) {
+            return 'Scan date cannot be before the patient’s LMP.';
+        }
+
+        if ($expected === null) {
+            $calculated = $this->gestationalAgeCalculator->calculate(
+                $patient->lmp->toDateString(),
+                $referenceDate
+            );
+
+            return $calculated === null
+                ? 'Unable to calculate gestational age from these dates.'
+                : sprintf('Calculated GA: %.1f weeks is outside the allowed 4–42 week range.', $calculated);
+        }
+
+        return sprintf('Expected GA: %.1f weeks based on LMP', $expected);
     }
 
     public function update(Request $request, $id)
@@ -213,11 +289,18 @@ class UltrasoundController extends Controller
         
         // Validate gestational age vs patient's LMP
         if ($patient && $patient->lmp && $request->gestational_age_scan) {
-            $lmpDate = Carbon::parse($patient->lmp);
-            $scanDate = Carbon::parse($request->scan_date);
-            $expectedWeeks = $lmpDate->diffInWeeks($scanDate);
+            $expectedWeeks = $this->gestationalAgeCalculator->calculate(
+                $patient->lmp->toDateString(),
+                $request->scan_date
+            );
+
+            if ($expectedWeeks === null) {
+                return back()->withErrors([
+                    'gestational_age_scan' => 'Scan date cannot be before the patient\'s LMP.',
+                ])->withInput();
+            }
             
-            if (abs($expectedWeeks - $request->gestational_age_scan) > 3) {
+            if (abs($expectedWeeks - (float) $request->gestational_age_scan) > 3) {
                 return back()->withErrors([
                     'gestational_age_scan' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks."
                 ])->withInput();

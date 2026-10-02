@@ -57,11 +57,15 @@
                                 Gestational Age (weeks)
                             </label>
                             <input type="number" name="gestational_age_scan" id="gestational_age" 
-                                value="{{ old('gestational_age_scan', $ultrasound->gestational_age_scan) }}" 
-                                step="0.5" min="4" max="42"
+                                value="{{ old('gestational_age_scan', $expectedGestationalAge !== null ? number_format($expectedGestationalAge, 1, '.', '') : ($ultrasound->gestational_age_scan !== null ? number_format((float) $ultrasound->gestational_age_scan, 1, '.', '') : '')) }}"
+                                data-ga-reference="scan_date"
+                                data-ga-lmp="{{ $patient?->lmp?->toDateString() }}"
+                                data-ga-old-input="{{ $hasOldGestationalAge ? 'true' : 'false' }}"
+                                data-ga-initial-expected="{{ $expectedGestationalAge !== null ? number_format($expectedGestationalAge, 1, '.', '') : '' }}"
+                                step="0.1" min="4" max="42"
                                 placeholder="e.g., 28.5"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
-                            <p class="text-xs text-gray-500 mt-1" id="ga_hint">Based on patient's LMP: Will auto-validate</p>
+                            <p class="text-xs text-gray-500 mt-1" id="ga_hint">{{ $gestationalAgeHint }}</p>
                         </div>
                     </div>
                 </div>
@@ -292,6 +296,8 @@
         </div>
     </div>
 
+    @include('components.gestational-age-autofill')
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // File upload preview
@@ -460,6 +466,10 @@
                 const errorDiv = element.parentElement.querySelector('.error-message');
                 if (errorDiv) errorDiv.remove();
             }
+
+            function validateGA() {
+                return window.validateGestationalAge();
+            }
             
             if (scanDate) {
                 scanDate.addEventListener('change', function() {
@@ -471,6 +481,7 @@
                     } else {
                         hideError(this);
                     }
+                    validateGA();
                 });
             }
             
@@ -482,6 +493,7 @@
                     } else {
                         hideError(this);
                     }
+                    validateGA();
                 });
             }
             
