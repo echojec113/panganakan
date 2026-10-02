@@ -199,6 +199,15 @@
                 color: #367E4B;
             }
 
+            /* Hide the native Edge/IE password-reveal icon so only the
+               custom .password-toggle eye button is shown (same pattern
+               already used on the Add Staff password field). Scoped to
+               the login form's own password input only. */
+            .login-password-input::-ms-reveal,
+            .login-password-input::-ms-clear {
+                display: none;
+            }
+
 
             /* ================================
                RESPONSIVE FIX (LOGIN PAGE)
@@ -518,7 +527,7 @@
                                      </svg>
                                      <x-text-input
                                          id="password"
-                                         class="fancy-input block w-full pl-10 pr-10 py-3 rounded-xl border text-sm transition-all duration-200"
+                                         class="login-password-input fancy-input block w-full pl-10 pr-10 py-3 rounded-xl border text-sm transition-all duration-200"
                                          style="border-color:rgba(231,233,229,0.9);background:#F6F4EE;color:#1e293b;"
                                          type="password"
                                          name="password"
