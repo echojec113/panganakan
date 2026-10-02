@@ -5,12 +5,12 @@
     'restoreRoute' => null
 ])
 
-<div class="flex items-center justify-end gap-1">
+<div class="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1">
 
     {{-- VIEW --}}
     @if($viewRoute)
     <a href="{{ $viewRoute }}"
-        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-all duration-150"
+        class="inline-flex shrink-0 items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-blue-600 hover:bg-blue-50 hover:text-blue-800 transition-all duration-150"
         title="View">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -24,7 +24,7 @@
     {{-- EDIT --}}
     @if($editRoute)
     <a href="{{ $editRoute }}"
-        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900 transition-all duration-150"
+        class="inline-flex shrink-0 items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900 transition-all duration-150"
         title="Edit">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -39,7 +39,7 @@
         @csrf
         @method('DELETE')
         <button type="button" onclick="confirmDelete(this)"
-            class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-red-700 hover:bg-red-50 hover:text-red-900 transition-all duration-150 delete-visit-btn"
+            class="inline-flex shrink-0 items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-red-700 hover:bg-red-50 hover:text-red-900 transition-all duration-150 delete-visit-btn"
             title="Delete">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -54,7 +54,7 @@
 <form action="{{ $restoreRoute }}" method="POST">
     @csrf
     <button type="button" onclick="confirmRestore(this)"
-        class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-green-600 hover:bg-green-50 hover:text-green-800 transition-all duration-150"
+        class="inline-flex shrink-0 items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-green-600 hover:bg-green-50 hover:text-green-800 transition-all duration-150"
         title="Restore">
 
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

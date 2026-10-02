@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     @php
         $riskLevel = $latestVisit?->risk_level ?: 'N/A';
         $riskClass = $riskLevel === 'HIGH' ? 'bg-red-100 text-red-700' : ($riskLevel === 'LOW' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700');
@@ -106,5 +108,6 @@
                 You can print individual baby information or all babies from the Print button in Pregnancy History.
             </div>
         </div>
+    </div>
     </div>
 </x-app-layout>

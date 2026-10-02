@@ -1,5 +1,7 @@
 <x-app-layout>
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
+    <div class="patient-page max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         <!-- Back Button -->
         <div class="mb-4 sm:mb-6">
             <a href="{{ route('patients.show', $ultrasound->patient_id) }}" class="inline-flex items-center text-gray-600 hover:text-blue-600 transition group">
@@ -275,7 +277,7 @@
                 </div>
 
                 <!-- Form Actions -->
-                <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
+                <div class="patient-actions flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
                     <a href="{{ route('patients.show', $ultrasound->patient_id) }}" class="order-2 sm:order-1 px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition text-center">
                         Cancel
                     </a>
@@ -538,4 +540,5 @@
             }
         });
     </script>
+    </div>
 </x-app-layout>

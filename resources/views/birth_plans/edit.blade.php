@@ -1,5 +1,7 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
+    <div class="patient-page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
                 <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900">Edit Birth Plan</h1>
@@ -133,5 +135,6 @@
                 </div>
             </form>
         </div>
+    </div>
     </div>
 </x-app-layout>

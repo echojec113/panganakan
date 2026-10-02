@@ -1,5 +1,7 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
+    <div class="patient-page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
                 <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900">Edit Medical History</h1>
@@ -131,7 +133,7 @@
     </div>
 
     {{-- Update Confirmation Modal --}}
-    <div id="updateModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="updateModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -144,7 +146,7 @@
                     <p class="text-sm text-gray-500">Are you sure you want to update this medical history?</p>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6">
+            <div class="patient-actions flex justify-end gap-3 mt-6">
                 <button type="button" onclick="closeUpdateModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
                 <button type="button" onclick="submitUpdateForm()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium">Update</button>
             </div>
@@ -152,7 +154,7 @@
     </div>
 
     {{-- Success Modal --}}
-    <div id="successModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="successModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -165,7 +167,7 @@
                     <p class="text-sm text-gray-500">Medical history has been successfully updated.</p>
                 </div>
             </div>
-            <div class="flex justify-end mt-6">
+            <div class="patient-actions flex justify-end mt-6">
                 <button type="button" onclick="closeSuccessModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">OK</button>
             </div>
         </div>
@@ -221,4 +223,5 @@
             });
         });
     </script>
+    </div>
 </x-app-layout>

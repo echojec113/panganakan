@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <div class="space-y-6">
         <div class="flex items-center gap-3">
             <a href="{{ route('view-all-records.index') }}" class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100" aria-label="Back to all records">
@@ -42,5 +44,6 @@
                 <div class="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-10 text-center text-sm text-gray-500">No pregnancy records were found for this patient.</div>
             @endforelse
         </div>
+    </div>
     </div>
 </x-app-layout>

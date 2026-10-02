@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="border-b border-gray-100 px-6 py-5 bg-gray-50">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -43,22 +45,22 @@
                 </div>
             @else
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Patient</th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Total</th>
-                                <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Total Babies</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Last Delivery</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Outcome</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+                    <table role="table" class="patient-data-table patient-stack-table min-w-full divide-y divide-gray-200">
+                        <thead role="rowgroup" class="bg-gray-50">
+                            <tr role="row">
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Patient</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Total</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Total Babies</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Last Delivery</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Outcome</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody role="rowgroup" class="bg-white divide-y divide-gray-200">
                             @foreach($patients as $row)
                                 @php($patient = $row->patient)
-                                <tr class="hover:bg-gray-50 transition">
-                                    <td class="px-4 py-4">
+                                <tr role="row" class="hover:bg-gray-50 transition">
+                                    <td role="cell" data-label="Patient" class="px-4 py-4">
                                         <div class="flex items-center gap-3">
                                             <div class="flex h-10 w-10 items-center justify-center rounded-full bg-pink-50 text-pink-600">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,21 +77,21 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-4 text-center text-sm font-semibold text-gray-900">{{ $row->completed_pregnancies }}</td>
-                                    <td class="px-4 py-4 text-center">
+                                    <td role="cell" data-label="Total" class="px-4 py-4 text-center text-sm font-semibold text-gray-900">{{ $row->completed_pregnancies }}</td>
+                                    <td role="cell" data-label="Total Babies" class="px-4 py-4 text-center">
                                         <x-status-badge variant="success">{{ $row->total_babies }}</x-status-badge>
                                     </td>
-                                    <td class="px-4 py-4 text-sm font-medium text-gray-900">
+                                    <td role="cell" data-label="Last Delivery" class="px-4 py-4 text-sm font-medium text-gray-900">
                                         {{ $row->last_delivery_date ? \Carbon\Carbon::parse($row->last_delivery_date)->format('M d, Y') : 'N/A' }}
                                     </td>
-                                    <td class="px-4 py-4">
+                                    <td role="cell" data-label="Outcome" class="px-4 py-4">
                                         @if($row->confirmed)
                                             <x-status-badge variant="success">Confirmed</x-status-badge>
                                         @else
                                             <x-status-badge variant="neutral">Historical</x-status-badge>
                                         @endif
                                     </td>
-                                    <td class="px-4 py-4 text-right">
+                                    <td role="cell" data-label="Action" class="px-4 py-4 text-right">
                                         <div class="flex flex-col items-end gap-2">
                                             <div class="flex flex-wrap justify-end gap-2">
                                                 <a href="{{ route('patients.delivered.history', $patient->id) }}" class="btn btn-secondary">
@@ -122,7 +124,7 @@
         </div>
     </div>
 
-    <div id="startPregnancyModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
+    <div id="startPregnancyModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4">
         <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl overflow-hidden">
             <div class="bg-gray-50 px-6 py-5 border-b">
                 <h2 class="text-xl font-bold text-gray-800">Start New Pregnancy</h2>
@@ -164,7 +166,7 @@
                         <input id="modalAddress" name="address" type="text" class="w-full mt-1 rounded-lg border-gray-300">
                     </div>
                 </div>
-                <div class="flex justify-end gap-3 pt-4 border-t">
+                <div class="patient-actions flex justify-end gap-3 pt-4 border-t">
                     <button type="button" onclick="closeStartPregnancyModal()" class="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700">Cancel</button>
                     <button type="submit" class="btn btn-primary">Create New Pregnancy</button>
                 </div>
@@ -208,4 +210,5 @@
             }
         });
     </script>
+    </div>
 </x-app-layout>

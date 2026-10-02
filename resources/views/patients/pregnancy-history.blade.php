@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <div class="space-y-6">
         <div class="flex items-center gap-3">
             <a href="{{ route('patients.delivered') }}" class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100">
@@ -105,7 +107,7 @@
                             <div class="mb-3 inline-flex rounded-md {{ $loop->first ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700' }} px-3 py-1 text-xs font-bold">
                                 Pregnancy #{{ $pregnancies->count() - $loop->index }}{{ $loop->first ? ' (Most Recent)' : '' }}
                             </div>
-                            <div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm md:grid-cols-6">
+                            <div class="grid grid-cols-1 gap-x-4 gap-y-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
                                 <div>
                                     <div class="text-xs text-gray-500">Delivery Date</div>
                                     <div class="font-semibold text-gray-900">{{ $pregnancy->delivery_date ? \Carbon\Carbon::parse($pregnancy->delivery_date)->format('M d, Y') : 'N/A' }}</div>
@@ -153,5 +155,6 @@
                 Pregnancies are sorted from most recent to oldest.
             </div>
         </div>
+    </div>
     </div>
 </x-app-layout>

@@ -31,18 +31,49 @@
     .mono { font-family: 'DM Mono', monospace; }
     .chart-wrap { height: 280px; position: relative; }
     .empty-state { padding: 40px 20px; text-align: center; color: #94a3b8; }
+
+    /* Page-local containment: layout follows usable width after the sidebar. */
+    .ops-root { min-width: 0; overflow-wrap: anywhere; }
+    .ops-root .grid > *, .ops-root .dash-card, .ops-root .kpi-card { min-width: 0; }
+    .ops-root .chart-wrap { position: relative; width: 100%; min-width: 0; max-width: 100%; }
+    .ops-root .chart-wrap canvas { max-width: 100%; }
+    .ops-root .dash-card-header { flex-wrap: wrap; gap: 12px; }
+    .ops-root .dashboard-toolbar { flex-wrap: wrap; }
+    .ops-root .dashboard-filters { min-width: 0; max-width: 100%; }
+    .ops-root .dashboard-filters > div { min-width: 0; max-width: 100%; }
+    .ops-root .dashboard-filters select { min-width: 0; width: 100%; max-width: 100%; }
+    @media (max-width: 639px) {
+        .ops-root .dashboard-filters { width: 100%; }
+        .ops-root .dashboard-filters > div { flex: 1 1 100%; width: 100%; }
+    }
+
+    .ops-root .dashboard-content { container-type: inline-size; container-name: staff-dashboard; }
+    @container staff-dashboard (min-width: 960px) {
+        .ops-root .dashboard-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+
+    .ops-root .list-row { flex-wrap: wrap; }
+    .ops-root .list-row > * { min-width: 0; max-width: 100%; }
+    .ops-root .badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+    @container staff-dashboard (min-width: 900px) {
+        .ops-root .dashboard-priority { grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); }
+        .ops-root .dashboard-schedule { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+    }
+    @container staff-dashboard (min-width: 1200px) {
+        .ops-root .dashboard-priority { grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr); }
+    }
 </style>
 
 <div class="ops-root">
     <div class="ops-header">
         <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="dashboard-toolbar flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                     <div class="flex items-center gap-2 mb-0.5"><span class="w-2 h-2 rounded-full bg-[#55B85A] animate-pulse"></span><span class="text-xs font-semibold text-[#19355F] tracking-widest uppercase">Daily Operations</span></div>
                     <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Operations Center</h1>
                     <p class="text-sm text-slate-400 mt-0.5">{{ Carbon\Carbon::today()->format('l, F j, Y') }}</p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2">
                     <a href="{{ route('patients.create') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium shadow-sm">New Patient</a>
                     <a href="{{ route('prenatal-visits.create') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#55B85A] text-white text-sm font-medium shadow-sm">Record Visit</a>
                 </div>
@@ -50,9 +81,9 @@
         </div>
     </div>
 
-    <main class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
+    <main class="dashboard-content max-w-screen-xl mx-auto px-2 sm:px-6 lg:px-8 py-7 space-y-6">
         {{-- Four summary cards --}}
-        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <section class="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="kpi-card kpi-red">
                 <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">High Risk</p>
                 <p data-testid="staff-high-count" class="text-3xl font-bold text-red-600 mono mt-2">{{ $staffHighRiskCount }}</p>
@@ -76,10 +107,10 @@
         </section>
 
         {{-- Patients for review and age distribution --}}
-<section class="grid grid-cols-1 md:grid-cols-10 gap-6">
+<section class="dashboard-priority grid grid-cols-1 gap-6">
 
     {{-- Patients for Review --}}
-    <div class="dash-card md:col-span-7">
+    <div class="dash-card">
         <div class="dash-card-header">
     <div>
         <p class="section-title">High-Risk Patients</p>
@@ -141,13 +172,13 @@
     <div class="min-w-0 flex-1">
 
         {{-- Patient name --}}
-        <p class="text-sm font-semibold text-slate-800 truncate">
+        <p class="text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">
             {{ $visit->patient->first_name }}
             {{ $visit->patient->last_name }}
         </p>
 
         {{-- Visit date + risk factors --}}
-        <div class="mt-1 flex flex-col sm:flex-row sm:items-start sm:gap-6">
+        <div class="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:items-start sm:gap-6">
 
             <p class="text-xs text-slate-400 shrink-0">
                 Last visit:
@@ -209,7 +240,7 @@
         </div>
     </div>
     {{-- Follow-Up Attention --}}
-<div class="dash-card md:col-span-3">
+<div class="dash-card">
     <div class="dash-card-header">
         <div>
             <p class="section-title">Follow-Up Attention</p>
@@ -247,15 +278,15 @@
 </section>
 
         {{-- Follow-up schedule and recent visits --}}
-        <section class="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div class="dash-card lg:col-span-3"><div class="dash-card-header"><div><p class="section-title">Follow-Up Schedule</p><p class="section-sub">Patients with upcoming return visits</p></div></div><div class="max-h-96 overflow-y-auto">
+        <section class="dashboard-schedule grid grid-cols-1 gap-6">
+            <div class="dash-card"><div class="dash-card-header"><div><p class="section-title">Follow-Up Schedule</p><p class="section-sub">Patients with upcoming return visits</p></div></div><div class="max-h-96 overflow-y-auto">
                 @forelse($followUpTasks as $task)
-                    <a href="{{ route('patients.show', $task->patient) }}" class="list-row"><div class="flex items-center gap-3 min-w-0"><div class="avatar avatar-violet">{{ strtoupper(substr($task->patient->first_name,0,1)) }}{{ strtoupper(substr($task->patient->last_name,0,1)) }}</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-800 truncate">{{ $task->patient->first_name }} {{ $task->patient->last_name }}</p><p class="text-xs text-slate-400">Return visit: {{ $task->next_visit_date ? Carbon\Carbon::parse($task->next_visit_date)->format('M d, Y') : 'Not scheduled' }}</p></div></div></a>
+                    <a href="{{ route('patients.show', $task->patient) }}" class="list-row"><div class="flex items-center gap-3 min-w-0"><div class="avatar avatar-violet">{{ strtoupper(substr($task->patient->first_name,0,1)) }}{{ strtoupper(substr($task->patient->last_name,0,1)) }}</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{{ $task->patient->first_name }} {{ $task->patient->last_name }}</p><p class="text-xs text-slate-400">Return visit: {{ $task->next_visit_date ? Carbon\Carbon::parse($task->next_visit_date)->format('M d, Y') : 'Not scheduled' }}</p></div></div></a>
                 @empty<div class="empty-state">No follow-ups pending.</div>@endforelse
             </div></div>
-            <div class="dash-card lg:col-span-2"><div class="dash-card-header"><div><p class="section-title">Recent Visits</p><p class="section-sub">Today &amp; yesterday</p></div></div><div class="max-h-96 overflow-y-auto">
+            <div class="dash-card"><div class="dash-card-header"><div><p class="section-title">Recent Visits</p><p class="section-sub">Today &amp; yesterday</p></div></div><div class="max-h-96 overflow-y-auto">
                 @forelse($recentVisits as $visit)
-                    <a href="{{ route('patients.show', $visit->patient) }}" class="list-row"><div class="flex items-center gap-3 min-w-0"><div class="avatar avatar-slate">{{ strtoupper(substr($visit->patient->first_name,0,1)) }}{{ strtoupper(substr($visit->patient->last_name,0,1)) }}</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-800 truncate">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p><p class="text-xs text-slate-400">{{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</p></div></div><span class="badge {{ $visit->risk_level === 'HIGH' ? 'badge-red' : 'badge-green' }}">{{ $visit->risk_level }}</span></a>
+                    <a href="{{ route('patients.show', $visit->patient) }}" class="list-row"><div class="flex items-center gap-3 min-w-0"><div class="avatar avatar-slate">{{ strtoupper(substr($visit->patient->first_name,0,1)) }}{{ strtoupper(substr($visit->patient->last_name,0,1)) }}</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-800 [overflow-wrap:anywhere]">{{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</p><p class="text-xs text-slate-400">{{ \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y') }}</p></div></div><span class="badge {{ $visit->risk_level === 'HIGH' ? 'badge-red' : 'badge-green' }}">{{ $visit->risk_level }}</span></a>
                 @empty<div class="empty-state">No recent visits.</div>@endforelse
             </div></div>
         </section>
@@ -266,7 +297,7 @@
 <section class="mb-6 sm:mb-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
 
     {{-- Dashboard Header --}}
-    <div class="px-4 sm:px-6 py-4 bg-gray-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div class="px-4 sm:px-6 py-4 bg-gray-50 dashboard-toolbar flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
             <h3 class="text-base sm:text-lg font-semibold text-gray-800">
                 Risk Monitoring Dashboard
@@ -283,12 +314,12 @@
 
     {{-- Analytics Header / Filters --}}
     <div class="border-t border-b border-gray-100 px-4 sm:px-6 py-4">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="dashboard-toolbar flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Risk Analytics</h3>
                         <p id="staffAnalyticsSubtitle" class="text-xs sm:text-sm text-gray-500">Showing risk analytics for {{ data_get($analytics, 'year', now()->year) }}</p>
                     </div>
-                    <div class="flex items-end gap-3 flex-wrap">
+                    <div class="dashboard-filters flex items-end gap-3 flex-wrap">
 
     <div>
         <label for="staffRiskType"
@@ -383,7 +414,7 @@
 
         {{-- High-Risk Factors --}}
         <div class="rounded-xl border border-gray-100 p-4">
-            <div class="flex items-center justify-between mb-1">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
                 <p class="text-sm font-semibold text-gray-700">
                     Top Factors Triggering High Risk
                 </p>
@@ -399,9 +430,9 @@
                 Most frequently recorded clinical factors among high-risk assessments.
             </p>
 
-            <div class="chart-wrap" style="height:260px;">
+            <div class="overflow-x-auto" tabindex="0" role="region" aria-label="High-risk factor chart; scroll horizontally for more detail"><div class="min-w-[28rem]"><div class="chart-wrap" style="height:260px;">
                 <canvas id="staffTopHighRiskConditionsChart"></canvas>
-            </div>
+            </div></div></div>
         </div>
 
     </div>

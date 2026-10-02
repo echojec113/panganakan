@@ -49,7 +49,8 @@
             flex-direction: column;
             position: fixed;
             top: 0; left: 0; bottom: 0;
-            z-index: 200;
+            /* Above the drawer backdrop, below page dialogs (z-50). */
+            z-index: 49;
             border-right: 1px solid #E7E9E5;
             box-shadow: none;
             transition: transform 0.3s ease;
@@ -225,7 +226,7 @@
             position: fixed;
             inset: 0;
             background: rgba(25, 53, 95, 0.4);
-            z-index: 150;
+            z-index: 48;
             opacity: 0;
             transition: opacity 0.3s ease;
         }
@@ -241,6 +242,7 @@
         .main-wrapper {
             margin-left: var(--sidebar-width);
             flex: 1;
+            min-width: 0;
             display: flex;
             flex-direction: column;
             min-height: 100vh;
@@ -259,11 +261,12 @@
             justify-content: space-between;
             position: sticky;
             top: 0;
-            z-index: 50;
+            /* Above sticky page navigation (40), below drawer/dialogs. */
+            z-index: 45;
             box-shadow: none;
         }
 
-        .topbar-left { display: flex; align-items: center; gap: 12px; }
+        .topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 
         /* ── Hamburger button ── */
         .hamburger-btn {
@@ -326,7 +329,16 @@
 
         .breadcrumb a { color: #55B85A; text-decoration: none; }
 
-        .topbar-right { display: flex; align-items: center; gap: 11px; }
+        .topbar-right { display: flex; align-items: center; gap: 11px; min-width: 0; }
+
+        .topbar .date-chip,
+        .topbar .notif-wrap,
+        .topbar .user-avatar { flex-shrink: 0; }
+
+        .topbar .user-menu { min-width: 0; }
+        .topbar .user-info { min-width: 0; max-width: 180px; }
+        .topbar .user-name,
+        .topbar .user-role { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .topbar-right .date-chip,
         .topbar-right .user-menu { height: 38px; box-sizing: border-box; }
@@ -387,6 +399,9 @@
             right: 0;
             width: 340px;
             max-width: calc(100vw - 28px);
+            max-height: calc(100vh - 78px);
+            max-height: calc(100dvh - 78px);
+            flex-direction: column;
             background: #ffffff;
             border: 1px solid #E7E9E5;
             border-radius: 12px;
@@ -396,10 +411,13 @@
             display: none;
         }
 
-        .notif-dropdown.open { display: block; }
+        .notif-dropdown.open { display: flex; }
 
         .notif-head {
             display: flex; align-items: center; justify-content: space-between;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 8px;
             padding: 10px 12px;
             border-bottom: 1px solid #E7E9E5;
             background: #FCFBF8;
@@ -417,7 +435,8 @@
 
         .notif-mark-all:hover { text-decoration: underline; }
 
-        .notif-list { max-height: 300px; overflow-y: auto; }
+        .notif-list { min-height: 0; max-height: 300px; overflow-y: auto; overscroll-behavior: contain; }
+        .notif-empty { min-height: 0; overflow-y: auto; }
 
         .notif-item {
             display: flex;
@@ -439,7 +458,7 @@
 
         .notif-item.read .notif-dot { background: transparent; border: 1px solid #E7E9E5; }
 
-        .notif-body { min-width: 0; flex: 1; }
+        .notif-body { min-width: 0; flex: 1; overflow-wrap: anywhere; }
 
         .notif-title {
             font-size: 12.5px; font-weight: 600; color: #19355F;
@@ -454,7 +473,7 @@
         }
 
         .notif-meta {
-            display: flex; align-items: center; gap: 8px; margin-top: 6px;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px;
             font-size: 11px; color: #94a3b8;
         }
 
@@ -542,10 +561,14 @@
         ══════════════════════════ */
         .page-content {
             flex: 1;
+            min-width: 0;
+            max-width: 100%;
             padding: 24px 20px;
         }
 
         .page-shell {
+            min-width: 0;
+            max-width: 100%;
             background: #FCFBF8;
             border: 1px solid #E7E9E5;
             border-radius: 16px;
@@ -557,12 +580,13 @@
         /* ══════════════════════════
            RESPONSIVE
         ══════════════════════════ */
-        @media (max-width: 768px) {
-            /* Sidebar hidden by default on mobile */
+        /* Keep in sync with drawerMedia in the sidebar script.
+           1200px leaves ~862px inside the desktop shell after sidebar/padding. */
+        @media (max-width: 1199px) {
+            /* Sidebar hidden by default on mobile and tablet. */
             .sidebar {
-                transform: translateX(-258px);
-                width: 258px;
-                z-index: 200;
+                transform: translateX(-100%);
+                width: var(--sidebar-width);
             }
 
             /* Sidebar slides in when .open is added */
@@ -590,6 +614,20 @@
                 padding: 20px 16px;
             }
 
+            .page-shell {
+                padding: 16px;
+            }
+
+            /* Anchor to the viewport rather than the bell's offset. */
+            .notif-dropdown {
+                position: fixed;
+                top: 64px;
+                right: 14px;
+            }
+        }
+
+        @media (max-width: 768px) {
+
             .date-chip {
                 display: none;
             }
@@ -607,6 +645,12 @@
             .logout-btn span.logout-text {
                 display: none;
             }
+        }
+
+        @media (max-width: 639px) {
+            .page-content { padding: 12px 8px; }
+            .page-shell { padding: 12px; }
+            .topbar-right { gap: 8px; }
         }
 
         @media (max-width: 400px) {
@@ -875,8 +919,12 @@
     const overlay     = document.getElementById('sidebarOverlay');
     const hamburgerBtn = document.getElementById('hamburgerBtn');
     const closeBtn    = document.getElementById('sidebarCloseBtn');
+    const drawerMedia = window.matchMedia('(max-width: 1199px)');
+    let previousBodyOverflow = null;
 
     function openSidebar() {
+        if (!drawerMedia.matches || sidebar.classList.contains('open')) return;
+        previousBodyOverflow = document.body.style.overflow;
         sidebar.classList.add('open');
         overlay.classList.add('active');
         hamburgerBtn.classList.add('open');
@@ -887,7 +935,10 @@
         sidebar.classList.remove('open');
         overlay.classList.remove('active');
         hamburgerBtn.classList.remove('open');
-        document.body.style.overflow = '';
+        if (previousBodyOverflow !== null) {
+            document.body.style.overflow = previousBodyOverflow;
+            previousBodyOverflow = null;
+        }
     }
 
     hamburgerBtn.addEventListener('click', () => {
@@ -900,13 +951,13 @@
     // Close sidebar when a nav link is tapped on mobile
     document.querySelectorAll('.nav-item').forEach(link => {
         link.addEventListener('click', () => {
-            if (window.innerWidth <= 768) closeSidebar();
+            if (drawerMedia.matches) closeSidebar();
         });
     });
 
     // Reset on resize back to desktop
     window.addEventListener('resize', () => {
-        if (window.innerWidth > 768) {
+        if (!drawerMedia.matches) {
             closeSidebar();
         }
     });

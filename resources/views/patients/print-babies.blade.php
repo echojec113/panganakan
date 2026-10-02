@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Baby Information</title>
     <style>
         body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
@@ -14,6 +15,16 @@
         .label { color: #2563eb; font-size: 12px; font-weight: bold; }
         .value { margin-top: 4px; font-weight: bold; }
         @media print { button { display: none; } body { margin: 18px; } }
+
+        /* Screen preview only: retain the existing printed document layout. */
+        @media screen {
+            body { margin: 16px; overflow-wrap: anywhere; }
+            .grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+            .grid > * { min-width: 0; }
+            button { min-height: 44px; }
+            table { table-layout: fixed; }
+            th, td { overflow-wrap: anywhere; }
+        }
     </style>
 </head>
 <body>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pregnancy Record - {{ $patient->first_name }} {{ $patient->last_name }}</title>
     <style>
         body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
@@ -18,6 +19,22 @@
         th { background: #f9fafb; }
         .no-print { float: right; padding: 8px 14px; }
         @media print { .no-print { display: none; } body { margin: 18px; } }
+
+        /* Screen preview only: retain the existing printed document layout. */
+        @media screen {
+            body { margin: 16px; overflow-wrap: anywhere; }
+            .grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
+            .grid > * { min-width: 0; }
+            button { min-height: 44px; }
+            table { table-layout: fixed; }
+            th, td { overflow-wrap: anywhere; }
+        }
+        @media screen and (max-width: 767px) {
+            table, tbody, tr { display: block; width: 100%; }
+            thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+            td { display: block; padding: 8px; }
+            td[data-label]::before { content: attr(data-label); display: block; font-weight: bold; margin-bottom: 4px; }
+        }
     </style>
 </head>
 <body>
@@ -43,17 +60,17 @@
 
     <h2>Prenatal Visits / Checkups</h2>
     @if($patient->prenatalVisits->isNotEmpty())
-        <table>
-            <thead><tr><th>Date</th><th>BP</th><th>Weight</th><th>Gestational Age</th><th>Risk</th><th>Assessment</th></tr></thead>
+        <table role="table">
+            <thead><tr role="row"><th>Date</th><th>BP</th><th>Weight</th><th>Gestational Age</th><th>Risk</th><th>Assessment</th></tr></thead>
             <tbody>
                 @foreach($patient->prenatalVisits as $visit)
-                    <tr>
-                        <td>{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
-                        <td>{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
-                        <td>{{ $visit->weight ?? 'N/A' }} kg</td>
-                        <td>{{ $visit->gestational_age ?? 'N/A' }} weeks</td>
-                        <td>{{ $visit->risk_level ?: 'Not recorded' }}</td>
-                        <td>{{ $visit->assessment ?: 'No assessment recorded.' }}</td>
+                    <tr role="row">
+                        <td role="cell" data-label="Visit date">{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
+                        <td role="cell" data-label="Blood pressure">{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
+                        <td role="cell" data-label="Weight">{{ $visit->weight ?? 'N/A' }} kg</td>
+                        <td role="cell" data-label="Gestational age">{{ $visit->gestational_age ?? 'N/A' }} weeks</td>
+                        <td role="cell" data-label="Risk">{{ $visit->risk_level ?: 'Not recorded' }}</td>
+                        <td role="cell" data-label="Assessment">{{ $visit->assessment ?: 'No assessment recorded.' }}</td>
                     </tr>
                 @endforeach
             </tbody>

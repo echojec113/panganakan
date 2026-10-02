@@ -1,7 +1,9 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
 
 <div class="min-h-screen bg-[#FCFBF8]">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="patient-page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
         {{-- =========================================================
              HEADER
@@ -126,7 +128,7 @@
         <div class="grid grid-cols-1 gap-4 mb-7 sm:grid-cols-3">
 
             {{-- Ongoing Patients --}}
-            <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <div class="rounded-xl border border-gray-200 bg-white px-3 py-4 xl:px-4 shadow-sm">
 
                 <div class="flex items-start justify-between gap-4">
 
@@ -166,7 +168,7 @@
 
 
             {{-- High Risk --}}
-            <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <div class="rounded-xl border border-gray-200 bg-white px-3 py-4 xl:px-4 shadow-sm">
 
                 <div class="flex items-start justify-between gap-4">
 
@@ -206,7 +208,7 @@
 
 
             {{-- My Patients --}}
-            <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <div class="rounded-xl border border-gray-200 bg-white px-3 py-4 xl:px-4 shadow-sm">
 
                 <div class="flex items-start justify-between gap-4">
 
@@ -285,13 +287,13 @@
         <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
             {{-- Search --}}
-<div class="border-b border-gray-100 px-5 py-4">
+     <div class="border-b border-gray-100 px-5 py-4">
 
     <form
         id="patientSearchForm"
         method="GET"
         action="{{ route('patients.index') }}"
-        class="flex items-center gap-4"
+        class="flex flex-col gap-3 sm:flex-row sm:items-center"
     >
         <input
             type="hidden"
@@ -299,7 +301,7 @@
             value="{{ $filter }}"
         >
 
-        <div class="relative min-w-0 flex-1">
+        <div class="relative w-full min-w-0 flex-1">
 
             <svg
                 class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -371,50 +373,59 @@
 
 
             {{-- TABLE --}}
-            <div class="overflow-x-auto">
+            <div class="hidden overflow-x-auto lg:block">
+                <table role="table" class="patient-data-table patient-list-table w-full table-fixed text-sm">
+                    <colgroup>
+    <col>
+    <col style="width: 7%">
+    <col style="width: 13%">
+    <col style="width: 9%">
+    <col style="width: 13%">
+    <col style="width: 11%">
+    <col style="width: 14%">
+    <col style="width: 8rem">
+</colgroup>
 
-                <table class="w-full text-sm">
+                    <thead role="rowgroup">
+                        <tr role="row" class="border-b border-gray-100 bg-gray-50/80">
 
-                    <thead>
-                        <tr class="border-b border-gray-100 bg-gray-50/80">
-
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Patient
                             </th>
 
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Age
                             </th>
 
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Contact
                             </th>
 
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                G / P
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                Gravida / Para
                             </th>
 
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                EDD
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                Estimated Date of Delivery
                             </th>
 
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 PhilHealth
                             </th>
 
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                            <th scope="col" class="px-3 py-3 xl:px-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Assigned Staff
                             </th>
 
-                            <th class="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                Actions
-                            </th>
+                            <th scope="col" class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 xl:px-3">
+    Actions
+</th>
 
                         </tr>
                     </thead>
 
 
-                    <tbody class="divide-y divide-gray-100">
+                    <tbody role="rowgroup" class="divide-y divide-gray-100">
 
                         @forelse ($patients as $patient)
 
@@ -432,16 +443,16 @@
                             @endphp
 
 
-                            <tr class="transition hover:bg-gray-50/60">
+                            <tr role="row" class="transition hover:bg-gray-50/60">
 
                                 {{-- Patient --}}
-                                <td class="px-5 py-4">
+                                <td role="cell" class="px-3 py-4 xl:px-4">
 
                                     <div class="min-w-0">
 
-    <p class="max-w-[220px] truncate font-semibold text-gray-900">
-        {{ $fullName }}
-    </p>
+    <p class="break-words font-semibold leading-5 text-gray-900">
+    {{ $fullName }}
+</p>
 
     <div class="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-400">
 
@@ -463,19 +474,19 @@
 
 
                                 {{-- Age --}}
-                                <td class="whitespace-nowrap px-5 py-4 text-gray-700">
+                                <td role="cell" class="whitespace-nowrap px-3 py-4 xl:px-4 text-gray-700">
                                     {{ $patient->age }} yrs
                                 </td>
 
 
                                 {{-- Contact --}}
-                                <td class="whitespace-nowrap px-5 py-4 text-gray-700">
+                                <td role="cell" class="whitespace-nowrap px-3 py-4 xl:px-4 text-gray-700">
                                     {{ $patient->contact_number ?: '—' }}
                                 </td>
 
 
                                 {{-- G / P --}}
-                                <td class="whitespace-nowrap px-5 py-4">
+                                <td role="cell" class="whitespace-nowrap px-3 py-4 xl:px-4">
 
                                     <span class="font-semibold text-gray-700">
                                         G{{ $patient->gravida ?? 0 }}
@@ -491,7 +502,7 @@
 
 
                                 {{-- EDD --}}
-                                <td class="whitespace-nowrap px-5 py-4 text-gray-700">
+                                <td role="cell" class="whitespace-nowrap px-3 py-4 xl:px-4 text-gray-700">
                                     {{ $patient->edd
                                         ? \Carbon\Carbon::parse($patient->edd)->format('M d, Y')
                                         : '—' }}
@@ -499,7 +510,7 @@
 
 
                                 {{-- PhilHealth --}}
-                                <td class="whitespace-nowrap px-5 py-4">
+                                <td role="cell" class="whitespace-nowrap px-3 py-4 xl:px-4">
 
                                     @if ($patient->philhealth_member)
 
@@ -532,11 +543,11 @@
 
 
                                 {{-- Staff --}}
-                                <td class="whitespace-nowrap px-5 py-4">
+                                <td role="cell" class="px-3 py-4 xl:px-4">
 
                                     @if ($patient->assignedStaff)
 
-                                        <span class="text-gray-700">
+                                            <span class="break-words text-gray-700">
                                             {{ $patient->assignedStaff->name }}
                                         </span>
 
@@ -552,9 +563,9 @@
 
 
                                 {{-- Actions --}}
-                                <td class="whitespace-nowrap px-5 py-4">
+                                <td role="cell" class="whitespace-nowrap px-2 py-4 xl:px-3">
 
-                                    <div class="flex items-center justify-center gap-1">
+                                    <div class="patient-record-actions flex flex-nowrap items-center justify-center gap-1">
 
                                         {{-- View --}}
                                         <a
@@ -637,8 +648,8 @@
 
                         @empty
 
-                            <tr>
-                                <td
+                            <tr role="row">
+                                <td role="cell"
                                     colspan="8"
                                     class="px-6 py-14 text-center"
                                 >
@@ -712,13 +723,245 @@
 
             </div>
 
+            {{-- MOBILE / TABLET PATIENT CARDS --}}
+<div class="divide-y divide-gray-100 lg:hidden">
+
+    @forelse ($patients as $patient)
+
+        @php
+            $fullName = trim(
+                $patient->first_name . ' ' .
+                $patient->middle_name . ' ' .
+                $patient->last_name
+            );
+        @endphp
+
+        <article class="p-4 sm:p-5">
+
+            {{-- Patient identity --}}
+            <div class="patient-card-identity flex items-start justify-between gap-3">
+
+                <div class="min-w-0">
+                    <h3 class="break-words font-semibold text-gray-900">
+                        {{ $fullName }}
+                    </h3>
+
+                    <p class="mt-1 text-xs font-medium text-[#19355F]/70">
+                        Patient ID:
+                        PT-{{ str_pad($patient->id, 4, '0', STR_PAD_LEFT) }}
+                    </p>
+
+                    <p class="mt-1 text-xs text-gray-400">
+                        {{ $patient->civil_status ?: '—' }}
+                    </p>
+                </div>
+
+                {{-- Actions --}}
+                <div class="flex shrink-0 items-center gap-1">
+
+                    {{-- View --}}
+                    <a
+                        href="{{ route('patients.show', $patient->id) }}"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-blue-600 transition hover:bg-blue-50"
+                        title="View patient"
+                        aria-label="View {{ $fullName }}"
+                    >
+                        <svg
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                    </a>
+
+                    {{-- Edit --}}
+                    <a
+                        href="{{ route('patients.edit', $patient->id) }}"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-teal-600 transition hover:bg-teal-50"
+                        title="Edit patient"
+                        aria-label="Edit {{ $fullName }}"
+                    >
+                        <svg
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M16.862 3.487a2.25 2.25 0 113.182 3.182L8.25 18.463 4 20l1.537-4.25L16.862 3.487z"
+                            />
+                        </svg>
+                    </a>
+
+                    {{-- Archive --}}
+                    <button
+                        type="button"
+                        onclick="openDeleteModal(
+                            {{ $patient->id }},
+                            @js($fullName)
+                        )"
+                        class="inline-flex h-10 w-10 items-center justify-center rounded-lg text-red-600 transition hover:bg-red-50"
+                        title="Archive patient"
+                        aria-label="Archive {{ $fullName }}"
+                    >
+                        <svg
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"
+                            />
+                        </svg>
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            {{-- Patient details --}}
+            <div class="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400">
+                        Age
+                    </p>
+                    <p class="mt-1 font-medium text-gray-700">
+                        {{ $patient->age }} years
+                    </p>
+                </div>
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400">
+                        Contact
+                    </p>
+                    <p class="mt-1 break-all font-medium text-gray-700">
+                        {{ $patient->contact_number ?: '—' }}
+                    </p>
+                </div>
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400">
+                        Gravida / Para
+                    </p>
+                    <p class="mt-1 font-medium text-gray-700">
+                        <span>Gravida {{ $patient->gravida ?? 0 }}</span>
+                        <span class="mx-1 text-gray-300">•</span>
+                        <span class="text-[#239447]">
+                            Para {{ $patient->para ?? 0 }}
+                        </span>
+                    </p>
+                </div>
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400">
+                        Estimated Date of Delivery
+                    </p>
+                    <p class="mt-1 font-medium text-gray-700">
+                        {{ $patient->edd
+                            ? \Carbon\Carbon::parse($patient->edd)->format('M d, Y')
+                            : '—' }}
+                    </p>
+                </div>
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400">
+                        PhilHealth
+                    </p>
+
+                    <div class="mt-1">
+                        @if ($patient->philhealth_member)
+
+                            <span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                                <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                                Member
+                            </span>
+
+                        @else
+
+                            <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                                None
+                            </span>
+
+                        @endif
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-xs font-medium text-gray-400">
+                        Assigned Staff
+                    </p>
+                    <p class="mt-1 break-words font-medium text-gray-700">
+                        {{ $patient->assignedStaff?->name ?: '—' }}
+                    </p>
+                </div>
+
+            </div>
+
+        </article>
+
+    @empty
+
+        <div class="px-5 py-12 text-center">
+
+            <p class="font-semibold text-gray-700">
+                @if ($search)
+                    No patients found
+                @elseif ($filter === 'my')
+                    No patients assigned to you
+                @else
+                    No ongoing patients
+                @endif
+            </p>
+
+            <p class="mt-1 text-sm text-gray-400">
+                @if ($search)
+                    No records matched “{{ $search }}”.
+                @elseif ($filter === 'my')
+                    Your assigned patients will appear here.
+                @else
+                    Add a patient to begin creating patient records.
+                @endif
+            </p>
+
+            @if ($search)
+                <a
+                    href="{{ route('patients.index', ['filter' => $filter]) }}"
+                    class="mt-3 inline-flex text-sm font-semibold text-[#19355F] hover:underline"
+                >
+                    Clear search
+                </a>
+            @endif
+
+        </div>
+
+    @endforelse
+
+</div>
+
 
             {{-- =====================================================
                  PAGINATION
             ====================================================== --}}
             @if ($patients->hasPages())
 
-                <div class="flex flex-col gap-4 border-t border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-4 border-t border-gray-100 px-3 py-4 xl:px-4 sm:flex-row sm:items-center sm:justify-between">
 
                     <p class="text-sm text-gray-500">
                         Showing
@@ -738,9 +981,9 @@
 
 
                     <nav
-                        class="flex items-center gap-1"
-                        aria-label="Patient pagination"
-                    >
+    class="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start"
+    aria-label="Patient pagination"
+>
 
                         {{-- Previous --}}
                         @if ($patients->onFirstPage())
@@ -762,6 +1005,8 @@
 
 
                         {{-- Page numbers --}}
+                        <div class="hidden items-center gap-1 sm:flex">
+
                         @foreach ($patients->getUrlRange(
                             max(1, $patients->currentPage() - 2),
                             min($patients->lastPage(), $patients->currentPage() + 2)
@@ -788,6 +1033,7 @@
                             @endif
 
                         @endforeach
+                        </div>
 
 
                         {{-- Next --}}
@@ -814,7 +1060,7 @@
 
             @elseif ($patients->total() > 0)
 
-                <div class="border-t border-gray-100 px-5 py-4">
+                <div class="border-t border-gray-100 px-3 py-4 xl:px-4">
                     <p class="text-sm text-gray-500">
                         Showing all
                         <span class="font-medium text-gray-700">
@@ -837,7 +1083,7 @@
 ============================================================== --}}
 <div
     id="deleteModal"
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
+    class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 backdrop-blur-sm"
 >
 
     <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
@@ -963,4 +1209,5 @@ if (patientSearchInput && patientSearchForm) {
 }
 </script>
 
+    </div>
 </x-app-layout>

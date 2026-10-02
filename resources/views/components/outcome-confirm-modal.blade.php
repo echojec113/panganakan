@@ -17,14 +17,14 @@
     a UX layer only and never re-validates eligibility.
 --}}
 <div id="outcomeConfirmModal"
-     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 px-4"
+     class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto bg-black/50 p-4"
      role="dialog"
      aria-modal="true"
      aria-labelledby="outcomeConfirmModalTitle"
      aria-describedby="outcomeConfirmModalMessage"
      tabindex="-1">
-    <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
-        <div class="border-b border-gray-100 px-6 py-5">
+    <div class="outcome-confirm-panel flex w-full min-w-0 max-w-md flex-col overflow-y-auto rounded-2xl bg-white shadow-xl">
+        <div class="outcome-confirm-header shrink-0 overflow-y-auto border-b border-gray-100 px-6 py-5">
             <div class="flex items-start gap-3">
                 <span class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
                     <svg id="outcomeConfirmIcon" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -32,31 +32,31 @@
                     </svg>
                 </span>
                 <div class="min-w-0">
-                    <h3 id="outcomeConfirmModalTitle" class="text-lg font-bold text-gray-900"></h3>
-                    <p id="outcomeConfirmPatient" class="mt-1 truncate text-sm font-semibold text-indigo-700"></p>
+                    <h3 id="outcomeConfirmModalTitle" class="text-lg font-bold text-gray-900 [overflow-wrap:anywhere]"></h3>
+                    <p id="outcomeConfirmPatient" class="mt-1 text-sm font-semibold text-indigo-700 [overflow-wrap:anywhere]"></p>
                 </div>
             </div>
         </div>
 
-        <div class="px-6 py-5">
-            <p id="outcomeConfirmModalMessage" class="text-sm leading-relaxed text-gray-700"></p>
+        <div class="min-h-0 overflow-y-auto overscroll-contain px-6 pt-5">
+            <p id="outcomeConfirmModalMessage" class="text-sm leading-relaxed text-gray-700 [overflow-wrap:anywhere]"></p>
+        </div>
 
-            <form method="POST" id="outcomeConfirmForm" action="" class="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-5">
+            <form method="POST" id="outcomeConfirmForm" action="" class="outcome-confirm-actions mx-6 mb-5 mt-6 flex shrink-0 flex-col items-stretch justify-end gap-3 overflow-y-auto border-t border-gray-100 pt-5 sm:flex-row sm:flex-wrap sm:items-center">
                 @csrf
                 <button type="button" id="outcomeConfirmCancel"
-                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        class="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:min-h-0">
                     Cancel
                 </button>
                 <button type="submit" id="outcomeConfirmSubmit"
-                        class="ml-auto inline-flex min-w-[10rem] items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+                        class="inline-flex min-h-11 min-w-0 max-w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-auto sm:min-h-0 sm:min-w-[10rem]">
                     <svg id="outcomeConfirmSpinner" class="hidden h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                         <circle class="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                     </svg>
-                    <span id="outcomeConfirmSubmitLabel">Confirm</span>
+                    <span id="outcomeConfirmSubmitLabel" class="min-w-0 [overflow-wrap:anywhere]">Confirm</span>
                 </button>
             </form>
-        </div>
     </div>
 </div>
 

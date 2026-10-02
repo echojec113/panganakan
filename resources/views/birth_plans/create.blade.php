@@ -1,5 +1,7 @@
 <x-app-layout>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
+    <div class="patient-page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <x-app-header class="mb-6">
             <x-slot name="title">Add Birth Plan</x-slot>
             <x-slot name="subtitle">Create a birth plan for the patient with expected delivery support details.</x-slot>
@@ -156,5 +158,6 @@
                 </div>
             </form>
         </div>
+    </div>
     </div>
 </x-app-layout>

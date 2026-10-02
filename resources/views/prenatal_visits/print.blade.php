@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Prenatal Visit Assessment - {{ $visit->patient->first_name }} {{ $visit->patient->last_name }}</title>
     <style>
         body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
@@ -19,10 +20,29 @@
         .badge-unknown { background: #f3f4f6; color: #374151; }
         ul { margin: 8px 0 0 18px; padding: 0; }
         @media print { button { display: none; } body { margin: 18px; } }
+
+        /* Screen-specific responsive styles */
+        @media screen {
+            body { max-width: 100%; margin: 16px auto; padding: 0 12px; box-sizing: border-box; }
+            .print-btn { display: inline-block; margin-bottom: 16px; padding: 10px 16px; background: #55B85A; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+            .print-btn:hover { background: #4aa04c; }
+            @media (max-width: 639px) {
+                .grid { grid-template-columns: 1fr; }
+                h1 { font-size: 20px; }
+                h2 { font-size: 15px; }
+                .box { padding: 10px; }
+            }
+            @media (min-width: 640px) and (max-width: 1023px) {
+                .grid { grid-template-columns: repeat(2, 1fr); }
+            }
+            @media (min-width: 1024px) {
+                .grid { grid-template-columns: repeat(3, 1fr); }
+            }
+        }
     </style>
 </head>
 <body>
-    <button onclick="window.print()" style="float:right;padding:8px 14px;">Print</button>
+    <button class="print-btn" onclick="window.print()">Print</button>
 
     <h1>Prenatal Visit Assessment</h1>
     <div class="muted">

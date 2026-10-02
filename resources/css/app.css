@@ -72,6 +72,48 @@
 }
 
 @layer components {
+    /* Shared page-header actions: constrain slotted controls without changing
+       button sizing elsewhere or the locked application shell. */
+    .app-page-header-actions > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .app-page-header-actions > :is(a, button) {
+        overflow-wrap: anywhere;
+        white-space: normal;
+    }
+
+    .app-page-header-actions > .btn {
+        height: auto;
+        min-height: 2.5rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+        line-height: 1.25;
+    }
+
+    /* Bounded shared confirmation regions keep long messages scrollable.
+       vh is the fallback; dvh follows changing mobile browser viewport height. */
+    .outcome-confirm-panel {
+        max-height: calc(100vh - 2rem);
+        max-height: calc(100dvh - 2rem);
+    }
+
+    .outcome-confirm-header {
+        max-height: 30vh;
+        max-height: 30dvh;
+    }
+
+    .outcome-confirm-actions {
+        max-height: 40vh;
+        max-height: 40dvh;
+    }
+
+    @media (max-height: 480px) {
+        .outcome-confirm-header { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+        .outcome-confirm-actions { margin-top: 0.75rem; margin-bottom: 0.75rem; padding-top: 0.75rem; }
+    }
+
     /* ── Cards / panels ── */
     .card {
         background-color: var(--color-card-bg);

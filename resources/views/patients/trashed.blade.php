@@ -1,6 +1,8 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <div class="min-h-screen bg-[#FCFBF8]">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="patient-page max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
             {{-- Header --}}
             <x-app-header class="mb-8">
@@ -35,19 +37,19 @@
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm" id="archiveTable">
-                        <thead>
-                            <tr class="bg-gray-50 border-b border-gray-100">
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Patient</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deleted At</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
-                                <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    <table role="table" class="patient-data-table patient-stack-table w-full text-sm" id="archiveTable">
+                        <thead role="rowgroup">
+                            <tr role="row" class="bg-gray-50 border-b border-gray-100">
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Patient</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Deleted At</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-50" id="archiveTableBody">
+                        <tbody role="rowgroup" class="divide-y divide-gray-50" id="archiveTableBody">
                             @forelse($patients as $patient)
-                                <tr class="hover:bg-gray-50/40 transition archive-row">
-                                    <td class="px-6 py-4">
+                                <tr role="row" class="hover:bg-gray-50/40 transition archive-row">
+                                    <td role="cell" data-label="Patient" class="px-6 py-4">
                                         <div class="flex items-center gap-3">
                                             <div class="w-8 h-8 rounded-full bg-[#FCFBF8] border border-gray-200 flex items-center justify-center text-xs font-bold flex-shrink-0 text-gray-600">
                                                 {{ strtoupper(substr($patient->first_name, 0, 1)) }}{{ strtoupper(substr($patient->last_name, 0, 1)) }}
@@ -58,23 +60,23 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 text-gray-700">
+                                    <td role="cell" data-label="Deleted At" class="px-6 py-4 text-gray-700">
                                         {{ $patient->deleted_at ? \Carbon\Carbon::parse($patient->deleted_at)->format('M d, Y h:i A') : '—' }}
                                     </td>
-                                    <td class="px-6 py-4 text-gray-700">
+                                    <td role="cell" data-label="Reason" class="px-6 py-4 text-gray-700">
                                         <span class="inline-flex items-center gap-2 px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
                                             {{ $patient->archived_reason ?? 'Removed from active records' }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 text-right">
+                                    <td role="cell" data-label="Actions" class="px-6 py-4 text-right">
                                         <div class="flex justify-end">
                                             <x-action-buttons :restoreRoute="route('patients.restore', $patient->id)" />
                                         </div>
                                     </td>
                                 </tr>
                             @empty
-                                <tr>
-                                    <td colspan="4" class="px-6 py-16 text-center">
+                                <tr role="row">
+                                    <td role="cell" colspan="4" class="px-6 py-16 text-center">
                                         <div class="flex flex-col items-center gap-3">
                                             <svg class="w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -92,7 +94,7 @@
         </div>
     </div>
 
-    <div id="restoreModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="restoreModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -105,7 +107,7 @@
                     <p class="text-sm text-gray-500">This will restore the patient from the archive.</p>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6">
+            <div class="patient-actions flex justify-end gap-3 mt-6">
                 <button onclick="closeRestoreModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
                 <button id="confirmRestoreBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition font-medium">Restore</button>
             </div>
@@ -149,4 +151,5 @@
             if (e.target === this) closeRestoreModal();
         });
     </script>
+    </div>
 </x-app-layout>

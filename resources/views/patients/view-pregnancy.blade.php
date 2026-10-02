@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     @php
         $outcome = $patient->pregnancyOutcome;
     @endphp
@@ -43,28 +45,28 @@
                 <h2 class="text-lg font-bold text-gray-900">Prenatal Visits / Checkups</h2>
             </div>
             <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">BP</th>
-                            <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Risk</th>
-                            <th class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+                <table role="table" class="patient-data-table patient-stack-table min-w-full divide-y divide-gray-200">
+                    <thead role="rowgroup" class="bg-gray-50">
+                        <tr role="row">
+                            <th scope="col" class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Date</th>
+                            <th scope="col" class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">BP</th>
+                            <th scope="col" class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Risk</th>
+                            <th scope="col" class="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-100">
+                    <tbody role="rowgroup" class="divide-y divide-gray-100">
                         @forelse($patient->prenatalVisits as $visit)
-                            <tr>
-                                <td class="px-5 py-4 text-sm text-gray-900">{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
-                                <td class="px-5 py-4 text-sm text-gray-900">{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
-                                <td class="px-5 py-4 text-sm text-gray-900">{{ $visit->risk_level ?: 'Not recorded' }}</td>
-                                <td class="px-5 py-4 text-right">
+                            <tr role="row">
+                                <td role="cell" data-label="Date" class="px-5 py-4 text-sm text-gray-900">{{ $visit->visit_date?->format('M d, Y') ?: 'Not recorded' }}</td>
+                                <td role="cell" data-label="BP" class="px-5 py-4 text-sm text-gray-900">{{ $visit->bp_sys ?? 'N/A' }}/{{ $visit->bp_dia ?? 'N/A' }}</td>
+                                <td role="cell" data-label="Risk" class="px-5 py-4 text-sm text-gray-900">{{ $visit->risk_level ?: 'Not recorded' }}</td>
+                                <td role="cell" data-label="Action" class="px-5 py-4 text-right">
                                     <button type="button" onclick="document.getElementById('visit-details-{{ $visit->id }}').classList.toggle('hidden')" class="mr-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">View</button>
                                     <a href="{{ route('prenatal-visits.print', $visit) }}" target="_blank" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print</a>
                                 </td>
                             </tr>
-                            <tr id="visit-details-{{ $visit->id }}" class="hidden bg-gray-50">
-                                <td colspan="4" class="px-5 py-4 text-sm text-gray-700">
+                            <tr role="row" id="visit-details-{{ $visit->id }}" class="hidden bg-gray-50">
+                                <td role="cell" colspan="4" class="px-5 py-4 text-sm text-gray-700">
                                     <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                         <div><span class="font-semibold">Weight:</span> {{ $visit->weight ?? 'N/A' }} kg</div>
                                         <div><span class="font-semibold">Gestational Age:</span> {{ $visit->gestational_age ?? 'N/A' }} weeks</div>
@@ -76,7 +78,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="px-5 py-10 text-center text-sm text-gray-500">No prenatal visits were recorded for this pregnancy.</td></tr>
+                            <tr role="row"><td role="cell" colspan="4" class="px-5 py-10 text-center text-sm text-gray-500">No prenatal visits were recorded for this pregnancy.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -118,5 +120,6 @@
                 @endforelse
             </div>
         </section>
+    </div>
     </div>
 </x-app-layout>

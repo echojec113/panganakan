@@ -1,11 +1,27 @@
 <x-app-layout>
+<style>
+    /* Page-local containment: layout follows usable width after the sidebar. */
+    .risk-dashboard { min-width: 0; overflow-wrap: anywhere; }
+    .risk-dashboard .grid > *, .risk-dashboard .dash-card, .risk-dashboard .kpi-card { min-width: 0; }
+    .risk-dashboard .chart-wrap { position: relative; width: 100%; min-width: 0; max-width: 100%; }
+    .risk-dashboard .chart-wrap canvas { max-width: 100%; }
+    .risk-dashboard .dash-card-header { flex-wrap: wrap; gap: 12px; }
+    .risk-dashboard .dashboard-toolbar { flex-wrap: wrap; }
+    .risk-dashboard .dashboard-filters { min-width: 0; max-width: 100%; }
+    .risk-dashboard .dashboard-filters > div { min-width: 0; max-width: 100%; }
+    .risk-dashboard .dashboard-filters select { min-width: 0; width: 100%; max-width: 100%; }
+    @media (max-width: 639px) {
+        .risk-dashboard .dashboard-filters { width: 100%; }
+        .risk-dashboard .dashboard-filters > div { flex: 1 1 100%; width: 100%; }
+    }
+</style>
     
-    <div class="min-h-screen bg-[#FCFBF8]">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="risk-dashboard min-h-screen bg-[#FCFBF8]">
+    <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 py-8">
         
         <!-- Page Header - Responsive -->
         <div class="mb-8">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="dashboard-toolbar flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <x-app-header
                     title="Risk Monitoring Dashboard"
                     subtitle="Risk trends and factors affecting patient risk classification"
@@ -25,14 +41,14 @@
         <!-- Risk Analytics -->
         <div class="mb-6 sm:mb-8 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="border-b border-gray-100 px-4 sm:px-6 py-4 bg-gray-50">
-                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="dashboard-toolbar flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Risk Analytics</h3>
                         <p id="riskAnalyticsSubtitle" class="text-xs sm:text-sm text-gray-500">{{ $analytics['month'] ? \Carbon\Carbon::create($analytics['year'], $analytics['month'], 1)->format('F Y') : $analytics['year'] }}</p>
                     </div>
-                    <fieldset class="min-w-0 sm:ml-auto">
+                    <fieldset class="w-full min-w-0 sm:ml-auto sm:w-auto">
                         <legend class="mb-2 text-xs font-semibold text-gray-600">Reporting Filters</legend>
-                        <div class="flex flex-wrap gap-3">
+                        <div class="dashboard-filters flex flex-wrap gap-3">
                         <div class="w-36 max-w-full">
                         <label for="riskAnalyticsType" class="mb-1 block text-xs font-medium text-gray-600">Risk Type</label>
                         <select id="riskAnalyticsType" class="h-11 w-full pl-3 pr-10 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition">
@@ -78,7 +94,7 @@
                 </div>
                 <!-- Risk Trend (full width) -->
                 <div>
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <p id="riskTrendTitle" class="text-sm font-semibold text-gray-700">{{ ($analytics['riskType'] ?? 'HIGH') === 'LOW' ? 'Low-Risk Patient Trend' : 'High-Risk Patient Trend' }}</p>
                         <span id="riskTrendEmpty" class="text-xs text-gray-400" style="display:none;">No risk assessment data available.</span>
                     </div>
@@ -111,13 +127,13 @@
 
             <div class="p-4 sm:p-6 space-y-6">
                 <div class="rounded-xl border border-gray-100 p-4">
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <p class="text-sm font-semibold text-gray-700">Top Factors Triggering High Risk</p>
                         <span id="topHighRiskConditionsEmpty" class="text-xs text-gray-400" style="display:none;">No data available.</span>
                     </div>
-                    <div class="chart-wrap" style="height:260px;">
+                    <div class="overflow-x-auto" tabindex="0" role="region" aria-label="High-risk factor chart; scroll horizontally for more detail"><div class="min-w-[28rem]"><div class="chart-wrap" style="height:260px;">
                         <canvas id="topHighRiskConditionsChart"></canvas>
-                    </div>
+                    </div></div></div>
                 </div>
             </div>
         </div>

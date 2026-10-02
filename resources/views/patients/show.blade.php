@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <style>
         .patient-profile-theme {
             --color-primary: #55B85A;
@@ -105,7 +107,7 @@
 
     </style>
 
-    <div class="patient-profile-theme max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: #FCFBF8;">
+    <div class="patient-page patient-profile-theme max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style="background-color: #FCFBF8;">
         @if(session('success'))
             <x-flash type="success" :message="session('success')" class="mb-6" />
         @endif
@@ -637,7 +639,7 @@
         {{-- Priority strip: Current Pregnancy + Basic Information --}}
         <div
     id="overview"
-    class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 scroll-mt-6"
+    class="patient-overview grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 scroll-mt-6"
 >
                         @php
                 /*
@@ -1104,7 +1106,7 @@
                                             </div>
                                         </div>
 
-                                        <div class="flex justify-end space-x-3 mt-6">
+                                        <div class="patient-actions flex justify-end space-x-3 mt-6">
                                             <button type="button" onclick="cancelBabyEdit({{ $baby->id }})" class="btn btn-secondary">
                                                 Cancel
                                             </button>
@@ -1163,21 +1165,21 @@
     @if($patient->prenatalVisits->isNotEmpty())
 
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table role="table" class="patient-data-table patient-stack-table min-w-full divide-y divide-gray-200">
 
                 {{-- Table Header --}}
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="th-cell">Visit Date</th>
-                        <th class="th-cell">Blood Pressure</th>
-                        <th class="th-cell">Weight</th>
-                        <th class="th-cell">Gestational Age</th>
-                        <th class="th-cell">Risk Assessment</th>
-                        <th class="th-cell">Actions</th>
+                <thead role="rowgroup" class="bg-gray-50">
+                    <tr role="row">
+                        <th scope="col" class="th-cell">Visit Date</th>
+                        <th scope="col" class="th-cell">Blood Pressure</th>
+                        <th scope="col" class="th-cell">Weight</th>
+                        <th scope="col" class="th-cell">Gestational Age</th>
+                        <th scope="col" class="th-cell">Risk Assessment</th>
+                        <th scope="col" class="th-cell">Actions</th>
                     </tr>
                 </thead>
 
-                <tbody class="divide-y divide-gray-200 bg-white">
+                <tbody role="rowgroup" class="divide-y divide-gray-200 bg-white">
 
                     @foreach($patient->prenatalVisits as $visit)
                         @php
@@ -1224,11 +1226,11 @@
                         @endphp
 
                         {{-- Main Visit Row --}}
-                        <tr
+                        <tr role="row"
                             class="cursor-pointer transition hover:bg-gray-50"
                             onclick="toggleVisitDetails({{ $visit->id }})"
                         >
-                            <td class="td-cell">
+                            <td role="cell" data-label="Visit Date" class="td-cell">
                                 <div class="font-semibold text-gray-900">
                                     {{ $formattedVisitDate }}
                                 </div>
@@ -1238,7 +1240,7 @@
                                 </div>
                             </td>
 
-                            <td class="td-cell text-gray-900">
+                            <td role="cell" data-label="Blood Pressure" class="td-cell text-gray-900">
                                 @if($visit->bp_sys !== null && $visit->bp_dia !== null)
                                     {{ $visit->bp_sys }}/{{ $visit->bp_dia }} mmHg
                                 @else
@@ -1246,7 +1248,7 @@
                                 @endif
                             </td>
 
-                            <td class="td-cell text-gray-900">
+                            <td role="cell" data-label="Weight" class="td-cell text-gray-900">
                                 @if($visit->weight !== null)
                                     {{ $visit->weight }} kg
                                 @else
@@ -1254,7 +1256,7 @@
                                 @endif
                             </td>
 
-                            <td class="td-cell text-gray-900">
+                            <td role="cell" data-label="Gestational Age" class="td-cell text-gray-900">
                                 @if($visit->gestational_age !== null)
                                     {{ $visit->gestational_age }} weeks
                                 @else
@@ -1262,7 +1264,7 @@
                                 @endif
                             </td>
 
-                            <td class="td-cell">
+                            <td role="cell" data-label="Risk Assessment" class="td-cell">
                                 @if($visit->risk_level === 'HIGH')
                                     <x-status-badge variant="danger">
                                         High Risk
@@ -1285,7 +1287,7 @@
                                 @endif
                             </td>
 
-                            <td class="td-cell">
+                            <td role="cell" data-label="Actions" class="td-cell">
                                 @if($patient->status === 'ONGOING')
                                     <div
                                         class="flex flex-wrap items-center gap-x-3 gap-y-2"
@@ -1345,11 +1347,11 @@
                         </tr>
 
                         {{-- Expanded Visit Details --}}
-                        <tr
+                        <tr role="row"
                             id="visit-details-{{ $visit->id }}"
                             class="hidden bg-gray-50"
                         >
-                            <td colspan="6" class="px-5 py-5">
+                            <td role="cell" colspan="6" class="px-5 py-5">
 
                                 <div class="rounded-xl border border-gray-200 bg-white">
 
@@ -2000,37 +2002,37 @@
     @if($patient->ultrasounds->isNotEmpty())
 
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
+            <table role="table" class="patient-data-table patient-stack-table min-w-full divide-y divide-gray-200">
 
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th class="th-cell">
+                <thead role="rowgroup" class="bg-gray-50">
+                    <tr role="row">
+                        <th scope="col" class="th-cell">
                             Scan Date
                         </th>
 
-                        <th class="th-cell">
+                        <th scope="col" class="th-cell">
                             Fetal Heartbeat
                         </th>
 
-                        <th class="th-cell">
+                        <th scope="col" class="th-cell">
                             Fetal Movement
                         </th>
 
-                        <th class="th-cell">
+                        <th scope="col" class="th-cell">
                             Gestational Age
                         </th>
 
-                        <th class="th-cell">
+                        <th scope="col" class="th-cell">
                             Report
                         </th>
 
-                        <th class="th-cell">
+                        <th scope="col" class="th-cell">
                             Actions
                         </th>
                     </tr>
                 </thead>
 
-                <tbody class="divide-y divide-gray-200 bg-white">
+                <tbody role="rowgroup" class="divide-y divide-gray-200 bg-white">
 
                     @foreach($patient->ultrasounds as $u)
 
@@ -2060,20 +2062,20 @@
                                 : null;
                         @endphp
 
-                        <tr
+                        <tr role="row"
     class="cursor-pointer transition hover:bg-gray-50"
     onclick="toggleUltrasoundDetails({{ $u->id }})"
 >
 
                             {{-- Scan Date --}}
-                            <td class="td-cell">
+                            <td role="cell" data-label="Scan Date" class="td-cell">
                                 <span class="font-semibold text-gray-900">
                                     {{ $formattedScanDate }}
                                 </span>
                             </td>
 
                             {{-- Fetal Heartbeat --}}
-                            <td class="td-cell">
+                            <td role="cell" data-label="Fetal Heartbeat" class="td-cell">
                                 @if($u->fetal_heartbeat)
                                     <span class="text-sm font-medium text-gray-900">
                                         {{ $u->fetal_heartbeat }}
@@ -2086,7 +2088,7 @@
                             </td>
 
                             {{-- Fetal Movement --}}
-                            <td class="td-cell">
+                            <td role="cell" data-label="Fetal Movement" class="td-cell">
                                 @if($u->fetal_movement)
                                     <span class="text-sm font-medium text-gray-900">
                                         {{ $u->fetal_movement }}
@@ -2099,7 +2101,7 @@
                             </td>
 
                             {{-- Gestational Age --}}
-                            <td class="td-cell">
+                            <td role="cell" data-label="Gestational Age" class="td-cell">
                                 @if(
                                     $u->gestational_age_scan !== null
                                     && $u->gestational_age_scan !== ''
@@ -2115,7 +2117,7 @@
                             </td>
 
                             {{-- Report --}}
-                            <td class="td-cell">
+                            <td role="cell" data-label="Report" class="td-cell">
                                 @if($usHasImage || $usHasPdf)
 
                                     <div class="flex items-center gap-3">
@@ -2172,7 +2174,7 @@
                             </td>
 
                             {{-- Actions --}}
-                            <td class="td-cell">
+                            <td role="cell" data-label="Actions" class="td-cell">
                                 @if($patient->status === 'ONGOING')
                                     <div onclick="event.stopPropagation()">
     <a
@@ -2191,8 +2193,8 @@
 
                         </tr>
 
-                        <tr id="ultrasound-details-{{ $u->id }}" class="hidden bg-gray-50">
-                            <td colspan="6" class="px-6 py-5">
+                        <tr role="row" id="ultrasound-details-{{ $u->id }}" class="hidden bg-gray-50">
+                            <td role="cell" colspan="6" class="px-6 py-5">
                                 <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-900">Ultrasound Details</h3>
 
                                 <div class="mt-4">
@@ -2274,7 +2276,7 @@
 </section>
                 <!-- Ultrasound image lightbox -->
                 <div id="usLightbox" class="hidden fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4">
-                    <div class="relative max-w-3xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
+                    <div class="patient-page relative max-w-3xl w-full bg-white rounded-xl shadow-xl overflow-hidden">
                         <button id="usLightboxClose" class="absolute top-2 right-2 w-9 h-9 flex items-center justify-center bg-gray-900/70 text-white rounded-full hover:bg-gray-900/90 text-xl leading-none" aria-label="Close">&times;</button>
                         <img id="usLightboxImg" src="" alt="Ultrasound image" class="w-full object-contain" style="max-height:80vh">
                     </div>
@@ -3310,6 +3312,7 @@
                         </div>
                     </div>
                 </div>
+                </div><!-- End populated risk assessment panel -->
                 @else
                 <div class="panel">
                     <div class="panel-header">
@@ -3587,7 +3590,7 @@
    
 
     <!-- Validation Error Modal -->
-    <div id="downloadValidationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="downloadValidationModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
@@ -3601,14 +3604,14 @@
                 </div>
             </div>
             <div id="downloadValidationList" class="text-sm text-gray-700 mb-4"></div>
-            <div class="flex justify-end gap-3 mt-6">
+            <div class="patient-actions flex justify-end gap-3 mt-6">
                 <button type="button" onclick="closeValidationModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">OK</button>
             </div>
         </div>
     </div>
 
     <!-- Select File Format Modal -->
-    <div id="downloadFormatModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="downloadFormatModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
@@ -3631,7 +3634,7 @@
                     <span class="text-sm text-gray-700">Download as CSV</span>
                 </label>
             </div>
-            <div class="flex justify-end gap-3 mt-6">
+            <div class="patient-actions flex justify-end gap-3 mt-6">
                 <button type="button" onclick="closeFormatModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
                 <button type="button" onclick="openDownloadConfirmModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium">Continue</button>
             </div>
@@ -3639,7 +3642,7 @@
     </div>
 
     <!-- Confirm Download Modal -->
-    <div id="downloadConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="downloadConfirmModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
@@ -3652,7 +3655,7 @@
                     <p id="downloadConfirmText" class="text-sm text-gray-500">Are you sure you want to download this patient record as PDF?</p>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6">
+            <div class="patient-actions flex justify-end gap-3 mt-6">
                 <button type="button" onclick="closeDownloadConfirmModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
                 <button type="button" onclick="submitPatientDownload()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition font-medium">Download</button>
             </div>
@@ -3660,7 +3663,7 @@
     </div>
 
     <!-- Download Success Modal -->
-    <div id="downloadSuccessModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
+    <div id="downloadSuccessModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -3673,7 +3676,7 @@
                     <p class="text-sm text-gray-500">Patient record has been successfully downloaded.</p>
                 </div>
             </div>
-            <div class="flex justify-end mt-6">
+            <div class="patient-actions flex justify-end mt-6">
                 <button type="button" onclick="closeDownloadSuccessModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">OK</button>
             </div>
         </div>
@@ -4374,4 +4377,5 @@
     @if($patient->status === 'ONGOING' && $monitoringEligible && auth()->user()->role !== 'admin')
         <x-outcome-confirm-modal />
     @endif
+    </div>
 </x-app-layout>

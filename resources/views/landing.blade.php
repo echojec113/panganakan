@@ -173,11 +173,10 @@
 
         @media (max-width: 1024px) {
             .hero-wrapper {
-                grid-template-columns: 1fr;
-                gap: 3rem;
-            }
-        }
-
+        grid-template-columns: 1fr;
+        gap: 3rem;
+    }
+}
         @media (max-width: 768px) {
             .hero-wrapper {
                 gap: 2rem;
@@ -781,51 +780,171 @@
         }
 
         /* ===== RESPONSIVE HEADER NAVIGATION ===== */
-        @media (max-width: 1024px) {
-            .header-nav-list {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 1rem;
-                width: 100%;
-            }
 
-            .header-nav-item {
-                width: 100%;
-            }
+.mobile-menu-button {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    color: #1e2d45;
+    cursor: pointer;
+    flex-shrink: 0;
+}
 
-            .header-nav-link {
-                display: block;
-                padding: 0.5rem 1rem;
-                width: 100%;
-            }
-        }
+.mobile-menu-button:hover {
+    background: #f8fafc;
+}
 
-        @media (max-width: 768px) {
-            .header-nav-list {
-                border-top: 1px solid #e2e8f0;
-            }
+.mobile-menu-button:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
 
-            .header-nav {
-                flex-direction: column;
-                padding-top: 1rem;
-            }
+.mobile-menu-button svg {
+    width: 22px;
+    height: 22px;
+}
 
-            .header-nav-list {
-                border: none;
-                flex-direction: column;
-            }
+.mobile-navigation {
+    display: none;
+}
 
-            .header-nav-item {
-                width: 100%;
-            }
+@media (max-width: 1024px) {
+    .landing-header {
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
 
-            .header-nav-link {
-                display: block;
-                padding: 0.5rem 1rem;
-                border-bottom: 1px solid #e2e8f0;
-                width: 100%;
-            }
-        }
+    .landing-container {
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .header-wrapper {
+        gap: 16px;
+    }
+
+    .header-left {
+        min-width: 0;
+    }
+
+    .landing-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .header-nav,
+    .header-right {
+        display: none;
+    }
+
+    .mobile-menu-button {
+        display: inline-flex;
+        margin-left: auto;
+    }
+
+    .mobile-navigation.is-open {
+        display: block;
+    }
+
+    .mobile-navigation {
+        border-top: 1px solid #e2e8f0;
+        background: #ffffff;
+    }
+
+    .mobile-navigation-inner {
+        padding: 12px 20px 16px;
+    }
+
+    .mobile-nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .mobile-nav-link {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 10px 8px;
+        border-bottom: 1px solid #f1f5f9;
+        color: #475569;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        text-decoration: none;
+    }
+
+    .mobile-nav-link:hover {
+        color: #1e2d45;
+        background: #f8fafc;
+    }
+
+    .mobile-nav-link:focus-visible {
+        outline: 2px solid #3b82f6;
+        outline-offset: -2px;
+    }
+
+    .mobile-login-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        margin-top: 12px;
+        padding: 10px 16px;
+        border: 1px solid #9ca3af;
+        border-radius: 0.5rem;
+        color: #1e2d45;
+        font-size: 0.9375rem;
+        font-weight: 500;
+        text-decoration: none;
+    }
+
+    .mobile-login-btn:hover {
+        background: #f1f5f9;
+    }
+}
+
+@media (max-width: 640px) {
+    .landing-container,
+    .hero-wrapper,
+    .contact-wrapper,
+    .services-wrapper,
+    .patient-policies-wrapper {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .landing-logo {
+        width: 36px;
+        height: 36px;
+    }
+
+    .landing-title {
+        font-size: 0.9375rem;
+    }
+
+    .hero-section,
+    .contact-section,
+    .services-section,
+    .leadership-section,
+    .patient-policies-section {
+        padding-top: 4rem;
+        padding-bottom: 4rem;
+    }
+
+    .hero-heading {
+        font-size: 2rem;
+    }
+
+    .hero-paragraph {
+        font-size: 1rem;
+    }
+}
     </style>
 </head>
 <body class="landing">
@@ -834,37 +953,118 @@
 <header class="landing-header">
     <div class="landing-container">
         <div class="header-wrapper">
-            <div class="header-left">
-                <img src="{{ asset('images/logo.png') }}" alt="DEPLA Family Care Logo" class="landing-logo" />
 
-                <span class="landing-title">DEPLA Family Care</span>
-            </div>
+            {{-- Logo / Clinic Name --}}
+            <a href="#home" class="header-left">
+                <img
+                    src="{{ asset('images/logo.png') }}"
+                    alt="DEPLA Family Care Logo"
+                    class="landing-logo"
+                >
 
-            <nav class="header-nav">
+                <span class="landing-title">
+                    DEPLA Family Care
+                </span>
+            </a>
+
+            {{-- Desktop Navigation --}}
+            <nav class="header-nav" aria-label="Main navigation">
                 <ul class="header-nav-list">
                     <li class="header-nav-item">
                         <a href="#home" class="header-nav-link">Home</a>
                     </li>
+
                     <li class="header-nav-item">
                         <a href="#services" class="header-nav-link">Services</a>
                     </li>
+
                     <li class="header-nav-item">
                         <a href="#team" class="header-nav-link">Our Team</a>
                     </li>
+
                     <li class="header-nav-item">
-                        <a href="#contact" class="header-nav-link">Contact & Location</a>
+                        <a href="#contact" class="header-nav-link">
+                            Contact &amp; Location
+                        </a>
                     </li>
+
                     <li class="header-nav-item">
                         <a href="#policies" class="header-nav-link">Patient Info</a>
                     </li>
                 </ul>
             </nav>
 
+            {{-- Desktop Login --}}
             <div class="header-right">
-                <a href="{{ route('login') }}" class="landing-login-btn">Login</a>
+                <a href="{{ route('login') }}" class="landing-login-btn">
+                    Login
+                </a>
             </div>
+
+            {{-- Mobile Menu Button --}}
+            <button
+                type="button"
+                class="mobile-menu-button"
+                id="mobileMenuButton"
+                aria-label="Open navigation menu"
+                aria-expanded="false"
+                aria-controls="mobileNavigation"
+            >
+                <svg
+                    id="mobileMenuIcon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <path d="M4 6h16"></path>
+                    <path d="M4 12h16"></path>
+                    <path d="M4 18h16"></path>
+                </svg>
+            </button>
+
         </div>
     </div>
+
+    {{-- Mobile Navigation --}}
+    <nav
+        class="mobile-navigation"
+        id="mobileNavigation"
+        aria-label="Mobile navigation"
+    >
+        <div class="mobile-navigation-inner">
+            <ul class="mobile-nav-list">
+                <li>
+                    <a href="#home" class="mobile-nav-link">Home</a>
+                </li>
+
+                <li>
+                    <a href="#services" class="mobile-nav-link">Services</a>
+                </li>
+
+                <li>
+                    <a href="#team" class="mobile-nav-link">Our Team</a>
+                </li>
+
+                <li>
+                    <a href="#contact" class="mobile-nav-link">
+                        Contact &amp; Location
+                    </a>
+                </li>
+
+                <li>
+                    <a href="#policies" class="mobile-nav-link">Patient Info</a>
+                </li>
+            </ul>
+
+            <a href="{{ route('login') }}" class="mobile-login-btn">
+                Login
+            </a>
+        </div>
+    </nav>
 </header>
 
 <!-- ===== HERO SECTION ===== -->
@@ -1143,6 +1343,78 @@
             });
         });
     }
+    // ===== Mobile Navigation =====
+const mobileMenuButton = document.getElementById('mobileMenuButton');
+const mobileNavigation = document.getElementById('mobileNavigation');
+
+function openMobileMenu() {
+    if (!mobileMenuButton || !mobileNavigation) {
+        return;
+    }
+
+    mobileNavigation.classList.add('is-open');
+    mobileMenuButton.setAttribute('aria-expanded', 'true');
+    mobileMenuButton.setAttribute('aria-label', 'Close navigation menu');
+}
+
+function closeMobileMenu() {
+    if (!mobileMenuButton || !mobileNavigation) {
+        return;
+    }
+
+    mobileNavigation.classList.remove('is-open');
+    mobileMenuButton.setAttribute('aria-expanded', 'false');
+    mobileMenuButton.setAttribute('aria-label', 'Open navigation menu');
+}
+
+function toggleMobileMenu() {
+    if (!mobileMenuButton || !mobileNavigation) {
+        return;
+    }
+
+    const isOpen = mobileNavigation.classList.contains('is-open');
+
+    if (isOpen) {
+        closeMobileMenu();
+    } else {
+        openMobileMenu();
+    }
+}
+
+if (mobileMenuButton && mobileNavigation) {
+    // Open / close from hamburger button
+    mobileMenuButton.addEventListener('click', toggleMobileMenu);
+
+    // Close after selecting a mobile navigation link
+    mobileNavigation.querySelectorAll('a').forEach(link => {
+        link.addEventListener('click', closeMobileMenu);
+    });
+
+    // Escape closes the menu
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            closeMobileMenu();
+        }
+    });
+
+    // Reset mobile menu when returning to desktop
+    const desktopNavigationMedia = window.matchMedia('(min-width: 769px)');
+
+    function handleNavigationBreakpoint(event) {
+        if (event.matches) {
+            closeMobileMenu();
+        }
+    }
+
+    if (desktopNavigationMedia.addEventListener) {
+        desktopNavigationMedia.addEventListener(
+            'change',
+            handleNavigationBreakpoint
+        );
+    } else {
+        desktopNavigationMedia.addListener(handleNavigationBreakpoint);
+    }
+}
 </script>
 
 </body>

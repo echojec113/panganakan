@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <style>
         .edit-patient-theme {
             --edit-primary: #55B85A;
@@ -65,7 +67,7 @@
         }
     </style>
 
-    <div class="edit-patient-theme max-w-5xl mx-auto mt-8 px-4 sm:px-6 lg:px-8" style="background-color: #FCFBF8;">
+    <div class="patient-page edit-patient-theme max-w-5xl mx-auto mt-8 px-4 sm:px-6 lg:px-8" style="background-color: #FCFBF8;">
         <!-- Breadcrumb -->
         <div class="mb-6">
             <nav class="flex" aria-label="Breadcrumb">
@@ -319,7 +321,7 @@
                 </div>
 
                 <!-- Form Actions -->
-                <div class="flex justify-end gap-3 pt-6 border-t border-gray-200">
+                <div class="patient-actions flex justify-end gap-3 pt-6 border-t border-gray-200">
                     <a href="{{ route('patients.show', $patient->id) }}"
                         class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition font-medium">
                         Cancel
@@ -461,4 +463,5 @@
         }
     });
     </script>
+    </div>
 </x-app-layout>

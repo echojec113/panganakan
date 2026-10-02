@@ -318,7 +318,7 @@
                         </svg>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Risk Factors</h3>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Hypertension</label>
                             <select name="hypertension" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
@@ -457,10 +457,10 @@
 
                 <!-- Submit Buttons -->
                 <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
-                    <a href="{{ route('prenatal-visits.index') }}" class="order-2 sm:order-1 px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition text-center">
+                    <a href="{{ route('prenatal-visits.index') }}" class="w-full sm:w-auto order-2 sm:order-1 px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition text-center">
                         Cancel
                     </a>
-                    <button type="submit" class="order-1 sm:order-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm font-medium">
+                    <button type="submit" class="w-full sm:w-auto order-1 sm:order-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm font-medium">
                         <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                         </svg>
@@ -472,16 +472,16 @@
     </div>
 
     {{-- Update Confirmation Modal --}}
-    <div id="updateConfirmationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
-        <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
+    <div id="updateConfirmationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 my-4 sm:my-auto p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m-2 10a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
-                <div>
-                    <h3 class="font-semibold text-gray-900">Confirm Update</h3>
+                <div class="min-w-0">
+                    <h3 class="font-semibold text-gray-900 truncate">Confirm Update</h3>
                     <p class="text-sm text-gray-500">Do you want to save changes to this prenatal visit?</p>
                 </div>
             </div>

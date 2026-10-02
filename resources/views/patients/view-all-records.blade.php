@@ -1,4 +1,6 @@
 <x-app-layout>
+    @include('patients.partials.responsive-styles')
+    <div class="patient-module">
     <div class="space-y-6">
 
         {{-- =========================
@@ -158,30 +160,30 @@
             ========================== --}}
             <div class="hidden overflow-x-auto md:block">
 
-                <table class="min-w-full divide-y divide-gray-100">
+                <table role="table" class="patient-data-table patient-list-table min-w-full divide-y divide-gray-100">
 
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <thead role="rowgroup" class="bg-gray-50">
+                        <tr role="row">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Patient
                             </th>
 
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Status
                             </th>
 
-                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Latest Activity
                             </th>
 
-                            <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                            <th scope="col" class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Action
                             </th>
                         </tr>
                     </thead>
 
 
-                    <tbody class="divide-y divide-gray-100 bg-white">
+                    <tbody role="rowgroup" class="divide-y divide-gray-100 bg-white">
 
                         @forelse($patients as $patient)
 
@@ -201,10 +203,10 @@
                                 };
                             @endphp
 
-                            <tr class="transition hover:bg-gray-50/70">
+                            <tr role="row" class="transition hover:bg-gray-50/70">
 
                                 {{-- Patient --}}
-                                <td class="px-6 py-4">
+                                <td role="cell" class="px-6 py-4">
                                     <div class="text-sm font-semibold text-gray-900">
                                         {{ $patient->first_name }}
                                         {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}
@@ -219,7 +221,7 @@
 
 
                                 {{-- Status --}}
-                                <td class="px-6 py-4">
+                                <td role="cell" class="px-6 py-4">
                                     <div class="flex flex-wrap items-center gap-2">
 
     <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-medium {{ $statusColor }}">
@@ -237,13 +239,13 @@
 
 
                                 {{-- Latest Activity --}}
-                                <td class="px-6 py-4 text-sm text-gray-600">
+                                <td role="cell" class="px-6 py-4 text-sm text-gray-600">
                                     {{ $patient->directory_activity?->format('M d, Y') ?? 'Not recorded' }}
                                 </td>
 
 
                                 {{-- Action --}}
-                                <td class="px-6 py-4 text-center">
+                                <td role="cell" class="px-6 py-4 text-center">
                                     <a
                                         href="{{ route('view-all-records.history', $patient) }}"
                                         title="View patient history"
@@ -281,8 +283,8 @@
 
                         @empty
 
-                            <tr>
-                                <td
+                            <tr role="row">
+                                <td role="cell"
                                     colspan="4"
                                     class="px-6 py-12 text-center"
                                 >
@@ -501,5 +503,6 @@
 @endif
         </div>
 
+    </div>
     </div>
 </x-app-layout>

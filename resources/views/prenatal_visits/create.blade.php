@@ -1,7 +1,7 @@
 <x-app-layout>
     <div class="min-h-screen bg-[#FCFBF8]">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <x-app-header class="mb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            <x-app-header class="mb-6 sm:mb-8">
                 <x-slot name="title">Add Prenatal Visit</x-slot>
                 <x-slot name="subtitle">Record a new prenatal check-up with risk assessment.</x-slot>
                 <x-slot name="actions">
@@ -15,7 +15,7 @@
             </x-app-header>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <form action="{{ route('prenatal-visits.store') }}" method="POST" id="prenatalForm" class="p-6">
+            <form action="{{ route('prenatal-visits.store') }}" method="POST" id="prenatalForm" class="p-4 sm:p-6">
                 @csrf
 
                 <!-- Error Summary -->
@@ -255,7 +255,7 @@
                         </svg>
                         <h3 class="text-lg font-semibold text-gray-800">Risk Factors</h3>
                     </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Hypertension</label>
                             <select name="hypertension" id="hypertension" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition">
@@ -366,10 +366,10 @@
 
                 <!-- Submit Buttons -->
                 <div class="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-100">
-                <a href="{{ route('prenatal-visits.index') }}" class="order-2 sm:order-1 px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition text-center">
+                <a href="{{ route('prenatal-visits.index') }}" class="w-full sm:w-auto order-2 sm:order-1 px-6 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition text-center">
                         Cancel
                     </a>
-                    <button type="submit" id="submitBtn" class="order-1 sm:order-2 px-6 py-2 bg-[#55B85A] text-white rounded-lg text-sm font-medium hover:bg-[#4aa04c] transition shadow-sm">
+                    <button type="submit" id="submitBtn" class="w-full sm:w-auto order-1 sm:order-2 px-6 py-2 bg-[#55B85A] text-white rounded-lg text-sm font-medium hover:bg-[#4aa04c] transition shadow-sm">
                         <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
                         </svg>
@@ -378,16 +378,16 @@
                 </div>
             </form>
 
-            <div id="validationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
-                <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
+            <div id="validationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
+                <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 my-4 sm:my-auto p-6">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                             <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
                         </div>
-                        <div>
-                            <h3 class="font-semibold text-gray-900">Validation Error</h3>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold text-gray-900 truncate">Validation Error</h3>
                             <p class="text-sm text-gray-500">All required prenatal visit details must be filled.</p>
                         </div>
                     </div>
@@ -397,16 +397,16 @@
                 </div>
             </div>
 
-            <div id="confirmSaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
-                <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6">
+            <div id="confirmSaveModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
+                <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 my-4 sm:my-auto p-6">
                     <div class="flex items-center gap-3 mb-4">
                         <div class="w-10 h-10 rounded-full bg-[#55B85A] flex items-center justify-center flex-shrink-0">
                             <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
                             </svg>
                         </div>
-                        <div>
-                            <h3 class="font-semibold text-gray-900">Confirm Save</h3>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold text-gray-900 truncate">Confirm Save</h3>
                             <p class="text-sm text-gray-500">Are you sure you want to save this prenatal visit?</p>
                         </div>
                     </div>

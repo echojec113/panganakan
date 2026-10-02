@@ -111,6 +111,33 @@
 
     /* Chart containers */
     .chart-wrap { position: relative; width: 100%; }
+
+    /* Page-local containment: layout follows usable width after the sidebar. */
+    .dash-root { min-width: 0; overflow-wrap: anywhere; }
+    .dash-root .grid > *, .dash-root .dash-card, .dash-root .kpi-card { min-width: 0; }
+    .dash-root .chart-wrap { position: relative; width: 100%; min-width: 0; max-width: 100%; }
+    .dash-root .chart-wrap canvas { max-width: 100%; }
+    .dash-root .dash-card-header { flex-wrap: wrap; gap: 12px; }
+    .dash-root .dashboard-toolbar { flex-wrap: wrap; }
+    .dash-root .dashboard-filters { min-width: 0; max-width: 100%; }
+    .dash-root .dashboard-filters > div { min-width: 0; max-width: 100%; }
+    .dash-root .dashboard-filters select { min-width: 0; width: 100%; max-width: 100%; }
+    @media (max-width: 639px) {
+        .dash-root .dashboard-filters { width: 100%; }
+        .dash-root .dashboard-filters > div { flex: 1 1 100%; width: 100%; }
+    }
+
+    .dash-root .dashboard-content { container-type: inline-size; container-name: admin-dashboard; }
+    @container admin-dashboard (min-width: 960px) {
+        .dash-root .dashboard-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+
+    @container admin-dashboard (min-width: 1000px) {
+        .dash-root .dashboard-primary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .dash-root .dashboard-primary > :first-child { grid-column: span 2; }
+        .dash-root .dashboard-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .dash-root .referral-summary { grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr)); }
 </style>
 
 <div class="dash-root">
@@ -118,10 +145,10 @@
     
 
     {{-- ==================== MAIN CONTENT ==================== --}}
-    <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div class="dashboard-content max-w-screen-xl mx-auto px-2 sm:px-6 lg:px-8 py-8 space-y-6">
 
         {{-- ======= ROW 1: BUSINESS SUMMARY ======= --}}
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<div class="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 gap-4">
 
     {{-- Total Patients --}}
     <div class="kpi-card kpi-blue">
@@ -237,7 +264,7 @@
 </div>
 
         <section class="space-y-6" aria-labelledby="analytics-overview-title">
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="dashboard-toolbar flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 id="analytics-overview-title" class="text-lg font-bold text-slate-900">Analytics Overview</h2>
                     <p class="mt-1 text-sm text-slate-500">Clinic activity for the selected reporting period</p>
@@ -245,7 +272,7 @@
         <form
             method="GET"
             action="{{ route('dashboard') }}"
-            class="flex items-end gap-2 flex-wrap"
+            class="dashboard-filters flex items-end gap-2 flex-wrap"
         >
             <div>
                 <label
@@ -301,7 +328,7 @@
         </form>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="dashboard-kpis grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div class="rounded-xl border border-slate-200 bg-white p-4">
                     <p class="text-xs font-medium text-slate-500">{{ $busiestPeriodType }}</p>
                     <p class="mt-2 text-xl font-semibold text-slate-900 mono">{{ $busiestPeriodLabel }}</p>
@@ -325,10 +352,10 @@
             </div>
 
         {{-- ======= ROW 3: Monthly Trend + Conditions ======= --}}
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="dashboard-primary grid grid-cols-1 gap-6">
 
             {{-- Monthly Visits Trend (2/3) --}}
-<div class="lg:col-span-2 dash-card">
+<div class="dash-card">
 
     <div class="dash-card-header gap-4 flex-wrap">
         <div>
@@ -365,15 +392,15 @@
                     </div>
                 </div>
                 <div class="p-5">
-                    <div class="chart-wrap" style="height:200px;">
+                    <div class="overflow-x-auto" tabindex="0" role="region" aria-label="High-risk factor chart; scroll horizontally for more detail"><div class="min-w-[28rem]"><div class="chart-wrap" style="height:200px;">
                         <canvas id="conditionsChart"></canvas>
-                    </div>
+                    </div></div></div>
                 </div>
             </div>
         </div>
 
         {{-- ======= ROW 4: Risk Distribution +  Referral Performance  ======= --}}
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="dashboard-secondary grid grid-cols-1 gap-6">
 
             
 
@@ -423,7 +450,7 @@
     <div class="p-5">
 
         {{-- Referral Status Summary --}}
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        <div class="referral-summary grid gap-3 mb-5">
 
             <div class="rounded-lg bg-emerald-50 px-3 py-3">
                 <p class="text-xs font-medium text-emerald-700">

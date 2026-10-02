@@ -1,7 +1,7 @@
 @props(['title' => null, 'subtitle' => null])
 
-<header {{ $attributes->merge(['class' => 'flex flex-wrap items-center justify-between gap-4']) }}>
-    <div class="min-w-0">
+<header {{ $attributes->merge(['class' => 'app-page-header flex min-w-0 max-w-full flex-wrap items-center justify-between gap-4']) }}>
+    <div class="min-w-0 max-w-full [overflow-wrap:anywhere]">
         @if ($title)
             <h1 class="text-xl font-bold tracking-tight text-slate-900">{{ $title }}</h1>
         @endif
@@ -12,7 +12,7 @@
     </div>
 
     @isset($actions)
-        <div class="flex flex-wrap items-center justify-end gap-2">
+        <div class="app-page-header-actions flex w-full min-w-0 max-w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {{ $actions }}
         </div>
     @endisset
