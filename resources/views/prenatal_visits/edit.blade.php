@@ -1,5 +1,27 @@
 <x-app-layout>
     <style>
+        .prenatal-responsive { container-type: inline-size; min-width: 0; overflow-wrap: anywhere; }
+        .prenatal-responsive *, .prenatal-responsive *::before, .prenatal-responsive *::after { box-sizing: border-box; }
+        .prenatal-responsive .grid > *, .prenatal-responsive .flex > * { min-width: 0; }
+        .prenatal-responsive .app-page-header-actions { flex-wrap: wrap; }
+        .prenatal-dialog > div { min-width: 0; max-height: calc(100dvh - 3rem); overflow-y: auto; margin-inline: 0; overflow-wrap: anywhere; }
+        .prenatal-dialog { padding-block: 1.5rem; }
+        .prenatal-dialog button { white-space: normal; }
+
+        .prenatal-responsive #prenatalForm input:not([type="hidden"]), .prenatal-responsive #prenatalForm select, .prenatal-responsive #prenatalForm textarea { min-width: 0; max-width: 100%; }
+        .prenatal-responsive #prenatalForm .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .prenatal-responsive #prenatalForm summary { flex-wrap: wrap; gap: .5rem; }
+        .prenatal-responsive #prenatalForm svg { flex-shrink: 0; }
+        .prenatal-responsive #prenatalForm [class~="ml-auto"] { margin-left: 0; }
+        .prenatal-responsive #prenatalForm .flex:has(> [class~="ml-auto"]) { flex-wrap: wrap; }
+        @container (min-width: 950px) {
+            .prenatal-responsive #prenatalForm [class~="lg:grid-cols-3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @container (max-width: 600px) {
+            .prenatal-responsive #prenatalForm .grid { grid-template-columns: minmax(0, 1fr); }
+        }
+    </style>
+    <style>
         .edit-prenatal-visit-theme {
             --edit-primary: #55B85A;
             --edit-primary-hover: #4aa04c;
@@ -80,7 +102,7 @@
         }
     </style>
 
-    <div class="edit-prenatal-visit-theme max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+    <div class="prenatal-responsive edit-prenatal-visit-theme max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         <!-- Back Button -->
         <div class="mb-4 sm:mb-6">
             <a href="{{ route('prenatal-visits.index') }}" class="inline-flex items-center text-gray-600 hover:text-blue-600 transition group">
@@ -476,7 +498,7 @@
     </div>
 
     {{-- Update Confirmation Modal --}}
-    <div id="updateConfirmationModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
+    <div id="updateConfirmationModal" class="prenatal-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 my-4 sm:my-auto p-6">
             <div class="flex items-center gap-3 mb-4">
                 <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">

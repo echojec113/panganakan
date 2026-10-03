@@ -23,6 +23,12 @@
 
         /* Screen-specific responsive styles */
         @media screen {
+            body { overflow-wrap: anywhere; }
+            .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .grid > *, .box { min-width: 0; }
+            .badge { max-width: 100%; white-space: normal; }
+        }
+        @media screen {
             body { max-width: 100%; margin: 16px auto; padding: 0 12px; box-sizing: border-box; }
             .print-btn { display: inline-block; margin-bottom: 16px; padding: 10px 16px; background: #55B85A; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
             .print-btn:hover { background: #4aa04c; }
@@ -33,10 +39,10 @@
                 .box { padding: 10px; }
             }
             @media (min-width: 640px) and (max-width: 1023px) {
-                .grid { grid-template-columns: repeat(2, 1fr); }
+                .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             }
             @media (min-width: 1024px) {
-                .grid { grid-template-columns: repeat(3, 1fr); }
+                .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             }
         }
     </style>

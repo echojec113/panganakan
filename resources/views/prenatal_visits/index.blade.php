@@ -1,6 +1,40 @@
 <x-app-layout>
+    <style>
+        .prenatal-responsive { container-type: inline-size; min-width: 0; overflow-wrap: anywhere; }
+        .prenatal-responsive *, .prenatal-responsive *::before, .prenatal-responsive *::after { box-sizing: border-box; }
+        .prenatal-responsive .grid > *, .prenatal-responsive .flex > * { min-width: 0; }
+        .prenatal-responsive .app-page-header-actions { flex-wrap: wrap; }
+        .prenatal-dialog > div { min-width: 0; max-height: calc(100dvh - 3rem); overflow-y: auto; margin-inline: 0; overflow-wrap: anywhere; }
+        .prenatal-dialog { padding-block: 1.5rem; }
+        .prenatal-dialog button { white-space: normal; }
 
-    <div class="min-h-screen bg-[#FCFBF8]">
+        .prenatal-responsive .prenatal-summary { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
+        .prenatal-table { table-layout: fixed; }
+        .prenatal-table th, .prenatal-table td { white-space: normal; overflow-wrap: anywhere; padding-inline: .75rem; }
+        .prenatal-table td > .flex { flex-wrap: wrap; }
+        @container (max-width: 1000px) {
+            .prenatal-table, .prenatal-table tbody { display: block; width: 100%; }
+            .prenatal-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+            .prenatal-table tbody { padding: 1rem; }
+            .prenatal-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid #e5e7eb; border-radius: .75rem; margin-bottom: 1rem; }
+            .prenatal-table td { display: block; min-width: 0; max-width: none; text-align: left; padding: .75rem; border: 0; }
+            .prenatal-table td::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-size: .75rem; font-weight: 600; color: #657083; }
+            .prenatal-table td:first-child, .prenatal-table td:last-child { grid-column: 1 / -1; }
+            .prenatal-table td:last-child .flex { justify-content: flex-start; }
+            .prenatal-table td[colspan]::before { content: none; }
+        }
+        @container (max-width: 600px) {
+            #prenatalFilterForm { flex-direction: column; align-items: stretch; }
+            #prenatalFilterForm > div { width: 100%; }
+            .prenatal-responsive nav { flex-wrap: wrap; }
+            .prenatal-responsive nav, .prenatal-responsive nav + * { max-width: 100%; }
+        }
+        @container (max-width: 360px) {
+            .prenatal-table tbody tr { grid-template-columns: minmax(0, 1fr); }
+        }
+    </style>
+
+    <div class="prenatal-responsive min-h-screen bg-[#FCFBF8]">
         <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
             {{-- =========================================================
@@ -115,7 +149,7 @@
             {{-- =========================================================
                  SUMMARY CARDS
             ========================================================== --}}
-            <div class="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="prenatal-summary mb-7 grid gap-4">
 
                 {{-- Total Visits --}}
                 <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
@@ -305,7 +339,7 @@
                 ====================================================== --}}
                 <div class="overflow-x-auto">
 
-                    <table class="w-full text-sm">
+                    <table class="prenatal-table w-full text-sm">
 
                         <thead>
                             <tr class="border-b border-gray-100 bg-gray-50/80">
@@ -318,17 +352,13 @@
                                     Visit Date
                                 </th>
 
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                    BP
-                                </th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Blood Pressure</th>
 
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                     Weight
                                 </th>
 
-                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                    GA
-                                </th>
+                                <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Gestational Age</th>
 
                                 <th class="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                     Assessment
@@ -384,7 +414,7 @@
                                 <tr class="transition hover:bg-gray-50/60">
 
                                     {{-- Patient --}}
-                                    <td class="px-5 py-4">
+                                    <td data-label="Patient" class="px-5 py-4">
 
                                         <div class="min-w-[180px]">
 
@@ -419,7 +449,7 @@
 
 
                                     {{-- Visit Date --}}
-                                    <td class="whitespace-nowrap px-5 py-4 text-gray-700">
+                                    <td data-label="Visit Date" class="whitespace-nowrap px-5 py-4 text-gray-700">
                                         {{ $visit->visit_date
                                             ? \Carbon\Carbon::parse($visit->visit_date)->format('M d, Y')
                                             : '—' }}
@@ -427,7 +457,7 @@
 
 
                                     {{-- BP --}}
-                                    <td class="whitespace-nowrap px-5 py-4">
+                                    <td data-label="Blood Pressure" class="whitespace-nowrap px-5 py-4">
 
                                         @if (!is_null($visit->bp_sys) && !is_null($visit->bp_dia))
 
@@ -448,7 +478,7 @@
 
 
                                     {{-- Weight --}}
-                                    <td class="whitespace-nowrap px-5 py-4 text-gray-700">
+                                    <td data-label="Weight" class="whitespace-nowrap px-5 py-4 text-gray-700">
                                         {{ \App\Support\WeightFormatter::formatKg($visit->weight) !== null
                                             ? \App\Support\WeightFormatter::formatKg($visit->weight) . ' kg'
                                             : '—' }}
@@ -456,7 +486,7 @@
 
 
                                     {{-- Gestational Age --}}
-                                    <td class="whitespace-nowrap px-5 py-4 text-gray-700">
+                                    <td data-label="Gestational Age" class="whitespace-nowrap px-5 py-4 text-gray-700">
                                         {{ !is_null($visit->gestational_age)
                                             ? $visit->gestational_age . ' weeks'
                                             : '—' }}
@@ -464,7 +494,7 @@
 
 
                                     {{-- Assessment --}}
-                                    <td class="whitespace-nowrap px-5 py-4">
+                                    <td data-label="Assessment" class="whitespace-nowrap px-5 py-4">
 
                                         @if ($riskLevel === 'HIGH')
 
@@ -496,7 +526,7 @@
 
 
                                     {{-- Next Visit --}}
-                                    <td class="whitespace-nowrap px-5 py-4">
+                                    <td data-label="Next Visit" class="whitespace-nowrap px-5 py-4">
 
                                         @if ($nextVisit)
 
@@ -532,7 +562,7 @@
 
 
                                     {{-- Actions --}}
-                                    <td class="whitespace-nowrap px-5 py-4 text-right">
+                                    <td data-label="Actions" class="whitespace-nowrap px-5 py-4 text-right">
 
                                         <x-action-buttons
                                             :viewRoute="route('patients.show', [
@@ -664,7 +694,7 @@
 
 
                         <nav
-                            class="flex items-center gap-1"
+                            class="flex flex-wrap items-center gap-1"
                             aria-label="Prenatal visit pagination"
                         >
 
@@ -811,7 +841,7 @@
         }
     </script>
 
-    <div id="archiveVisitModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+    <div id="archiveVisitModal" class="prenatal-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
         <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <div class="flex items-start gap-4">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
