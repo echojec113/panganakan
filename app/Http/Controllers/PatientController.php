@@ -133,11 +133,10 @@ class PatientController extends Controller
     |
     */
     $patients = $query
-        ->orderBy('last_name')
-        ->orderBy('first_name')
-        ->orderBy('id')
-        ->paginate(10)
-        ->withQueryString();
+    ->orderByDesc('created_at')
+    ->orderByDesc('id')
+    ->paginate(10)
+    ->withQueryString();
 
     return view('patients.index', compact(
         'patients',

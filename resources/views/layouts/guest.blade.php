@@ -554,12 +554,13 @@
                                      <span class="text-xs text-gray-500 group-hover:text-gray-800 transition-colors duration-200">Remember me</span>
                                  </label>
 
-                                 @if (Route::has('password.request'))
-                                     <a href="{{ route('password.request') }}"
-                                        class="text-xs font-medium text-[#55B85A] hover:text-[#367E4B] transition-colors duration-200 hover:underline">
-                                         Forgot Password?
-                                     </a>
-                                 @endif
+                                  @if (Route::has('password.request'))
+                                      <a href="{{ route('password.request') }}"
+                                         onclick="var e=document.getElementById('email').value.trim(); if(e){this.href=this.href+'?email='+encodeURIComponent(e);}"
+                                         class="text-xs font-medium text-[#55B85A] hover:text-[#367E4B] transition-colors duration-200 hover:underline">
+                                          Forgot Password?
+                                      </a>
+                                  @endif
                              </div>
 
                              <!-- Sign In Button -->
@@ -580,15 +581,7 @@
                      </div>
                  </div>
 
-                 <!-- Help Text -->
-                 <div class="mt-6 text-center reveal" style="animation-delay:0.4s">
-                     <p class="text-xs text-gray-400">
-                         Need assistance?
-                         <a href="mailto:support@depla.clinic" class="text-[#55B85A] hover:text-[#367E4B] font-medium transition-colors duration-200 ml-1">
-                             Contact Support
-                         </a>
-                     </p>
-                 </div>
+
              </div>
          </div>
 
