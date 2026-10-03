@@ -40,7 +40,7 @@ Never restore direct construction such as:
 
 ```php
 new PrenatalVisitController()
-
+```
 
 ## Development Principles (Always Follow)
 
@@ -64,3 +64,37 @@ Rules:
 - Prefer small services over large controllers.
 - Never change clinical thresholds without approval.
 - Every change must preserve patient safety and explainability.
+
+---
+
+## Test Database Safety (MANDATORY)
+
+A configuration-cache incident previously wiped the `maternity_system1` MySQL
+database during a test run (`php artisan optimize` baked `.env` values into
+`bootstrap/cache/config.php`, so tests ignored `phpunit.xml` and
+`RefreshDatabase` executed `migrate:fresh` against MySQL). The following
+rules are permanent:
+
+- NEVER run `php artisan optimize` or `php artisan config:cache` before or
+  during tests. A cached configuration bypasses `phpunit.xml` entirely.
+- Before running tests, `bootstrap/cache/config.php` must NOT exist. If it
+  exists, STOP and run `php artisan optimize:clear` first.
+- Tests must ONLY use SQLite `:memory:` (`DB_CONNECTION=sqlite`,
+  `DB_DATABASE=:memory:`).
+- NEVER allow automated tests to use `maternity_system1` or any other MySQL
+  connection.
+- If database isolation cannot be confirmed, STOP instead of running tests.
+
+Hard guards enforce these rules in code:
+
+- `tests/TestCase.php` overrides `refreshApplication()` to throw a
+  `RuntimeException` before `RefreshDatabase` can run `migrate:fresh`,
+  unless the resolved database is SQLite `:memory:` and no config cache
+  exists.
+- `app/Providers/AppServiceProvider.php` aborts application boot when the
+  real `APP_ENV` environment variable equals `testing` and
+  `bootstrap/cache/config.php` exists, instructing to run
+  `php artisan optimize:clear`.
+- `phpunit.xml` sets `APP_ENV`, `DB_CONNECTION`, and `DB_DATABASE` with
+  `force="true"` so shell-exported environment variables cannot override
+  the isolated test database.
