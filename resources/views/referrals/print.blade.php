@@ -22,10 +22,10 @@
 
         .print-container {
             background: white;
-            width: 8.5in;
-            height: 11in;
+            width: 100%; max-width: 1100px;
+            height: auto;
             margin: 0 auto;
-            padding: 50px;
+            padding: 28px 32px;
             box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
         }
 
@@ -167,7 +167,6 @@
             .print-container {
                 width: 100%;
                 height: auto;
-                min-height: 100%;
                 box-shadow: none;
                 padding: 0;
             }
@@ -194,336 +193,105 @@
         .print-button:hover {
             background: #1e40af;
         }
+
+        .print-container, .referral-history { min-width: 0; overflow-wrap: anywhere; }
+        .print-container { border: 1px solid #e2e8f0; border-radius: 12px; }
+        .print-container * { min-width: 0; max-width: 100%; }
+        .clinic-header { display: flex; align-items: center; gap: 14px; text-align: left; border-bottom: 1px solid #e2e8f0; margin-bottom: 18px; padding-bottom: 16px; }
+        .clinic-logo { width: 60px; height: 60px; object-fit: contain; flex-shrink: 0; }
+        .clinic-header h1 { font-size: 20px; letter-spacing: 0; }
+        .clinic-subtitle { letter-spacing: .12em; }
+        .letter-title { color: #19355f; margin: 18px 0; }
+        .patient-info, .signature-area, .evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .evidence-grid { display: grid; gap: 8px 20px; margin-bottom: 12px; }
+        .info-item { margin-bottom: 0; }
+        .content-section { line-height: 1.6; }
+        .section-label, .info-label { color: #19355f; }
+        .section-value { margin-left: 0; }
+        .toolbar, .referral-history { max-width: 1100px; margin: 0 auto 18px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+        .toolbar a, .print-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 8px; font-size: 14px; text-decoration: none; }
+        .toolbar a { color: #19355f; background: white; border: 1px solid #e2e8f0; }
+        .print-button { background: #55b85a; }
+        .print-button:hover { background: #4aa04c; }
+        .referral-history { margin-top: 24px; }
+        .history-entry { margin-top: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: white; }
+        .history-entry summary { cursor: pointer; padding: 14px 16px; overflow-wrap: anywhere; }
+        .history-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; margin-top: 8px; font-size: 13px; }
+        .history-entry .print-container { border: 0; box-shadow: none; }
+        .history-entry .history-print { padding: 0 16px 16px; }
+        @media screen {
+            .referral-letter.print-selected::before { content: 'Selected for printing'; display: block; margin-bottom: 12px; color: #367e4b; font-size: 12px; font-weight: 600; }
+        }
+        .section-label { break-after: avoid; page-break-after: avoid; }
+        @media screen and (max-width: 639px) {
+            body { padding: 16px 12px; }
+            .print-container { padding: 20px 16px; }
+            .clinic-header { align-items: flex-start; gap: 10px; }
+            .clinic-header h1 { font-size: 18px; }
+            .patient-info, .signature-area, .evidence-grid, .history-meta { grid-template-columns: minmax(0, 1fr); }
+            .signature-area { gap: 24px; margin-top: 30px; }
+        }
+        @media print {
+            .no-print, .toolbar, .history-entry summary, .history-print, .referral-history > h2 { display: none !important; }
+            .referral-letter:not(.print-selected), .history-entry:not(.print-selected-entry) { display: none !important; }
+            .referral-history { margin: 0; max-width: none; }
+            .history-entry { margin: 0; border: 0; }
+            .print-container { max-width: none; border: 0; border-radius: 0; }
+            .print-selected-entry { display: block; }
+            .content-section, .info-item, .signature-area { page-break-inside: avoid; }
+        }
     </style>
 </head>
 
 <body>
-
-    <div class="print-container">
-
-        {{-- Clinic Header --}}
-        <div class="clinic-header">
-            <h1>DEPLA FAMILY CARE MATERNITY CLINIC</h1>
-            <p>Professional Maternity & Prenatal Services</p>
-            <p>Contact: {{ config('app.clinic_phone', '(555) 123-4567') }} | Address: {{ config('app.clinic_address', 'Maternity Clinic Building') }}</p>
-        </div>
-
-        {{-- Title --}}
-        <div class="letter-title">PATIENT REFERRAL LETTER</div>
-
-        {{-- Date --}}
-        <div class="date-info">
-            <strong>Print Date:</strong> {{ \Carbon\Carbon::now()->format('F d, Y') }}
-        </div>
-
-        {{-- TO Section --}}
-        <div class="content-section">
-            <div class="section-label">To:</div>
-            <div class="section-value">
-                <strong>{{ $referral->referred_to }}</strong><br>
-                @if($referral->doctor_name)
-                    <span>Dr. {{ $referral->doctor_name }}</span><br>
-                @endif
-            </div>
-        </div>
-
-        {{-- Patient Information --}}
-        <div class="content-section">
-            <div class="section-label">Patient Information</div>
-            <div class="patient-info">
-                <div class="info-item">
-                    <div class="info-label">Name:</div>
-                    <div class="info-text">
-                        {{ $referral->patient->first_name }}
-                        @if($referral->patient->middle_name)
-                            {{ $referral->patient->middle_name }}
-                        @endif
-                        {{ $referral->patient->last_name }}
-                    </div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Age:</div>
-                    <div class="info-text">{{ $referral->patient->age }} years old</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Address:</div>
-                    <div class="info-text">{!! nl2br(e($referral->patient->formatted_address)) !!}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Contact:</div>
-                    <div class="info-text">{{ $referral->patient->contact_number }}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Civil Status:</div>
-                    <div class="info-text">{{ $referral->patient->civil_status }}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">PhilHealth:</div>
-                    <div class="info-text">
-                        @if($referral->patient->philhealth_member)
-                            Yes ({{ $referral->patient->philhealth_number }})
-                        @else
-                            No
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Pregnancy Information --}}
-        <div class="content-section">
-            <div class="section-label">Pregnancy Information:</div>
-            <div class="patient-info">
-                <div class="info-item">
-                    <div class="info-label">Gravida:</div>
-                    <div class="info-text">{{ $referral->patient->gravida }}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Para:</div>
-                    <div class="info-text">{{ $referral->patient->para }}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Last Menstrual Period (LMP):</div>
-                    <div class="info-text">{{ $referral->patient->lmp ? $referral->patient->lmp->format('F d, Y') : '—' }}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Expected Delivery Date (EDD):</div>
-                    <div class="info-text">{{ $referral->patient->edd ? $referral->patient->edd->format('F d, Y') : '—' }}</div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Reason for Referral --}}
-        <div class="content-section">
-            <div class="section-label">Reason for Referral:</div>
-            <div class="reason-box">
-                {!! nl2br(e($referral->reason)) !!}
-            </div>
-        </div>
-
-        {{-- Additional Notes --}}
-        @if($referral->notes)
-        <div class="content-section">
-            <div class="section-label">Additional Notes:</div>
-            <div class="section-value">
-                {!! nl2br(e($referral->notes)) !!}
-            </div>
-        </div>
-        @endif
-
-        {{-- Referral Details --}}
-        <div class="content-section">
-            <div class="section-label">Referral Details:</div>
-            <div class="patient-info">
-                <div class="info-item">
-                    <div class="info-label">Date of Referral:</div>
-                    <div class="info-text">{{ $referral->referral_date->format('F d, Y') }}</div>
-                </div>
-
-                <div class="info-item">
-                    <div class="info-label">Status:</div>
-                    <div class="info-text">{{ $referral->status }}</div>
-                </div>
-
-                @if($referral->status === 'Pending')
-                <div class="info-item">
-                    <div class="info-label">Referral State:</div>
-                    <div class="info-text">Pending Referral — awaiting follow-through.</div>
-                </div>
-                @endif
-
-                @if($referral->status === 'Completed' && $referral->completed_at)
-                <div class="info-item">
-                    <div class="info-label">Completed On:</div>
-                    <div class="info-text">{{ $referral->completed_at->format('F d, Y g:i A') }}</div>
-                </div>
-                @endif
-
-                @if($referral->status === 'Refused' && $referral->refusal_recorded_at)
-                <div class="info-item">
-                    <div class="info-label">Refusal Recorded On:</div>
-                    <div class="info-text">{{ $referral->refusal_recorded_at->format('F d, Y g:i A') }}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Refusal Recorded By:</div>
-                    <div class="info-text">{{ $referral->refusalRecordedBy?->name ?? 'Staff account no longer available' }}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Physical Waiver:</div>
-                    <div class="info-text">{{ $referral->waiver_signed ? 'Signed / recorded' : 'Not signed' }}</div>
-                </div>
-                @endif
-
-                <div class="info-item">
-                    <div class="info-label">Source:</div>
-                    <div class="info-text">
-                        @if($referral->prenatal_visit_id && is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0)
-                            Assessment-linked
-                        @else
-                            Manual Referral
-                        @endif
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Assessment Evidence at Referral (immutable snapshot, linked referrals only) --}}
-        @if(is_array($referral->assessment_snapshot) && count($referral->assessment_snapshot) > 0)
-        @php
-            $snap = $referral->assessment_snapshot;
-            $factorEvidence = is_array($snap['factor_evidence'] ?? null) ? $snap['factor_evidence'] : [];
-            $interactionEvidence = is_array($snap['interaction_evidence'] ?? null) ? $snap['interaction_evidence'] : [];
-            $bpAssessment = is_array($snap['bp_assessment'] ?? null) ? $snap['bp_assessment'] : [];
-            $observedContextLabels = [
-                'ultrasound_inputs.amniotic_fluid' => 'Amniotic fluid',
-                'ultrasound_inputs.presentation' => 'Fetal presentation',
-            ];
-            $versions = is_array($snap['versions'] ?? null) ? $snap['versions'] : [];
-        @endphp
-        <div class="content-section">
-            <div class="section-label">Assessment Evidence at Referral</div>
-            <p style="font-size: 11px; color: #666; margin-bottom: 10px;">Recorded at referral creation from the stored assessment. Read-only; does not change.</p>
-
-            @if(($snap['urgency'] ?? null) === 'URGENT_CLINICAL_REVIEW')
-            <div style="border: 2px solid #dc2626; border-radius: 4px; padding: 10px 14px; background: #fff5f5; font-weight: 700; color: #dc2626; text-align: center; margin-bottom: 12px;">
-                URGENT CLINICAL REVIEW
-            </div>
-            @endif
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin-bottom: 12px;">
-                <div>
-                    <div class="info-label">Risk Level</div>
-                    <div class="info-text">{{ $snap['risk_level'] ?? '—' }}</div>
-                </div>
-                <div>
-                    <div class="info-label">Assessment Date</div>
-                    <div class="info-text">{{ $snap['assessment_date'] ?? '—' }}</div>
-                </div>
-                <div>
-                    <div class="info-label">Visit Date</div>
-                    <div class="info-text">{{ ($snap['visit_date'] ?? null) ? \Carbon\Carbon::parse($snap['visit_date'])->format('F d, Y') : '—' }}</div>
-                </div>
-                <div>
-                    <div class="info-label">Decision Source</div>
-                    <div class="info-text">{{ $snap['decision_source'] ?? 'Legacy' }}</div>
-                </div>
-            </div>
-
-            @if(!empty($snap['assessment']))
-            <div class="info-label" style="margin-top: 8px;">Clinical Assessment</div>
-            <div class="section-value" style="margin-left: 0;">{{ $snap['assessment'] }}</div>
-            @endif
-
-            @if(!empty($snap['recommendation']))
-            <div class="info-label" style="margin-top: 8px;">Recommendation</div>
-            <div class="section-value" style="margin-left: 0;">{{ $snap['recommendation'] }}</div>
-            @endif
-
-            @if(!empty($bpAssessment))
-            <div class="info-label" style="margin-top: 8px;">Blood Pressure Finding</div>
-            <div class="section-value" style="margin-left: 0;">
-                @if(($bpAssessment['reason_code'] ?? null) === 'BP-URG')
-                    Urgent blood-pressure finding captured in this assessment.
-                @elseif(!empty($bpAssessment['label']))
-                    {{ $bpAssessment['label'] }}
-                @else
-                    Blood-pressure finding captured in this assessment.
-                @endif
-            </div>
-            @endif
-
-            @if(!empty($factorEvidence))
-            <div class="info-label" style="margin-top: 8px;">Clinical Factors</div>
-            <div class="section-value" style="margin-left: 0;">
-                @foreach($factorEvidence as $factor)
-                <span style="display: inline-block; border: 1px solid #ddd; border-radius: 4px; padding: 2px 8px; font-size: 11px; margin-right: 5px; margin-bottom: 5px;">
-                    {{ $factor['label'] ?? $factor['code'] ?? 'Factor' }}
+    <nav class="toolbar no-print" aria-label="Referral letter actions">
+        <a href="{{ route('referrals.show', $referral->id) }}">Back to Referral</a>
+        <button class="print-button" type="button" onclick="window.print()">Print Selected Referral Letter</button>
+    </nav>
+    <article id="referral-letter-{{ $referralHistory->first()->id }}" class="referral-letter print-container print-selected">
+        @include('referrals.print-content', ['referral' => $referralHistory->first()])
+    </article>
+    @if($referralHistory->count() > 1)
+    <section class="referral-history" aria-label="Older referral records">
+        <h2 class="no-print">Older Referral Records</h2>
+        @foreach($referralHistory->skip(1) as $historicalReferral)
+        <details class="history-entry" data-referral-id="{{ $historicalReferral->id }}">
+            <summary>
+                <strong>Referral Date: {{ $historicalReferral->referral_date?->format('M d, Y') ?? 'Not recorded' }} · Referral ID: {{ $historicalReferral->id }}</strong>
+                <span class="history-meta">
+                    <span>Referral Destination: {{ $historicalReferral->referred_to }}</span>
+                    <span>Referral Source: {{ $historicalReferral->prenatal_visit_id && is_array($historicalReferral->assessment_snapshot) && count($historicalReferral->assessment_snapshot) > 0 ? 'Prenatal Visit Referral' : 'Manual Referral' }}</span>
+                    <span>Status: {{ $historicalReferral->status }}</span>
                 </span>
-                @endforeach
+            </summary>
+            <article id="referral-letter-{{ $historicalReferral->id }}" class="referral-letter print-container">
+                @include('referrals.print-content', ['referral' => $historicalReferral])
+            </article>
+            <div class="history-print no-print">
+                <button type="button" class="print-button" onclick="printReferral({{ $historicalReferral->id }})">Print This Referral Letter</button>
             </div>
-            @endif
-
-            @if(!empty($interactionEvidence))
-            <div class="info-label" style="margin-top: 8px;">Clinical Interactions</div>
-            <div class="section-value" style="margin-left: 0;">
-                @foreach($interactionEvidence as $interaction)
-                @php
-                    $contextLines = collect();
-                    foreach (($interaction['observed_context'] ?? []) as $path => $value) {
-                        if (isset($observedContextLabels[$path]) && $value !== null && trim((string) $value) !== '') {
-                            $contextLines->push($observedContextLabels[$path] . ': ' . $value);
-                        }
-                    }
-                @endphp
-                <div style="border: 1px solid #e0e7ff; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: #f5f3ff;">
-                    <span style="font-weight: 700; color: #4c1d95;">{{ $interaction['label'] ?? 'Clinical interaction' }}</span>
-                    @if($contextLines->isNotEmpty())
-                    <div style="margin-top: 4px; font-size: 11px; color: #555;">
-                        @foreach($contextLines as $line)<span style="margin-right: 6px;">{{ $line }}</span>@endforeach
-                    </div>
-                    @endif
-                    @if(!empty($interaction['explanation']))
-                    <div style="margin-top: 4px; font-size: 11px; color: #666;">{{ $interaction['explanation'] }}</div>
-                    @endif
-                    @if(!empty($interaction['suggested_action']))
-                    <div style="margin-top: 4px; font-size: 11px; color: #4c1d95; font-weight: 600;">Suggested follow-through: {{ $interaction['suggested_action'] }}</div>
-                    @endif
-                </div>
-                @endforeach
-            </div>
-            @endif
-
-            @if(count($versions) > 0)
-            <div style="font-size: 10px; color: #888; margin-top: 8px;">
-                @if(!empty($versions['clinical_rules']))Clinical Rules Version: {{ $versions['clinical_rules'] }}@endif
-                @if(!empty($versions['clinical_rules']) && !empty($versions['assessment_engine'])) &middot; @endif
-                @if(!empty($versions['assessment_engine']))Assessment Engine Version: {{ $versions['assessment_engine'] }}@endif
-            </div>
-            @endif
-        </div>
-        @endif
-
-        {{-- Signature Area --}}
-        <div class="signature-area">
-            <div class="signature-line">
-                <div class="signature-blank"></div>
-                <div class="signature-label">Prepared By (Signature & Date)</div>
-            </div>
-
-            <div class="signature-line">
-                <div class="signature-blank"></div>
-                <div class="signature-label">Clinic Seal / Stamp</div>
-            </div>
-        </div>
-
-        {{-- Footer --}}
-        <div class="footer">
-            <p>This is an official referral document from DEPLA FAMILY CARE MATERNITY CLINIC</p>
-            <p style="margin-top: 5px;">Confidential - For Medical Use Only</p>
-        </div>
-
-    </div>
-
-    {{-- Print Button --}}
-    <div class="no-print" style="text-align: center; margin-top: 20px;">
-        <button class="print-button" onclick="window.print()">Print Referral Letter</button>
-    </div>
-
+        </details>
+        @endforeach
+    </section>
+    @endif
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                window.print();
-            }, 500);
+        const latestReferralId = @json($referralHistory->first()->id);
+        function selectReferral(id) {
+            document.querySelectorAll('.referral-letter').forEach(letter => letter.classList.remove('print-selected'));
+            document.querySelectorAll('.history-entry').forEach(entry => entry.classList.remove('print-selected-entry'));
+            const letter = document.getElementById('referral-letter-' + id);
+            letter.classList.add('print-selected');
+            const entry = letter.closest('details');
+            if (entry) entry.classList.add('print-selected-entry');
+        }
+        function printReferral(id) { selectReferral(id); window.print(); }
+        document.querySelectorAll('.history-entry').forEach(entry => {
+            entry.addEventListener('toggle', () => {
+                if (entry.open) selectReferral(entry.dataset.referralId);
+                else if (entry.classList.contains('print-selected-entry')) selectReferral(latestReferralId);
+            });
         });
     </script>
-
 </body>
 </html>

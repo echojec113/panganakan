@@ -483,7 +483,16 @@ public function analytics(Request $request)
     {
         $referral = Referral::with('patient', 'user', 'refusalRecordedBy')->findOrFail($id);
 
-        return view('referrals.print', compact('referral'));
+        $referralHistory = Referral::with([
+            'patient', 'user', 'refusalRecordedBy',
+            'prenatalVisit' => fn ($query) => $query->withTrashed(),
+        ])
+            ->where('patient_id', $referral->patient_id)
+            ->orderByDesc('referral_date')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('referrals.print', compact('referral', 'referralHistory'));
     }
 
     /**

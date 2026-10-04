@@ -47,6 +47,34 @@
         .audit-logs-theme .audit-muted {
             color: var(--audit-muted);
         }
+        .audit-logs-theme { container-type: inline-size; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+        .audit-logs-theme * { box-sizing: border-box; }
+        .audit-logs-theme .flex > * { min-width: 0; }
+        .audit-logs-theme form.audit-filter { flex-wrap: wrap; }
+        .audit-logs-theme form.audit-filter input { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+        .audit-logs-theme form.audit-filter select { min-width: 0; max-width: 100%; }
+        .audit-logs-theme table { table-layout: fixed; }
+        .audit-logs-theme th:nth-child(4) { width: 30%; }
+        .audit-logs-theme td { overflow-wrap: anywhere; }
+        .audit-logs-theme .status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+        .audit-logs-theme .audit-avatar { flex-shrink: 0; }
+        .audit-logs-theme nav, .audit-logs-theme nav > .flex { min-width: 0; max-width: 100%; flex-wrap: wrap; gap: 12px; }
+        @container (max-width: 850px) {
+            .audit-logs-theme table, .audit-logs-theme tbody, .audit-logs-theme tr { display: block; width: 100%; }
+            .audit-logs-theme thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+            .audit-logs-theme .audit-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 16px; }
+            .audit-logs-theme .audit-row td { display: block; min-width: 0; padding: 0; }
+            .audit-logs-theme .audit-row td::before { content: attr(data-label); display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--audit-muted); }
+            .audit-logs-theme .audit-row td:first-child, .audit-logs-theme .audit-row td:nth-child(4), .audit-logs-theme .audit-row td:last-child { grid-column: 1 / -1; }
+            .audit-logs-theme .audit-avatar { display: inline-flex; margin-right: 8px; vertical-align: middle; }
+            .audit-logs-theme form.audit-filter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .audit-logs-theme form.audit-filter input, .audit-logs-theme form.audit-filter button { grid-column: 1 / -1; }
+            .audit-logs-theme form.audit-filter input, .audit-logs-theme form.audit-filter select { width: 100%; min-height: 44px; }
+            .audit-logs-theme form.audit-filter button { min-height: 44px; }
+        }
+        @media (max-width: 639px) {
+            .audit-logs-theme form.audit-filter { grid-template-columns: minmax(0, 1fr); }
+        }
     </style>
 
     <div class="audit-logs-theme min-h-screen bg-[#FCFBF8] p-4 md:p-8">
@@ -109,30 +137,30 @@
                         @forelse($logs as $log)
                             <tr class="audit-row border-b transition">
 
-                                <td class="px-4 md:px-6 py-4 flex items-center gap-3">
+                                <td data-label="User" class="px-4 md:px-6 py-4 flex items-center gap-3">
                                     <div class="audit-avatar flex h-8 w-8 items-center justify-center rounded-full font-bold">
                                         {{ strtoupper(substr($log->user->name ?? 'A', 0, 1)) }}
                                     </div>
                                     <span class="audit-name">{{ $log->user->name ?? 'Unknown' }}</span>
                                 </td>
 
-                                <td class="px-4 md:px-6 py-4">
+                                <td data-label="Action" class="px-4 md:px-6 py-4">
                                     <x-status-badge :variant="$log->action == 'CREATE' ? 'success' : ($log->action == 'UPDATE' ? 'info' : 'danger')">
                                         {{ $log->action }}
                                     </x-status-badge>
                                 </td>
 
-                                <td class="px-4 md:px-6 py-4">
+                                <td data-label="Module" class="px-4 md:px-6 py-4">
                                     <x-status-badge variant="neutral">
                                         {{ $log->module }}
                                     </x-status-badge>
                                 </td>
 
-                                <td class="audit-description px-4 py-4 md:px-6">
+                                <td data-label="Description" class="audit-description px-4 py-4 md:px-6">
                                     {{ $log->description }}
                                 </td>
 
-                                <td class="audit-muted px-4 py-4 md:px-6">
+                                <td data-label="Date" class="audit-muted px-4 py-4 md:px-6">
                                     {{ $log->created_at->format('M d, Y h:i A') }}
                                 </td>
 

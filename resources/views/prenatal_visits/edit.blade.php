@@ -1,24 +1,44 @@
 <x-app-layout>
     <style>
-        .prenatal-responsive { container-type: inline-size; min-width: 0; overflow-wrap: anywhere; }
+        .prenatal-responsive { container-type: inline-size; min-width: 0; width: 100%; padding-inline: 1rem; overflow-wrap: anywhere; }
         .prenatal-responsive *, .prenatal-responsive *::before, .prenatal-responsive *::after { box-sizing: border-box; }
         .prenatal-responsive .grid > *, .prenatal-responsive .flex > * { min-width: 0; }
         .prenatal-responsive .app-page-header-actions { flex-wrap: wrap; }
-        .prenatal-dialog > div { min-width: 0; max-height: calc(100dvh - 3rem); overflow-y: auto; margin-inline: 0; overflow-wrap: anywhere; }
-        .prenatal-dialog { padding-block: 1.5rem; }
-        .prenatal-dialog button { white-space: normal; }
+        #updateConfirmationModal > div { box-sizing: border-box; min-width: 0; max-width: 24rem; max-height: calc(100dvh - 3rem); overflow-y: auto; margin-inline: 0; overflow-wrap: anywhere; }
+        #updateConfirmationModal { padding-block: 1.5rem; }
+        #updateConfirmationModal button { min-height: 2.75rem; white-space: normal; }
+        #updateConfirmationModal .truncate { white-space: normal; overflow: visible; }
+        #updateConfirmationModal .flex > * { min-width: 0; }
 
+        /* Measure the form after shell, sidebar, card and form padding. */
+        .prenatal-responsive #prenatalForm { container-type: inline-size; }
         .prenatal-responsive #prenatalForm input:not([type="hidden"]), .prenatal-responsive #prenatalForm select, .prenatal-responsive #prenatalForm textarea { min-width: 0; max-width: 100%; }
-        .prenatal-responsive #prenatalForm .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .prenatal-responsive #prenatalForm .grid { grid-template-columns: minmax(0, 1fr); }
+        .prenatal-responsive #prenatalForm textarea { resize: vertical; }
+        .prenatal-responsive #prenatalForm .prenatal-assessment-grid > * { margin-top: 0; }
+        .prenatal-responsive #prenatalForm .prenatal-actions { flex-direction: column; }
+        .prenatal-responsive #prenatalForm .prenatal-actions > * { width: 100%; min-height: 2.75rem; white-space: normal; }
+        .prenatal-responsive #prenatalForm .prenatal-actions > a { order: 2; }
+        .prenatal-responsive #prenatalForm .prenatal-actions > button { order: 1; }
         .prenatal-responsive #prenatalForm summary { flex-wrap: wrap; gap: .5rem; }
         .prenatal-responsive #prenatalForm svg { flex-shrink: 0; }
         .prenatal-responsive #prenatalForm [class~="ml-auto"] { margin-left: 0; }
         .prenatal-responsive #prenatalForm .flex:has(> [class~="ml-auto"]) { flex-wrap: wrap; }
+        @container (min-width: 600px) {
+            .prenatal-responsive #prenatalForm .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .prenatal-responsive #prenatalForm .prenatal-assessment-grid > :first-child { grid-column: 1 / -1; }
+            .prenatal-responsive #prenatalForm .prenatal-actions { flex-direction: row; flex-wrap: wrap; }
+            .prenatal-responsive #prenatalForm .prenatal-actions > * { width: auto; }
+            .prenatal-responsive #prenatalForm .prenatal-actions > a { order: 1; }
+            .prenatal-responsive #prenatalForm .prenatal-actions > button { order: 2; }
+        }
         @container (min-width: 950px) {
             .prenatal-responsive #prenatalForm [class~="lg:grid-cols-3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
-        @container (max-width: 600px) {
-            .prenatal-responsive #prenatalForm .grid { grid-template-columns: minmax(0, 1fr); }
+        @media (max-width: 639px) {
+            .prenatal-responsive { padding-inline: .5rem; }
+            #updateConfirmationModal > .bg-white > .flex:last-child { flex-direction: column; }
+            #updateConfirmationModal > .bg-white > .flex:last-child > button { width: 100%; }
         }
     </style>
     <style>
@@ -431,7 +451,7 @@
                         </svg>
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Assessment & Plan</h3>
                     </div>
-                    <div class="space-y-4">
+                    <div class="prenatal-assessment-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Treatment Plan</label>
                             <textarea name="treatment_plan" rows="3" 
@@ -485,7 +505,7 @@
 @endif
 
                 <!-- Submit Buttons -->
-                <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
+                <div class="prenatal-actions flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-200">
                     <a href="{{ route('prenatal-visits.index') }}" class="w-full sm:w-auto order-2 sm:order-1 px-6 py-2.5 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition text-center">
                         Cancel
                     </a>

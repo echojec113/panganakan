@@ -9,29 +9,219 @@
         .prenatal-dialog button { white-space: normal; }
 
         .prenatal-responsive .prenatal-summary { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
-        .prenatal-table { table-layout: fixed; }
-        .prenatal-table th, .prenatal-table td { white-space: normal; overflow-wrap: anywhere; padding-inline: .75rem; }
-        .prenatal-table td > .flex { flex-wrap: wrap; }
-        @container (max-width: 1000px) {
-            .prenatal-table, .prenatal-table tbody { display: block; width: 100%; }
-            .prenatal-table thead { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); }
-            .prenatal-table tbody { padding: 1rem; }
-            .prenatal-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid #e5e7eb; border-radius: .75rem; margin-bottom: 1rem; }
-            .prenatal-table td { display: block; min-width: 0; max-width: none; text-align: left; padding: .75rem; border: 0; }
-            .prenatal-table td::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-size: .75rem; font-weight: 600; color: #657083; }
-            .prenatal-table td:first-child, .prenatal-table td:last-child { grid-column: 1 / -1; }
-            .prenatal-table td:last-child .flex { justify-content: flex-start; }
-            .prenatal-table td[colspan]::before { content: none; }
-        }
-        @container (max-width: 600px) {
-            #prenatalFilterForm { flex-direction: column; align-items: stretch; }
-            #prenatalFilterForm > div { width: 100%; }
-            .prenatal-responsive nav { flex-wrap: wrap; }
-            .prenatal-responsive nav, .prenatal-responsive nav + * { max-width: 100%; }
-        }
-        @container (max-width: 360px) {
-            .prenatal-table tbody tr { grid-template-columns: minmax(0, 1fr); }
-        }
+        .prenatal-table {
+    width: 100%;
+    table-layout: auto;
+}
+
+.prenatal-table th,
+.prenatal-table td {
+    padding-inline: .75rem;
+    vertical-align: middle;
+}
+
+.prenatal-table th {
+    white-space: normal;
+}
+
+.prenatal-table td {
+    overflow-wrap: break-word;
+}
+
+.prenatal-table td:first-child {
+    min-width: 150px;
+}
+
+.prenatal-table td:nth-child(2) {
+    min-width: 105px;
+    white-space: nowrap;
+}
+
+.prenatal-table td:nth-child(3) {
+    min-width: 100px;
+    white-space: nowrap;
+}
+
+.prenatal-table td:nth-child(4) {
+    min-width: 80px;
+    white-space: nowrap;
+}
+
+.prenatal-table td:nth-child(5) {
+    min-width: 105px;
+}
+
+.prenatal-table td:nth-child(6) {
+    min-width: 105px;
+}
+
+.prenatal-table td:nth-child(7) {
+    min-width: 110px;
+}
+
+.prenatal-table td:last-child {
+    min-width: 90px;
+    white-space: nowrap;
+}
+
+.prenatal-table td > .flex {
+    flex-wrap: wrap;
+}
+.prenatal-table td:last-child > .flex {
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+        /* Compact card layout when the table no longer has enough room */
+@container (max-width: 1000px) {
+    .prenatal-table,
+    .prenatal-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .prenatal-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+
+    .prenatal-table tbody {
+        padding: 1rem;
+    }
+
+    .prenatal-table tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 1.5rem;
+        row-gap: 1rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e5e7eb;
+        border-radius: .75rem;
+    }
+
+    .prenatal-table td {
+        display: block;
+        min-width: 0 !important;
+        max-width: none;
+        padding: 0;
+        border: 0;
+        text-align: left;
+        white-space: normal;
+    }
+
+    .prenatal-table td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: .25rem;
+        font-size: .75rem;
+        font-weight: 600;
+        color: #657083;
+    }
+
+    /* Patient information gets the full first row */
+    .prenatal-table td:first-child {
+        grid-column: 1 / -1;
+    }
+
+    .prenatal-table td:first-child > div {
+        min-width: 0;
+    }
+
+    .prenatal-table td:first-child p {
+        max-width: 100%;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    /* Actions get the full final row */
+    .prenatal-table td:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .prenatal-table td:last-child > .flex {
+        justify-content: flex-start;
+        flex-wrap: nowrap;
+        gap: .75rem;
+    }
+
+    .prenatal-table td[colspan] {
+        grid-column: 1 / -1;
+    }
+
+    .prenatal-table td[colspan]::before {
+        content: none;
+    }
+}
+
+
+/* Phone layout */
+@container (max-width: 600px) {
+    #prenatalFilterForm {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #prenatalFilterForm > div {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    #prenatalSearchInput {
+        min-width: 0;
+    }
+
+    .prenatal-table tbody {
+        padding: .75rem;
+    }
+
+    .prenatal-table tbody tr {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 1rem;
+        row-gap: 1rem;
+        padding: .875rem;
+        margin-bottom: .75rem;
+    }
+
+    .prenatal-table td {
+        font-size: .875rem;
+    }
+
+    .prenatal-table td::before {
+        margin-bottom: .2rem;
+        font-size: .7rem;
+    }
+
+    .prenatal-responsive nav {
+        flex-wrap: wrap;
+    }
+
+    .prenatal-responsive nav,
+    .prenatal-responsive nav + * {
+        max-width: 100%;
+    }
+}
+
+
+/* Extremely narrow screens only */
+@container (max-width: 300px) {
+    .prenatal-table tbody tr {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .prenatal-table td:first-child,
+    .prenatal-table td:last-child,
+    .prenatal-table td[colspan] {
+        grid-column: 1;
+    }
+}
     </style>
 
     <div class="prenatal-responsive min-h-screen bg-[#FCFBF8]">
