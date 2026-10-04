@@ -300,8 +300,11 @@
                                 step="0.1" min="4" max="42" required
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <p class="text-xs text-gray-500 mt-1" id="ga_hint">{{ $gestationalAgeHint }}</p>
+                            <div class="mt-2">
+                                <span id="trimester_indicator" class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-800 whitespace-nowrap">—</span>
+                            </div>
                         </div>
-                        <div>
+                        <div data-trimester-visible="2,3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fundic Height (cm)
                             </label>
@@ -309,7 +312,7 @@
                                 value="{{ old('fundic_height', $visit->fundic_height) }}" 
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                         </div>
-                        <div>
+                        <div data-trimester-visible="2,3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fetal Heart Tone
                             </label>
@@ -321,7 +324,7 @@
                                 <option value="Irregular" {{ old('fetal_heart_tone', $visit->fetal_heart_tone) == 'Irregular' ? 'selected' : '' }}>Irregular</option>
                             </select>
                         </div>
-                        <div>
+                        <div data-trimester-visible="2,3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 Fetal Movement
                             </label>
@@ -373,7 +376,7 @@
                 </div>
 
                 <!-- Clinical Examination -->
-                <div class="mb-6">
+                <div class="mb-6" data-trimester-visible="3">
                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-gray-200">
                         <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
@@ -381,7 +384,7 @@
                         <h3 class="text-base sm:text-lg font-semibold text-gray-800">Clinical Examination</h3>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
+                        <div data-trimester-visible="3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Presenting Part</label>
                             <select name="presenting_part" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
@@ -391,7 +394,7 @@
                                 <option value="Oblique" {{ old('presenting_part', $visit->presenting_part) == 'Oblique' ? 'selected' : '' }}>Oblique</option>
                             </select>
                         </div>
-                        <div>
+                        <div data-trimester-visible="3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Uterine Activity</label>
                             <select name="uterine_activity" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
@@ -401,14 +404,14 @@
                                 <option value="Contracting" {{ old('uterine_activity', $visit->uterine_activity) == 'Contracting' ? 'selected' : '' }}>Contracting</option>
                             </select>
                         </div>
-                        <div>
+                        <div data-trimester-visible="3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Cervical Dilation (cm)</label>
                             <input type="number" name="cervical_dilation" 
                                 value="{{ old('cervical_dilation', $visit->cervical_dilation) }}" 
                                 step="0.5" min="0" max="10"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                         </div>
-                        <div>
+                        <div data-trimester-visible="3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">Bag of Water</label>
                             <select name="bag_of_water" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                                 <option value="">Select</option>
@@ -519,6 +522,7 @@
     </div>
 
     @include('components.gestational-age-autofill')
+    @include('components.trimester-visibility')
 
     <script>
         // Same JavaScript validation as create form

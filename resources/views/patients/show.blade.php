@@ -695,6 +695,15 @@
                     ? \Carbon\Carbon::parse($latestPregnancyVisit->next_visit_date)->format('M d, Y')
                     : 'Not scheduled';
 
+                /*
+                 * Single source for BOTH columns of the Gestational Age card:
+                 * the trimester is classified from the exact same value that
+                 * is rendered beside it, never re-derived from LMP.
+                 * Presentational only - never stored, never submitted.
+                 */
+                $profileGestationalAge = $latestPregnancyVisit?->gestational_age;
+                $profileTrimesterLabel = \App\Support\TrimesterClassifier::label($profileGestationalAge);
+
                 $nextVisitIsOverdue = $patient->status === 'ONGOING'
                     && $latestPregnancyVisit?->next_visit_date
                     && \Carbon\Carbon::parse($latestPregnancyVisit->next_visit_date)->startOfDay()->lt(now()->startOfDay());
@@ -725,9 +734,9 @@
 
                 <div class="panel-body">
                     {{-- Primary clinical status --}}
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div class="flex flex-wrap flex-col gap-3 sm:flex-row">
 
-                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
+                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 sm:w-48 sm:shrink-0">
                             <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Latest Risk Assessment
                             </div>
@@ -739,17 +748,35 @@
                             </div>
                         </div>
 
-                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
-                            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                Gestational Age
-                            </div>
+                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 sm:flex-1">
+                            <div class="flex flex-wrap gap-3">
+                                <div class="flex-none whitespace-nowrap">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Gestational Age
+                                    </div>
 
-                            <div class="mt-2 text-lg font-semibold text-gray-900">
-                                @if($latestPregnancyVisit?->gestational_age)
-                                    {{ $latestPregnancyVisit->gestational_age }} weeks
-                                @else
-                                    <span class="text-base font-medium text-gray-500">Not recorded</span>
-                                @endif
+                                    <div class="mt-2 text-lg font-semibold text-gray-900">
+                                        @if($profileGestationalAge)
+                                            {{ $profileGestationalAge }} weeks
+                                        @else
+                                            <span class="text-base font-medium text-gray-500">Not recorded</span>
+                                        @endif
+                                    </div>
+                                </div>
+
+                                <div class="flex-none whitespace-nowrap">
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Trimester
+                                    </div>
+
+                                    <div class="mt-2 text-lg font-semibold text-gray-900">
+                                        @if($profileTrimesterLabel !== null)
+                                            {{ $profileTrimesterLabel }}
+                                        @else
+                                            <span class="text-base font-medium text-gray-500">—</span>
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
