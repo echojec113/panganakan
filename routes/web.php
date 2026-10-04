@@ -37,7 +37,7 @@ Route::get('/', function () {
 */
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware('auth')
+    ->middleware(['auth', 'no-store'])
     ->name('dashboard');
 
 /*
@@ -46,7 +46,7 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'no-store'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------

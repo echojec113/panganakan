@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         
         $middleware->alias([
             'staff' => \App\Http\Middleware\StaffMiddleware::class,
+            'no-store' => \App\Http\Middleware\SetNoStoreHeaders::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
