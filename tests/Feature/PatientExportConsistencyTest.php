@@ -104,7 +104,7 @@ it('csv uses the newer visit when two visits share the same visit date', functio
     expect($content)->not->toContain('Older CSV assessment text');
 });
 
-it('pdf view data uses the newer visit when two visits share the same visit date', function () {
+it('print record uses the newer visit when two visits share the same visit date', function () {
     $user = exportStaff();
     $patient = exportPatient();
 
@@ -113,50 +113,24 @@ it('pdf view data uses the newer visit when two visits share the same visit date
         'updated_at' => now()->subHours(2),
         'risk_level' => 'LOW',
         'decision_source' => 'MACHINE_LEARNING',
-        'assessment' => 'Older PDF assessment text',
+        'assessment' => 'Older print assessment text',
     ]);
 
-    $newer = exportVisit($patient->id, [
+    exportVisit($patient->id, [
         'created_at' => now(),
         'updated_at' => now(),
         'risk_level' => 'HIGH',
         'decision_source' => 'RULE_BASED',
         'rule_reasons' => ['Anemia'],
-        'assessment' => 'Newer PDF assessment text',
+        'assessment' => 'Newer print assessment text',
     ]);
 
-    $pdf = new class {
-        public array $viewData = [];
-
-        public function loadView(string $view, array $data = [], array $mergeData = []): static
-        {
-            $this->viewData = $data;
-
-            return $this;
-        }
-
-        public function setPaper(mixed $paper, string $orientation = 'portrait'): static
-        {
-            return $this;
-        }
-
-        public function download(string $filename = 'document.pdf')
-        {
-            return response('pdf', 200);
-        }
-    };
-
-    $this->app->instance('dompdf.wrapper', $pdf);
-
-    $response = $this->actingAs($user)->post(route('patients.download', $patient->id), [
-        'format' => 'pdf',
-    ]);
+    $response = $this->actingAs($user)->get(route('patients.print', $patient->id));
 
     $response->assertOk();
-
-    expect($pdf->viewData)->toHaveKey('latestVisit');
-    expect($pdf->viewData['latestVisit']->id)->toBe($newer->id);
-    expect($pdf->viewData['latestVisit']->assessment)->toBe('Newer PDF assessment text');
+    $response->assertSeeText('PATIENT RECORD');
+    $response->assertSeeText('Newer print assessment text');
+    $response->assertDontSeeText('Older print assessment text');
 });
 
 it('uses one-decimal kilogram formatting across profile history print and exports', function () {
@@ -215,29 +189,83 @@ it('uses one-decimal kilogram formatting across profile history print and export
     expect($csv->getContent())->toContain('Weight: 60.5 kg')
         ->and($csv->getContent())->toContain('Birth Weight: 3.3 kg');
 
-    $pdf = new class {
-        public ?string $html = null;
+    $print = $this->actingAs($user)->get(route('patients.print', $patient->id));
+    $print->assertOk();
+    $print->assertSee('60.5 kg')->assertSee('3.3 kg');
+});
 
-        public function loadView(string $view, array $data = [], array $mergeData = []): static
-        {
-            $this->html = view($view, $data)->render();
+it('browser print route serves every patient record section', function () {
+    $user = exportStaff();
+    $patient = exportPatient([
+        'status' => 'DELIVERED',
+        'delivery_date' => '2026-09-01',
+        'address' => null,
+        'address_line' => '123 Mabini St., Green Village',
+        'barangay' => 'San Jose',
+        'city_municipality' => 'San Jose del Monte',
+    ]);
+    MedicalHistory::create(['patient_id' => $patient->id]);
+    Baby::create([
+        'patient_id' => $patient->id,
+        'date_of_birth' => '2026-09-01',
+        'time_of_birth' => '09:30',
+        'birth_weight' => '3.25',
+    ]);
 
-            return $this;
-        }
+    exportVisit($patient->id, [
+        'risk_level' => 'HIGH',
+        'decision_source' => 'RULE_BASED',
+        'rule_reasons' => ['Anemia'],
+        'assessment' => 'Print route assessment text',
+    ]);
 
-        public function setPaper(mixed $paper, string $orientation = 'portrait'): static
-        {
-            return $this;
-        }
+    $response = $this->actingAs($user)->get(route('patients.print', $patient->id));
 
-        public function download(string $filename = 'document.pdf')
-        {
-            return response('pdf', 200);
-        }
-    };
-    $this->app->instance('dompdf.wrapper', $pdf);
+    $response->assertOk();
+    $response->assertSee('PATIENT RECORD');
 
-    $pdfResponse = $this->actingAs($user)->post(route('patients.download', $patient->id), ['format' => 'pdf']);
-    $pdfResponse->assertOk();
-    expect($pdf->html)->toContain('60.5 kg')->toContain('3.3 kg');
+    foreach ([
+        '1. Patient Information',
+        '2. Current Pregnancy',
+        '3. Latest Prenatal Visit',
+        '4. Supporting Records Summary',
+        '5. Risk Assessment Summary',
+        '6. Clinical Decision Summary',
+        '7. Baby Information',
+        'Safety Disclaimer',
+        'Clinical Rules',
+        'Decision Source',
+        'not a medical diagnosis',
+        'Print route assessment text',
+        '123 Mabini St., Green Village',
+        'Barangay San Jose',
+        'San Jose del Monte',
+    ] as $expected) {
+        $response->assertSee($expected);
+    }
+
+    $this->actingAs(User::factory()->create(['role' => 'admin']))
+        ->get(route('patients.print', $patient->id))
+        ->assertOk();
+});
+
+it('browser print route returns 404 for an unknown patient', function () {
+    $this->actingAs(exportStaff())
+        ->get(route('patients.print', 999999))
+        ->assertNotFound();
+});
+
+it('download endpoint accepts csv only after the pdf path was retired', function () {
+    $user = exportStaff();
+    $patient = exportPatient();
+    MedicalHistory::create(['patient_id' => $patient->id]);
+
+    $pdf = $this->actingAs($user)->postJson(route('patients.download', $patient->id), ['format' => 'pdf']);
+    $pdf->assertStatus(422);
+    $pdf->assertJsonValidationErrors('format');
+
+    $csv = $this->actingAs($user)->post(route('patients.download', $patient->id), ['format' => 'csv']);
+    $csv->assertOk();
+    expect($csv->headers->get('Content-Type'))->toContain('text/csv')
+        ->and($csv->headers->get('Content-Disposition'))->toContain('attachment');
 });

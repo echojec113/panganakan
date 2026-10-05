@@ -11,7 +11,6 @@ use App\Support\WeightFormatter;
 use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 
@@ -338,7 +337,7 @@ class PatientController extends Controller
     public function download(Request $request, string $id)
     {
         $request->validate([
-            'format' => 'required|in:pdf,csv',
+            'format' => 'required|in:csv',
         ]);
 
         $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','ultrasounds','babies'])->findOrFail($id);
@@ -352,11 +351,26 @@ class PatientController extends Controller
             ], 422);
         }
 
-        if ($request->format === 'csv') {
-            return $this->downloadPatientCsv($patient);
-        }
+        return $this->downloadPatientCsv($patient);
+    }
 
-        return $this->downloadPatientPdf($patient);
+    /**
+     * Browser Print Patient Record (same-tab print page).
+     *
+     * Presentation-only counterpart of the DOMPDF download: same eager-loaded
+     * relationships and the same deterministic latest prenatal visit, but it
+     * renders a normal Blade page the browser can print (or save as PDF).
+     * Deliberately does NOT apply the export missing-field gate (VALIDATION-B):
+     * this record is already fully viewable on the profile page.
+     */
+    public function printPatientRecord($id)
+    {
+        $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','ultrasounds','babies'])->findOrFail($id);
+
+        return view('patients.print-patient-record', [
+            'patient' => $patient,
+            'latestVisit' => $this->latestPrenatalVisit($patient),
+        ]);
     }
 
     private function getPatientDownloadMissingFields(Patient $patient): array
@@ -607,20 +621,6 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
-    }
-
-    private function downloadPatientPdf(Patient $patient)
-    {
-        $latestVisit = $this->latestPrenatalVisit($patient);
-
-        $data = [
-            'patient' => $patient,
-            'latestVisit' => $latestVisit,
-        ];
-
-        $pdf = Pdf::loadView('exports.patient-record', $data)->setPaper('letter', 'portrait');
-
-        return $pdf->download($this->patientRecordFilename($patient, 'pdf'));
     }
 
     /**

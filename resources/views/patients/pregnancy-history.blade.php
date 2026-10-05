@@ -81,11 +81,11 @@
                         style="display: none">
                         @foreach($pregnancies as $pregnancy)
                             @php $pregNum = $pregnancies->count() - $loop->index; @endphp
-                            <a href="{{ route('patients.delivered.print-babies', ['id' => $patient->id, 'pregnancy_id' => $pregnancy->id]) }}" target="_blank" @click="open = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50">
+                            <a href="{{ route('patients.delivered.print-babies', ['id' => $patient->id, 'pregnancy_id' => $pregnancy->id]) }}" @click="open = false" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50">
                                 Pregnancy #{{ $pregNum }}{{ $loop->first ? ' (Most Recent)' : '' }}
                             </a>
                         @endforeach
-                        <a href="{{ route('patients.delivered.print-babies', ['id' => $patient->id, 'all' => 1]) }}" target="_blank" @click="open = false" class="block border-t border-gray-100 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-blue-50">
+                        <a href="{{ route('patients.delivered.print-babies', ['id' => $patient->id, 'all' => 1]) }}" @click="open = false" class="block border-t border-gray-100 px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-blue-50">
                             Print All Pregnancies
                         </a>
                     </div>

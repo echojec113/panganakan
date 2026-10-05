@@ -102,6 +102,9 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     Route::post('/patients/{id}/download', [PatientController::class, 'download'])
         ->name('patients.download');
 
+    Route::get('/patients/{id}/print', [PatientController::class, 'printPatientRecord'])
+        ->name('patients.print');
+
     /*
     |--------------------------------------------------------------------------
     | Prenatal Visit Viewing (Admin & Staff) — read-only, single-visit print

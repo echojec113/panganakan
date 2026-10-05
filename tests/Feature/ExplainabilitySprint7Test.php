@@ -754,10 +754,12 @@ it('printable report includes Decision Source and safety disclaimer', function (
         'assessment' => 'High risk assessment',
     ]);
 
-    $response = actingAs($this->staff)->post(route('patients.download', $patient->id), [
-        'format' => 'pdf',
-    ]);
+    $response = actingAs($this->staff)->get(route('patients.print', $patient->id));
     $response->assertOk();
+    $response->assertSeeText('PATIENT RECORD');
+    $response->assertSeeText('Decision Source');
+    $response->assertSeeText('Clinical Rules');
+    $response->assertSeeText('not a medical diagnosis');
 });
 
 it('printable report renders with empty Medical History', function () {
@@ -789,7 +791,7 @@ it('printable report renders with empty Medical History', function () {
     ]);
 
     $latestVisit = $patient->prenatalVisits->sortByDesc('visit_date')->first();
-    $html = view('exports.patient-record', compact('patient', 'latestVisit'))->render();
+    $html = view('patients.print-patient-record', compact('patient', 'latestVisit'))->render();
 
     expect($html)->toContain('No medical history recorded.');
     expect($html)->toContain('Clinical Decision Summary');

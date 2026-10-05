@@ -1,62 +1,449 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patient Record</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Patient Record - {{ $patient->first_name }} {{ $patient->last_name }}</title>
     <style>
-        @page { margin: 1.5cm 1.4cm; }
-        body { font-family: Helvetica, Arial, sans-serif; color: #1f2937; font-size: 11px; line-height: 1.45; margin: 0; padding: 0; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-        /* ── Header ─────────────────────────────────────────── */
-        .header { text-align: center; margin-bottom: 16px; }
-        .brand { font-size: 12px; font-weight: 700; letter-spacing: 2px; color: #1a3d6e; }
-        .brand-address { font-size: 9.5px; letter-spacing: 1px; color: #6b7280; margin-top: 2px; }
-        .doc-title { font-size: 20px; font-weight: 700; color: #1a3d6e; margin: 8px 0 6px; }
-        .header-meta { font-size: 10.5px; color: #374151; }
+        body {
+            font-family: 'Calibri', 'Arial', sans-serif;
+            line-height: 1.55;
+            color: #1f2937;
+            background: #f5f5f5;
+            padding: 20px;
+        }
 
-        /* ── Sections ───────────────────────────────────────── */
-        .section { margin-bottom: 14px; }
-        .keep-together { page-break-inside: avoid; }
-        .section-title { font-size: 13px; font-weight: 700; color: #1a3d6e; border-bottom: 2px solid #1a3d6e; padding-bottom: 3px; margin: 14px 0 8px; }
-        .subsection-title { font-size: 11.5px; font-weight: 700; color: #374151; margin: 10px 0 5px; }
+        .toolbar,
+        .print-container {
+            max-width: 1100px;
+            margin-left: auto;
+            margin-right: auto;
+        }
 
-        /* ── Label/value grids ──────────────────────────────── */
-        table.data-table { width: 100%; border-collapse: collapse; }
-        table.data-table td { padding: 3px 6px; vertical-align: top; }
-        .lbl { color: #6b7280; font-weight: 600; }
+        /* ── Screen-only toolbar ─────────────────────────────── */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
 
-        /* ── Bordered tables ────────────────────────────────── */
-        table.tbl { width: 100%; border-collapse: collapse; margin-top: 4px; }
-        table.tbl th { background: #eef2f7; border: 1px solid #d1d5db; padding: 5px 7px; text-align: left; font-size: 10px; font-weight: 700; color: #374151; }
-        table.tbl td { border: 1px solid #d1d5db; padding: 5px 7px; vertical-align: top; }
-        .row-even td { background: #fafbfc; }
+        .toolbar a {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            margin: 0;
+            padding: 10px 18px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #19355f;
+            font-family: inherit;
+            font-size: 14px;
+            text-decoration: none;
+        }
 
-        /* ── Emphasis ───────────────────────────────────────── */
-        .yes { color: #15803d; font-weight: 700; }
-        .no { color: #9ca3af; }
-        .muted { color: #6b7280; }
-        .mono { font-family: "Courier New", monospace; font-size: 9.5px; color: #6b7280; }
+        .toolbar a:hover {
+            background: #f8fafc;
+        }
 
-        /* ── Risk badge ─────────────────────────────────────── */
-        .badge { display: inline-block; padding: 6px 14px; font-size: 14px; font-weight: 800; letter-spacing: 1px; }
-        .badge-high { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
-        .badge-low { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-        .badge-incomplete { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
-        .badge-other { background: #eef2f7; color: #374151; border: 1px solid #d1d5db; }
+        .print-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 10px 18px;
+            border: 0;
+            border-radius: 8px;
+            background: #55b85a;
+            color: #ffffff;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
 
-        /* ── Lists / cards ──────────────────────────────────── */
-        ul.factor-list { margin: 4px 0 4px 16px; padding: 0; }
-        ul.factor-list li { margin-bottom: 2px; }
-        .factor-card { border: 1px solid #e5e7eb; padding: 6px 8px; margin-bottom: 6px; page-break-inside: avoid; }
-        .factor-card .head { font-weight: 700; }
-        .block { page-break-inside: avoid; }
+        .print-button:hover {
+            background: #4aa04c;
+        }
 
-        /* ── Disclaimer ─────────────────────────────────────── */
-        .disclaimer { border: 1px solid #fcd34d; background: #fffbeb; padding: 10px 12px; font-size: 10px; color: #92400e; line-height: 1.5; page-break-inside: avoid; }
+        /* ── Document shell ──────────────────────────────────── */
+        .print-container {
+            background: #ffffff;
+            width: 100%;
+            padding: 28px 32px;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            min-width: 0;
+            overflow-wrap: anywhere;
+            font-size: 13px;
+        }
+
+        .print-container * {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        /* ── Clinic header ───────────────────────────────────── */
+        .clinic-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 6px;
+            padding-bottom: 16px;
+        }
+
+        .clinic-logo {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .clinic-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #19355f;
+            line-height: 1.25;
+            overflow-wrap: anywhere;
+        }
+
+        .clinic-address {
+            font-size: 12px;
+            color: #666666;
+            letter-spacing: 0.06em;
+            margin-top: 3px;
+        }
+
+        /* ── Document title / metadata ───────────────────────── */
+        .document-title {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 700;
+            color: #19355f;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.4;
+            margin: 18px 0 6px;
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+
+        .document-subtitle {
+            text-align: center;
+            color: #666666;
+            font-size: 13px;
+            margin-bottom: 4px;
+            overflow-wrap: anywhere;
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+
+        /* ── Sections ────────────────────────────────────────── */
+        .section {
+            margin-bottom: 16px;
+        }
+
+        .keep-together {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #19355f;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            border-bottom: 2px solid #19355f;
+            padding-bottom: 4px;
+            margin: 20px 0 10px;
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+
+        .subsection-title {
+            font-size: 12.5px;
+            font-weight: 700;
+            color: #374151;
+            margin: 12px 0 6px;
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+
+        /* ── Label/value tables ──────────────────────────────── */
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        table.data-table td {
+            padding: 5px 8px;
+            vertical-align: top;
+            border-bottom: 1px solid #eef2f7;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        table.data-table td.lbl {
+            width: 15%;
+            color: #19355f;
+            font-weight: 600;
+        }
+
+        /* ── Bordered clinical tables ────────────────────────── */
+        table.tbl {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 6px;
+        }
+
+        table.tbl th {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 7px 9px;
+            text-align: left;
+            font-size: 11px;
+            font-weight: 700;
+            color: #19355f;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+            overflow-wrap: anywhere;
+        }
+
+        table.tbl td {
+            border: 1px solid #e2e8f0;
+            padding: 7px 9px;
+            vertical-align: top;
+            font-size: 13px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .row-even td {
+            background: #fafbfc;
+        }
+
+        /* ── Emphasis (semantic colors preserved) ────────────── */
+        .yes {
+            color: #15803d;
+            font-weight: 700;
+        }
+
+        .no {
+            color: #9ca3af;
+        }
+
+        .muted {
+            color: #6b7280;
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        .mono {
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            color: #6b7280;
+            overflow-wrap: anywhere;
+        }
+
+        /* ── Risk badge (clinical meaning preserved) ─────────── */
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .badge-high {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+
+        .badge-low {
+            background: #dcfce7;
+            color: #15803d;
+            border: 1px solid #86efac;
+        }
+
+        .badge-incomplete {
+            background: #fef3c7;
+            color: #b45309;
+            border: 1px solid #fcd34d;
+        }
+
+        .badge-other {
+            background: #eef2f7;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        /* ── Lists / cards ───────────────────────────────────── */
+        ul.factor-list {
+            margin: 4px 0 4px 18px;
+            padding: 0;
+        }
+
+        ul.factor-list li {
+            margin-bottom: 3px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .factor-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            overflow-wrap: anywhere;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .factor-card .head {
+            font-weight: 700;
+            color: #19355f;
+        }
+
+        .block {
+            overflow-wrap: anywhere;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        /* ── Safety disclaimer (semantic amber preserved) ────── */
+        .disclaimer {
+            border: 1px solid #fcd34d;
+            background: #fffbeb;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #92400e;
+            line-height: 1.5;
+            margin-top: 16px;
+            overflow-wrap: anywhere;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        @media screen and (max-width: 639px) {
+            body {
+                padding: 16px 12px;
+            }
+
+            .print-container {
+                padding: 20px 16px;
+            }
+
+            .clinic-header {
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .clinic-name {
+                font-size: 17px;
+            }
+
+            table.data-table td.lbl {
+                width: auto;
+            }
+        }
+
+        @media print {
+            @page {
+                size: letter;
+                margin: 12mm;
+            }
+
+            body {
+                background: #ffffff;
+                padding: 0;
+                margin: 0;
+                line-height: 1.45;
+            }
+
+            .no-print,
+            .toolbar {
+                display: none !important;
+            }
+
+            .print-container {
+                width: 100%;
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+                font-size: 12.5px;
+            }
+
+            .clinic-header,
+            .document-title,
+            .document-subtitle {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            .section-title,
+            .subsection-title,
+            .document-title,
+            h1,
+            h2,
+            h3 {
+                break-after: avoid;
+                page-break-after: avoid;
+            }
+
+            tr,
+            .badge,
+            .factor-card,
+            .disclaimer {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+
+            thead {
+                display: table-header-group;
+            }
+
+            table.data-table,
+            table.tbl {
+                font-size: 12px;
+            }
+
+            th,
+            td {
+                padding: 5px 7px;
+            }
+        }
     </style>
 </head>
 <body>
+    <nav class="toolbar no-print" aria-label="Patient record actions">
+        <a href="{{ route('patients.show', $patient->id) }}">Back to Patient Record</a>
+        <button class="print-button" type="button" onclick="window.print()">Print</button>
+    </nav>
+
+    <article class="print-container">
 @php
     // ---------- Formatting helpers ----------
     $dash = fn ($v) => ($v === null || $v === '') ? '—' : $v;
@@ -189,16 +576,19 @@
     $historyPairs = array_chunk(array_keys($sortedHistory), 2);
 @endphp
 
-    <div class="header">
-        <div class="brand">DEPLA FAMILY CARE MATERNITY &amp; LYING-IN</div>
-        <div class="brand-address">901 PARADA STA. MARIA BULACAN</div>
-        <div class="doc-title">PATIENT RECORD</div>
-        <div class="header-meta">
-            Patient: <strong>{{ $fullName }}</strong> &nbsp;·&nbsp; Patient ID: {{ $patient->id }} &nbsp;·&nbsp; Generated: {{ $generatedDate }}
-        </div>
-    </div>
+            <header class="clinic-header">
+            <img class="clinic-logo" src="{{ asset('images/logo.png') }}" alt="Depla Family Care Logo" width="60" height="60">
+            <div>
+                <div class="clinic-name">DEPLA FAMILY CARE MATERNITY &amp; LYING-IN</div>
+                <p class="clinic-address">901 PARADA STA. MARIA BULACAN</p>
+            </div>
+        </header>
 
-    <!-- ═══════════════ 1. PATIENT INFORMATION ═══════════════ -->
+        <h1 class="document-title">PATIENT RECORD</h1>
+        <div class="document-subtitle">
+            Patient: <strong>{{ $fullName }}</strong> &nbsp;&middot;&nbsp; Patient ID: {{ $patient->id }} &nbsp;&middot;&nbsp; Generated: {{ $generatedDate }}
+        </div>
+<!-- ═══════════════ 1. PATIENT INFORMATION ═══════════════ -->
     <div class="section keep-together">
         <div class="section-title">1. Patient Information</div>
         <table class="data-table">
@@ -619,8 +1009,8 @@
     <div class="section">
         <div class="section-title">7. Baby Information</div>
         @foreach($patient->babies as $index => $baby)
-            <div class="block" style="border:1px solid #e9d5ff;padding:10px 12px;margin-bottom:10px;">
-                <div style="font-weight:700;margin-bottom:6px;color:#7c3aed;">Baby {{ $index + 1 }}: {{ $baby->full_name }}</div>
+            <div class="block" style="border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+                <div style="font-weight:700;margin-bottom:6px;color:#19355f;">Baby {{ $index + 1 }}: {{ $baby->full_name }}</div>
                 <table class="data-table">
                     <tr>
                         <td class="lbl">Sex</td><td>{{ $dash($baby->sex) }}</td>
@@ -644,5 +1034,6 @@
             <strong>Safety Disclaimer:</strong> This system-generated assessment is intended to support clinical decision-making and is not a medical diagnosis. Final clinical judgment remains with qualified clinic personnel.
         </div>
     </div>
+    </article>
 </body>
 </html>

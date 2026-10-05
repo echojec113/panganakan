@@ -468,15 +468,24 @@
 
                         @endif
 
-                        {{-- Download is available for both active and historical records --}}
-                        <button
-                            type="button"
-                            onclick="startDownloadProcess()"
-                            data-download-url="{{ route('patients.download', $patient->id) }}"
-                            class="btn btn-secondary w-full justify-center"
-                        >
-                            Download Patient Record
-                        </button>
+                        {{-- Patient record actions are available for both active and historical records --}}
+                        <div class="grid grid-cols-2 gap-2">
+                            <a
+                                href="{{ route('patients.print', $patient->id) }}"
+                                class="btn btn-secondary justify-center"
+                            >
+                                Print Patient Record
+                            </a>
+
+                            <button
+                                type="button"
+                                onclick="downloadCsv()"
+                                data-download-url="{{ route('patients.download', $patient->id) }}"
+                                class="btn btn-secondary justify-center"
+                            >
+                                Download CSV
+                            </button>
+                        </div>
 
                     </div>
                 </div>
@@ -1339,7 +1348,6 @@
                                         </a>
                                         <a
                                             href="{{ route('prenatal-visits.print', $visit->id) }}"
-                                            target="_blank"
                                             class="text-sm font-medium text-gray-600 hover:text-gray-900"
                                         >
                                             Print
@@ -1356,7 +1364,6 @@
 
                                         <a
                                             href="{{ route('prenatal-visits.print', $visit->id) }}"
-                                            target="_blank"
                                             class="text-sm font-medium text-gray-600 hover:text-gray-900"
                                         >
                                             Print
@@ -3630,37 +3637,6 @@
         </div>
     </div>
 
-    <!-- Select File Format Modal -->
-    <div id="downloadFormatModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
-        <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                </div>
-                <div>
-                    <h3 class="font-semibold text-gray-900">Select File Format</h3>
-                    <p class="text-sm text-gray-500">Please choose the file format for download.</p>
-                </div>
-            </div>
-            <div class="space-y-3">
-                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition">
-                    <input type="radio" name="download_format" value="pdf" checked class="h-4 w-4 text-blue-600" />
-                    <span class="text-sm text-gray-700">Download as PDF</span>
-                </label>
-                <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition">
-                    <input type="radio" name="download_format" value="csv" class="h-4 w-4 text-blue-600" />
-                    <span class="text-sm text-gray-700">Download as CSV</span>
-                </label>
-            </div>
-            <div class="patient-actions flex justify-end gap-3 mt-6">
-                <button type="button" onclick="closeFormatModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
-                <button type="button" onclick="openDownloadConfirmModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium">Continue</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Confirm Download Modal -->
     <div id="downloadConfirmModal" class="patient-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
@@ -3672,12 +3648,12 @@
                 </div>
                 <div>
                     <h3 class="font-semibold text-gray-900">Confirm Download</h3>
-                    <p id="downloadConfirmText" class="text-sm text-gray-500">Are you sure you want to download this patient record as PDF?</p>
+                    <p id="downloadConfirmText" class="text-sm text-gray-500">Are you sure you want to download this patient record as CSV?</p>
                 </div>
             </div>
             <div class="patient-actions flex justify-end gap-3 mt-6">
                 <button type="button" onclick="closeDownloadConfirmModal()" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition font-medium">Cancel</button>
-                <button type="button" onclick="submitPatientDownload()" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition font-medium">Download</button>
+                <button type="button" onclick="submitPatientDownload('csv')" class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 transition font-medium">Download</button>
             </div>
         </div>
     </div>
@@ -4100,15 +4076,14 @@
         const patientExportData = @json($patientExportData);
         const downloadUrl = '{{ route('patients.download', $patient->id) }}';
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        let selectedDownloadFormat = 'pdf';
 
-        function startDownloadProcess() {
+        function downloadCsv() {
             const missing = getPatientDownloadMissingFields();
             if (missing.length > 0) {
                 openValidationModal(missing);
                 return;
             }
-            openFormatModal();
+            openDownloadConfirmModal();
         }
 
         function getPatientDownloadMissingFields() {
@@ -4145,24 +4120,9 @@
             modal.classList.remove('flex');
         }
 
-        function openFormatModal() {
-            const modal = document.getElementById('downloadFormatModal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
-
-        function closeFormatModal() {
-            const modal = document.getElementById('downloadFormatModal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-
         function openDownloadConfirmModal() {
-            const format = document.querySelector('input[name="download_format"]:checked').value;
-            selectedDownloadFormat = format;
             const confirmText = document.getElementById('downloadConfirmText');
-            confirmText.textContent = `Are you sure you want to download this patient record as ${format.toUpperCase()}?`;
-            closeFormatModal();
+            confirmText.textContent = 'Are you sure you want to download this patient record as CSV?';
             const modal = document.getElementById('downloadConfirmModal');
             modal.classList.remove('hidden');
             modal.classList.add('flex');
@@ -4174,7 +4134,7 @@
             modal.classList.remove('flex');
         }
 
-        async function submitPatientDownload() {
+        async function submitPatientDownload(format) {
             closeDownloadConfirmModal();
             try {
                 const response = await fetch(downloadUrl, {
@@ -4184,7 +4144,7 @@
                         'X-CSRF-TOKEN': csrfToken,
                         'Accept': 'application/octet-stream',
                     },
-                    body: JSON.stringify({ format: selectedDownloadFormat }),
+                    body: JSON.stringify({ format: format }),
                 });
 
                 if (!response.ok) {
@@ -4195,7 +4155,7 @@
 
                 const blob = await response.blob();
                 const disposition = response.headers.get('Content-Disposition');
-                const filename = getFilenameFromDisposition(disposition) || `patient-${patientExportData.id}-record.${selectedDownloadFormat}`;
+                const filename = getFilenameFromDisposition(disposition) || `patient-${patientExportData.id}-record.${format}`;
                 const url = window.URL.createObjectURL(blob);
                 const anchor = document.createElement('a');
                 anchor.href = url;

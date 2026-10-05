@@ -355,7 +355,7 @@ test('KP: printable/export view includes interaction evidence', function () {
         ],
     ]);
 
-    $html = view('exports.patient-record', compact('patient', 'latestVisit'))->render();
+    $html = view('patients.print-patient-record', compact('patient', 'latestVisit'))->render();
 
     expect($html)->toContain('Clinical Interactions Identified');
     expect($html)->toContain('INT-CS-PRES');

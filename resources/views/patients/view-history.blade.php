@@ -36,7 +36,7 @@
                                 'bg-gray-100 text-gray-700' => ! in_array($pregnancy->status, ['DELIVERED', 'ONGOING', 'REFERRED'], true),
                             ])>{{ $pregnancy->status }}</span>
                             <a href="{{ route('view-all-records.pregnancy', $pregnancy) }}" class="rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">View</a>
-                            <a href="{{ route('view-all-records.pregnancy.print', $pregnancy) }}" target="_blank" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print</a>
+                            <a href="{{ route('view-all-records.pregnancy.print', $pregnancy) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print</a>
                         </div>
                     </div>
                 </section>

@@ -16,7 +16,7 @@
                     <p class="mt-1 text-sm text-gray-500">{{ $patient->first_name }} {{ $patient->middle_name ? $patient->middle_name . ' ' : '' }}{{ $patient->last_name }}</p>
                 </div>
             </div>
-            <a href="{{ route('view-all-records.pregnancy.print', $patient) }}" target="_blank" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print Pregnancy</a>
+            <a href="{{ route('view-all-records.pregnancy.print', $patient) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print Pregnancy</a>
         </div>
 
         <section class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -62,7 +62,7 @@
                                 <td role="cell" data-label="Risk" class="px-5 py-4 text-sm text-gray-900">{{ $visit->risk_level ?: 'Not recorded' }}</td>
                                 <td role="cell" data-label="Action" class="px-5 py-4 text-right">
                                     <button type="button" onclick="document.getElementById('visit-details-{{ $visit->id }}').classList.toggle('hidden')" class="mr-2 rounded-lg border border-blue-200 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50">View</button>
-                                    <a href="{{ route('prenatal-visits.print', $visit) }}" target="_blank" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print</a>
+                                    <a href="{{ route('prenatal-visits.print', $visit) }}" class="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Print</a>
                                 </td>
                             </tr>
                             <tr role="row" id="visit-details-{{ $visit->id }}" class="hidden bg-gray-50">

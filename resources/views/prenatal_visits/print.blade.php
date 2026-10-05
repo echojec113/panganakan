@@ -68,9 +68,36 @@
     .document-heading .visit-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; }
     .record-note { padding-top: 14px; border-top: 1px solid var(--border); }
 
+    .document-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 10px 18px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface);
+        color: #19355f;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        background: var(--surface-soft);
+    }
+
     .print-btn {
         display: block;
-        margin-bottom: 18px;
         padding: 10px 18px;
         background: var(--green);
         color: #ffffff;
@@ -228,7 +255,7 @@
             padding: 20px 14px 32px;
         }
 
-        .print-btn {
+        .document-toolbar {
             margin-bottom: 20px;
         }
 
@@ -365,6 +392,7 @@
 </head>
 <body>
     <div class="document-toolbar">
+        <a class="back-link" href="{{ route('patients.show', $visit->patient_id) }}">Back to Prenatal Visit</a>
         <button class="print-btn" onclick="window.print()">Print</button>
     </div>
 
