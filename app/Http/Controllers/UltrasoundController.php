@@ -48,27 +48,27 @@ class UltrasoundController extends Controller
         // ======================
         // ENHANCED VALIDATION
         // ======================
-        $validated = $request->validate([
-            'patient_id' => 'required|exists:patients,id',
-            'scan_date' => 'required|date|before_or_equal:today',
-            
-            // Fetal Assessment
-            'fetal_heartbeat' => 'nullable|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
-            'fetal_movement' => 'nullable|in:Active,Normal,Decreased,Absent',
-            'presentation' => 'nullable|in:Cephalic,Breech,Transverse,Oblique',
-            
-            // Amniotic & Placenta
-            'amniotic_fluid' => 'nullable|in:Normal,Low,High,Moderate',
-            'placenta_position' => 'nullable|in:Anterior,Posterior,Fundal,Lateral,Low-lying,Placenta Previa',
-            
-            // Measurements
-            'gestational_age_scan' => 'nullable|numeric|min:4|max:42',
-            'estimated_fetal_weight' => 'nullable|numeric|min:200|max:5000',
-            
-            // File & Remarks
-            'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120', // 5MB
-            'remarks' => 'nullable|string|max:1000'
-        ], [
+       $validated = $request->validate([
+    'patient_id' => 'required|exists:patients,id',
+    'scan_date' => 'required|date|before_or_equal:today',
+
+    // Fetal Assessment
+    'fetal_heartbeat' => 'required|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
+    'fetal_movement' => 'required|in:Active,Normal,Decreased,Absent',
+    'presentation' => 'required|in:Cephalic,Breech,Transverse,Oblique',
+
+    // Amniotic Fluid & Placenta
+    'amniotic_fluid' => 'required|in:Normal,Low,High,Moderate',
+    'placenta_position' => 'required|in:Anterior,Posterior,Fundal,Lateral,Low-lying,Placenta Previa',
+
+    // Measurements
+    'gestational_age_scan' => 'required|numeric|min:4|max:42',
+    'estimated_fetal_weight' => 'required|numeric|min:200|max:5000',
+
+    // File & Remarks
+    'report_file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+    'remarks' => 'required|string|max:1000',
+], [
             // Custom error messages
             'scan_date.before_or_equal' => 'Scan date cannot be in the future',
             'fetal_heartbeat.in' => 'Please select a valid fetal heartbeat status',
@@ -82,7 +82,22 @@ class UltrasoundController extends Controller
             'estimated_fetal_weight.max' => 'Estimated fetal weight cannot exceed 5000 grams',
             'report_file.max' => 'File size must not exceed 5MB',
             'report_file.mimes' => 'File must be PDF, JPG, JPEG, PNG, or WebP format',
-            'remarks.max' => 'Remarks cannot exceed 1000 characters'
+            'remarks.max' => 'Remarks cannot exceed 1000 characters',
+            'patient_id.required' => 'Patient is required.',
+'scan_date.required' => 'Scan date is required.',
+
+'fetal_heartbeat.required' => 'Fetal heartbeat is required.',
+'fetal_movement.required' => 'Fetal movement is required.',
+'presentation.required' => 'Presentation is required.',
+
+'amniotic_fluid.required' => 'Amniotic fluid is required.',
+'placenta_position.required' => 'Placenta position is required.',
+
+'gestational_age_scan.required' => 'Gestational age is required.',
+'estimated_fetal_weight.required' => 'Estimated fetal weight is required.',
+
+'report_file.required' => 'Ultrasound report is required.',
+'remarks.required' => 'Remarks are required.',
         ]);
 
         // ======================
@@ -253,21 +268,21 @@ class UltrasoundController extends Controller
         // ENHANCED VALIDATION (Same as store)
         // ======================
         $validated = $request->validate([
-            'scan_date' => 'required|date|before_or_equal:today',
-            
-            'fetal_heartbeat' => 'nullable|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
-            'fetal_movement' => 'nullable|in:Active,Normal,Decreased,Absent',
-            'presentation' => 'nullable|in:Cephalic,Breech,Transverse,Oblique',
-            
-            'amniotic_fluid' => 'nullable|in:Normal,Low,High,Moderate',
-            'placenta_position' => 'nullable|in:Anterior,Posterior,Fundal,Lateral,Low-lying,Placenta Previa',
-            
-            'gestational_age_scan' => 'nullable|numeric|min:4|max:42',
-            'estimated_fetal_weight' => 'nullable|numeric|min:200|max:5000',
-            
-            'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
-            'remarks' => 'nullable|string|max:1000'
-        ], [
+    'scan_date' => 'required|date|before_or_equal:today',
+
+    'fetal_heartbeat' => 'required|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
+    'fetal_movement' => 'required|in:Active,Normal,Decreased,Absent',
+    'presentation' => 'required|in:Cephalic,Breech,Transverse,Oblique',
+
+    'amniotic_fluid' => 'required|in:Normal,Low,High,Moderate',
+    'placenta_position' => 'required|in:Anterior,Posterior,Fundal,Lateral,Low-lying,Placenta Previa',
+
+    'gestational_age_scan' => 'required|numeric|min:4|max:42',
+    'estimated_fetal_weight' => 'required|numeric|min:200|max:5000',
+
+    'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+    'remarks' => 'required|string|max:1000',
+], [
             'scan_date.before_or_equal' => 'Scan date cannot be in the future',
             'fetal_heartbeat.in' => 'Please select a valid fetal heartbeat status',
             'fetal_movement.in' => 'Please select a valid fetal movement status',
@@ -280,7 +295,16 @@ class UltrasoundController extends Controller
             'estimated_fetal_weight.max' => 'Estimated fetal weight cannot exceed 5000 grams',
             'report_file.max' => 'File size must not exceed 5MB',
             'report_file.mimes' => 'File must be PDF, JPG, JPEG, PNG, or WebP format',
-            'remarks.max' => 'Remarks cannot exceed 1000 characters'
+            'remarks.max' => 'Remarks cannot exceed 1000 characters',
+            'scan_date.required' => 'Scan date is required.',
+            'fetal_heartbeat.required' => 'Fetal heartbeat is required.',
+            'fetal_movement.required' => 'Fetal movement is required.',
+            'presentation.required' => 'Presentation is required.',
+            'amniotic_fluid.required' => 'Amniotic fluid is required.',
+            'placenta_position.required' => 'Placenta position is required.',
+            'gestational_age_scan.required' => 'Gestational age is required.',
+            'estimated_fetal_weight.required' => 'Estimated fetal weight is required.',
+            'remarks.required' => 'Remarks are required.',
         ]);
 
         // ======================

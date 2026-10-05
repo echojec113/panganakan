@@ -229,7 +229,7 @@
         @endif
 
                 <!-- Patient Header -->
-        <div class="panel mb-6">
+<div class="panel mb-6 overflow-visible">
             <div class="panel-body">
                 <div class="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
 
@@ -339,7 +339,7 @@
                                             Complete Required Records First
                                         </button>
 
-                                        <div class="absolute right-0 z-50 mt-2 hidden w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg group-hover:block">
+                                        <div class="absolute right-0 z-50 mt-2 hidden w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-lg group-hover:block">
                                             <p class="mb-3 text-sm font-semibold text-gray-800">
                                                 Complete the following records before adding a prenatal visit:
                                             </p>

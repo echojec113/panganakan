@@ -104,17 +104,24 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Plan More Children</label>
-                        <select name="plan_more_children" class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
-                            <option value="1" {{ old('plan_more_children') === '1' ? 'selected' : '' }}>Yes</option>
-                            <option value="0" {{ old('plan_more_children') === '0' ? 'selected' : '' }}>No</option>
-                        </select>
-                    </div>
+    <label class="block text-sm font-medium text-gray-700">Plan More Children</label>
+    <select id="plan_more_children"
+            name="plan_more_children"
+            class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
+        <option value="1" {{ old('plan_more_children') === '1' ? 'selected' : '' }}>Yes</option>
+        <option value="0" {{ old('plan_more_children') === '0' ? 'selected' : '' }}>No</option>
+    </select>
+</div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Number of More Children</label>
-                        <input type="number" name="number_more_children" value="{{ old('number_more_children') }}" class="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500" />
-                    </div>
+<div>
+    <label class="block text-sm font-medium text-gray-700">Number of More Children</label>
+    <input type="number"
+           id="number_more_children"
+           name="number_more_children"
+           value="{{ old('number_more_children') }}"
+           min="1"
+           class="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" />
+</div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Knows Family Planning Method</label>
@@ -134,7 +141,18 @@
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Family Planning Method</label>
-                        <input type="text" name="family_planning_method" value="{{ old('family_planning_method') }}" class="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500" />
+                        <select name="family_planning_method"
+        class="mt-2 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500">
+    <option value="">Select Family Planning Method</option>
+    <option value="Pills" {{ old('family_planning_method') === 'Pills' ? 'selected' : '' }}>Pills</option>
+    <option value="Condom" {{ old('family_planning_method') === 'Condom' ? 'selected' : '' }}>Condom</option>
+    <option value="Injectable" {{ old('family_planning_method') === 'Injectable' ? 'selected' : '' }}>Injectable</option>
+    <option value="Implant" {{ old('family_planning_method') === 'Implant' ? 'selected' : '' }}>Implant</option>
+    <option value="Intrauterine Device" {{ old('family_planning_method') === 'Intrauterine Device' ? 'selected' : '' }}>Intrauterine Device</option>
+    <option value="Natural Family Planning" {{ old('family_planning_method') === 'Natural Family Planning' ? 'selected' : '' }}>Natural Family Planning</option>
+    <option value="Tubal Ligation" {{ old('family_planning_method') === 'Tubal Ligation' ? 'selected' : '' }}>Tubal Ligation</option>
+    <option value="Vasectomy" {{ old('family_planning_method') === 'Vasectomy' ? 'selected' : '' }}>Vasectomy</option>
+</select>
                     </div>
 
                     <div>
@@ -160,4 +178,29 @@
         </div>
     </div>
     </div>
+
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const planMoreChildren = document.getElementById('plan_more_children');
+    const numberMoreChildren = document.getElementById('number_more_children');
+
+    if (!planMoreChildren || !numberMoreChildren) {
+        return;
+    }
+
+    function updateNumberOfChildren() {
+        const plansMoreChildren = planMoreChildren.value === '1';
+
+        numberMoreChildren.disabled = !plansMoreChildren;
+
+        if (!plansMoreChildren) {
+            numberMoreChildren.value = '';
+        }
+    }
+
+    planMoreChildren.addEventListener('change', updateNumberOfChildren);
+
+    updateNumberOfChildren();
+});
+</script>
 </x-app-layout>

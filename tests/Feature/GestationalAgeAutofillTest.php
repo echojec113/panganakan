@@ -98,7 +98,7 @@ it('renders prenatal edit with calculated GA and preserves old input after redir
     $redirectResponse->assertOk()->assertSee('value="38.0"', false);
 });
 
-it('renders ultrasound create and edit with calculated GA immediately', function () {
+it('renders ultrasound create with calculated GA and edit with saved GA', function () {
     $patient = gaAutofillPatient(['lmp' => today()->subDays(255)->toDateString()]);
     $expected = gaAutofillExpected($patient, today()->toDateString());
 
@@ -119,7 +119,8 @@ it('renders ultrasound create and edit with calculated GA immediately', function
         ->get(route('ultrasound.edit', $ultrasound->id));
 
     $edit->assertOk()
-        ->assertSee('value="' . $expected . '"', false)
+        ->assertSee('value="20.0"', false)
+        ->assertSee('value="' . today()->toDateString() . '"', false)
         ->assertSee('Expected GA: ' . $expected . ' weeks based on LMP');
 
     $this->withSession(['_old_input' => [
@@ -247,4 +248,74 @@ it('exposes dropdown patient LMP and the shared date/patient recalculation hooks
         ->assertSee("form.querySelector('select[name=\"patient_id\"]')?.addEventListener('change'", false)
         ->assertSee("referenceDate?.addEventListener('change'", false)
         ->assertSee("refresh(true)", false);
+});
+
+it('populates every ultrasound edit field and shows attempted values and field errors', function () {
+    $patient = gaAutofillPatient(['lmp' => today()->subWeeks(30)->toDateString()]);
+    $values = [
+        'scan_date' => today()->toDateString(),
+        'gestational_age_scan' => '29.5',
+        'estimated_fetal_weight' => 2400,
+        'fetal_heartbeat' => 'Normal 120-160',
+        'fetal_movement' => 'Active',
+        'presentation' => 'Breech',
+        'amniotic_fluid' => 'Normal',
+        'placenta_position' => 'Posterior',
+        'remarks' => 'Saved observations',
+    ];
+    $ultrasound = Ultrasound::create(['patient_id' => $patient->id] + $values);
+    $response = $this->actingAs(gaAutofillStaff())->get(route('ultrasound.edit', $ultrasound->id));
+    $response->assertOk();
+    $document = new DOMDocument();
+    @$document->loadHTML($response->getContent());
+    $xpath = new DOMXPath($document);
+    foreach ($values as $field => $value) {
+        $element = $xpath->query('//*[@name="' . $field . '"]')->item(0);
+        expect($element)->not->toBeNull();
+        expect($element->hasAttribute('required'))->toBeTrue();
+        if ($element->nodeName === 'select') {
+            $selected = $xpath->query('.//option[@selected]', $element)->item(0);
+            expect($selected?->getAttribute('value'))->toBe((string) $value);
+        } elseif ($element->nodeName === 'textarea') {
+            expect(trim($element->textContent))->toBe($value);
+        } else {
+            expect($element->getAttribute('value'))->toBe((string) $value);
+        }
+    }
+    expect($xpath->query('//*[@name="report_file"]')->item(0)->hasAttribute('required'))->toBeFalse();
+
+    $attempted = array_fill_keys(array_keys($values), '');
+    $errors = new \Illuminate\Support\MessageBag();
+    foreach ($attempted as $field => $value) {
+        $errors->add($field, 'Please complete ' . $field);
+    }
+    $this->withSession([
+        '_old_input' => $attempted,
+        'errors' => (new \Illuminate\Support\ViewErrorBag())->put('default', $errors),
+    ])->get(route('ultrasound.edit', $ultrasound->id))
+        ->assertOk()
+        ->assertSee('Please complete scan_date')
+        ->assertSee('Please complete gestational_age_scan')
+        ->assertSee('Please complete remarks')
+        ->assertDontSee('Saved observations');
+    expect($ultrasound->fresh()->remarks)->toBe('Saved observations');
+});
+
+it('returns friendly required errors for blank ultrasound edit fields', function () {
+    $patient = gaAutofillPatient();
+    $ultrasound = Ultrasound::create(['patient_id' => $patient->id, 'scan_date' => today()->toDateString()]);
+    $this->actingAs(gaAutofillStaff())
+        ->put(route('ultrasound.update', $ultrasound->id), [])
+        ->assertSessionHasErrors([
+            'scan_date' => 'Scan date is required.',
+            'fetal_heartbeat' => 'Fetal heartbeat is required.',
+            'fetal_movement' => 'Fetal movement is required.',
+            'presentation' => 'Presentation is required.',
+            'amniotic_fluid' => 'Amniotic fluid is required.',
+            'placenta_position' => 'Placenta position is required.',
+            'gestational_age_scan' => 'Gestational age is required.',
+            'estimated_fetal_weight' => 'Estimated fetal weight is required.',
+            'remarks' => 'Remarks are required.',
+        ])
+        ->assertSessionDoesntHaveErrors('report_file');
 });

@@ -5,7 +5,14 @@
             <x-slot name="title">Pregnancy Outcome Monitoring</x-slot>
             <x-slot name="subtitle">Track pregnancies nearing their expected delivery date, follow-up observations, and confirmed outcomes.</x-slot>
             <x-slot name="actions">
-                <form method="GET" action="{{ route('pregnancy-outcomes.index') }}" class="w-full lg:w-72">
+                <form id="pregnancy-outcome-search"
+      method="GET"
+      action="{{ route('pregnancy-outcomes.index') }}"
+      class="w-full lg:w-72">
+
+    @if(request('state'))
+        <input type="hidden" name="state" value="{{ request('state') }}">
+    @endif
                     <div class="flex gap-2">
                         <div class="relative flex-1">
                             <input type="text" name="search" value="{{ request('search') }}" placeholder="Search patient..." class="w-full px-4 py-2 border border-gray-200 rounded-lg pr-10 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
@@ -294,3 +301,33 @@
         <x-outcome-confirm-modal />
     @endif
 </x-app-layout>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('pregnancy-outcome-search');
+    const searchInput = form?.querySelector('input[name="search"]');
+
+    if (!form || !searchInput) {
+        return;
+    }
+
+    let searchTimer;
+    let lastSubmittedValue = searchInput.value.trim();
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+
+        searchTimer = setTimeout(function () {
+            const currentValue = searchInput.value.trim();
+
+            if (currentValue === lastSubmittedValue) {
+                return;
+            }
+
+            lastSubmittedValue = currentValue;
+            form.submit();
+        }, 350);
+    });
+});
+</script>
