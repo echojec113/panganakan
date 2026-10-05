@@ -126,6 +126,12 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     Route::get('/referrals/analytics', [ReferralController::class, 'analytics'])
         ->name('referrals.analytics');
 
+    // MUST stay above the `/referrals/{id}` wildcard so "archived" is never
+    // resolved as a referral ID. Staff-only, mirroring Prenatal Visits.
+    Route::get('/referrals/archived', [ReferralController::class, 'archived'])
+        ->middleware('staff')
+        ->name('referrals.archived');
+
     Route::get('/referrals/create', [ReferralController::class, 'selectPatient'])
         ->middleware('staff')
         ->name('referrals.select-patient');
@@ -247,6 +253,12 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
 
         Route::post('/referrals/{id}/cancel', [ReferralController::class, 'cancel'])
             ->name('referrals.cancel');
+
+        Route::post('/referrals/{id}/restore', [ReferralController::class, 'restoreArchived'])
+            ->name('referrals.restore');
+
+        Route::delete('/referrals/{id}', [ReferralController::class, 'destroy'])
+            ->name('referrals.destroy');
 
         /*
         |--------------------------------------------------------------------------

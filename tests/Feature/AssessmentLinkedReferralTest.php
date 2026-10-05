@@ -281,7 +281,7 @@ it('blocks a second Pending referral for the same visit', function () {
     expect(Referral::count())->toBe(1);
 });
 
-it('allows re-referral once the pending referral is closed', function () {
+it('enforces the cancelled-only re-referral rule for linked stores', function () {
     $user = User::factory()->create(['role' => 'staff']);
     $visit = linkedVisit();
 
@@ -297,14 +297,36 @@ it('allows re-referral once the pending referral is closed', function () {
     ]);
     expect($first->status)->toBe('Completed');
 
+    // Latest = Completed: a linked direct POST is rejected server-side by
+    // the referral-lifecycle guard (no bypass through the selector).
+    $rejected = $this->actingAs($user)->post(route('referrals.store'), referralPayload([
+        'patient_id' => $visit->patient_id,
+        'prenatal_visit_id' => $visit->id,
+        'reason' => 'Re-refer on completed prior must be rejected',
+    ]));
+
+    $rejected->assertSessionHasErrors('patient_id');
+    expect(Referral::count())->toBe(1);
+
+    // Once that prior referral is Cancelled, a linked re-referral succeeds
+    // as a brand-new row with its own id; the Cancelled row stays intact.
+    $first->update(['status' => 'Cancelled', 'completed_at' => null]);
+
     $response = $this->actingAs($user)->post(route('referrals.store'), referralPayload([
         'patient_id' => $visit->patient_id,
         'prenatal_visit_id' => $visit->id,
-        'reason' => 'Re-refer on closed prior',
+        'reason' => 'Re-refer on cancelled prior',
     ]));
 
     $response->assertRedirect(route('referrals.index'));
-    expect(Referral::count())->toBe(2);
+
+    $rows = Referral::where('patient_id', $visit->patient_id)->orderBy('id')->get();
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows[0]->id)->toBe($first->id)
+        ->and($rows[0]->status)->toBe('Cancelled')
+        ->and($rows[1]->id)->not->toBe($first->id)
+        ->and($rows[1]->status)->toBe('Pending');
 });
 
 it('keeps the legacy manual referral flow working without a visit id', function () {

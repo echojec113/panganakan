@@ -86,6 +86,24 @@
     #refuseModal.refusal-modal-theme [class~="focus:border-amber-500"]:focus {
         border-color: #55B85A;
     }
+
+    /* Same theme pinning for the action-confirmation modals that reuse the
+       refusal-modal-theme class (complete and cancel actions), so they
+       render with the identical navy/muted palette as the refusal modal. */
+    .refusal-modal-theme [class~="border-gray-200"] {
+        border-color: #E7E9E5;
+    }
+
+    .refusal-modal-theme [class~="text-gray-900"],
+    .refusal-modal-theme [class~="text-gray-700"] {
+        color: #19355F;
+    }
+
+    .refusal-modal-theme [class~="text-gray-600"],
+    .refusal-modal-theme [class~="text-gray-500"],
+    .refusal-modal-theme [class~="text-gray-400"] {
+        color: #657083;
+    }
 </style>
 
 @php
@@ -231,9 +249,9 @@
                 @if($referral->status === 'Pending')
                     <p class="text-sm text-gray-600">This referral is awaiting clinic follow-through.</p>
                     <div class="mt-4 flex flex-col gap-2">
-                        <form method="POST" action="{{ route('referrals.complete', $referral->id) }}">
+                        <form method="POST" action="{{ route('referrals.complete', $referral->id) }}" id="completeForm">
                             @csrf
-                            <button type="submit" onclick="return confirm('Mark this referral as completed?')"
+                            <button type="button" onclick="openCompleteModal()"
                                 class="w-full px-4 py-2 bg-[#55B85A] text-white rounded-lg text-sm font-semibold hover:bg-[#4aa04c] transition shadow-sm">
                                 Mark Completed
                             </button>
@@ -242,9 +260,9 @@
                             class="w-full px-4 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition">
                             Record Refusal
                         </button>
-                        <form method="POST" action="{{ route('referrals.cancel', $referral->id) }}">
+                        <form method="POST" action="{{ route('referrals.cancel', $referral->id) }}" id="cancelForm">
                             @csrf
-                            <button type="submit" onclick="return confirm('Cancel this pending referral? This cannot be undone.')"
+                            <button type="button" onclick="openCancelModal()"
                                 class="w-full px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition shadow-sm">
                                 Cancel Referral
                             </button>
@@ -544,6 +562,40 @@
     </div>
 </div>
 
+{{-- Mark Completed confirmation modal (matches the Record Referral Refusal modal) --}}
+<div id="completeModal" class="refusal-modal-theme fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Mark Referral as Completed</h3>
+            <button type="button" onclick="closeCompleteModal()" aria-label="Close" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <p class="text-sm text-gray-500">
+            Confirm that this referral has been completed. This will update the referral status to Completed.
+        </p>
+        <div class="mt-6 flex justify-end gap-3">
+            <button type="button" onclick="closeCompleteModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">Back</button>
+            <button type="button" onclick="submitModalForm('completeForm', this)" class="px-4 py-2 bg-[#55B85A] text-white rounded-lg text-sm font-semibold hover:bg-[#4aa04c] transition">Mark Completed</button>
+        </div>
+    </div>
+</div>
+
+{{-- Cancel Referral confirmation modal (matches the Record Referral Refusal modal) --}}
+<div id="cancelModal" class="refusal-modal-theme fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900">Cancel Referral</h3>
+            <button type="button" onclick="closeCancelModal()" aria-label="Close" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <p class="text-sm text-gray-500">
+            Are you sure you want to cancel this referral? A cancelled referral may allow the patient to be referred again if they remain eligible.
+        </p>
+        <div class="mt-6 flex justify-end gap-3">
+            <button type="button" onclick="closeCancelModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">Back</button>
+            <button type="button" onclick="submitModalForm('cancelForm', this)" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold hover:bg-gray-800 transition">Cancel Referral</button>
+        </div>
+    </div>
+</div>
+
 <script>
     function openRefuseModal() {
         document.getElementById('refuseForm').action = "{{ url('referrals') }}" + '/' + {{ $referral->id }} + '/refuse';
@@ -551,6 +603,30 @@
     }
     function closeRefuseModal() {
         document.getElementById('refuseModal').style.display = 'none';
+    }
+
+    function openCompleteModal() {
+        document.getElementById('completeModal').style.display = 'flex';
+    }
+    function closeCompleteModal() {
+        document.getElementById('completeModal').style.display = 'none';
+    }
+    function openCancelModal() {
+        document.getElementById('cancelModal').style.display = 'flex';
+    }
+    function closeCancelModal() {
+        document.getElementById('cancelModal').style.display = 'none';
+    }
+
+    // The confirmation modals submit the EXISTING page forms (route, CSRF
+    // and referral id untouched). The dataset guard prevents a double
+    // submission if the confirm button is clicked twice quickly.
+    function submitModalForm(formId, button) {
+        const form = document.getElementById(formId);
+        if (!form || form.dataset.submitting === '1') return;
+        form.dataset.submitting = '1';
+        if (button) button.disabled = true;
+        form.requestSubmit();
     }
 </script>
 @endif

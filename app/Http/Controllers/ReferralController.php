@@ -66,29 +66,52 @@ private function yearFilter($value): int
 }
 
     /**
-     * Show all referrals
+     * Show all referrals — one row per patient.
+     *
+     * Each row is a patient whose latest non-archived referral supplies the
+     * visible status/destination/date/source, ordered by that referral
+     * (referral_date desc, id desc — same order as the print history). The
+     * expandable history section renders every non-archived referral of that
+     * patient (newest first); archived referrals stay hidden everywhere by
+     * the SoftDeletes global scope. Summary counters keep counting referral
+     * rows (archived excluded), so cards and list are intentionally
+     * row-based vs patient-based.
      */
     public function index()
     {
-        $query = Referral::with(['patient', 'prenatalVisit'])->latest();
+        $query = Patient::query()
+            ->whereHas('latestReferral')
+            ->with([
+                'latestReferral.prenatalVisit',
+                'referrals' => fn ($query) => $query->orderByDesc('referral_date')->orderByDesc('id'),
+                'referrals.prenatalVisit',
+            ])
+            ->withAggregate(['latestReferral as latest_referral_date'], 'referral_date', 'max')
+            ->withAggregate(['latestReferral as latest_referral_id'], 'id', 'max');
 
-        // Search by patient name
+        // Search by patient name (a patient appears at most once).
         if (request('search')) {
             $search = request('search');
-            $query->whereHas('patient', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%$search%")
-                  ->orWhere('last_name', 'like', "%$search%");
+            $query->where(function ($query) use ($search) {
+                $query->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
             });
         }
 
-        // Filter by status
+        // Filter by the latest (non-archived) referral status.
         if (request('status') && request('status') !== 'all') {
-            $query->where('status', request('status'));
+            $query->whereHas('latestReferral', function ($query) {
+                $query->where('status', request('status'));
+            });
         }
 
-        $referrals = $query->paginate(15);
+        $referrals = $query
+            ->orderByDesc('latest_referral_date')
+            ->orderByDesc('latest_referral_id')
+            ->paginate(15)
+            ->withQueryString();
 
-        // Stats
+        // Stats (referral rows; archived excluded by SoftDeletes)
         $total = Referral::count();
         $pending = Referral::where('status', 'Pending')->count();
         $completed = Referral::where('status', 'Completed')->count();
@@ -106,7 +129,22 @@ private function yearFilter($value): int
         return view('referrals.index', compact('referrals', 'total', 'pending', 'completed', 'refused', 'cancelled', 'analytics'));
     }
 
-    /** Select an ongoing pregnancy before opening the existing referral form. */
+    /**
+     * Select a referable pregnancy before opening the existing referral form.
+     *
+     * Eligibility = clinical gate (latest assessment HIGH) PLUS the
+     * referral-lifecycle rule, applied to ONGOING and REFERRED patients
+     * alike so neither status can bypass it:
+     *
+     *  - no non-archived referral yet  -> eligible (first referral)
+     *  - latest non-archived referral = Cancelled -> eligible again
+     *  - latest = Pending / Completed / Refused   -> excluded
+     *
+     * DELIVERED patients are excluded via the status filter. The legacy
+     * `patient.status` value itself is never rewritten. create() and
+     * store() enforce the same lifecycle rule server-side, so direct URL
+     * or direct POST manipulation cannot bypass it.
+     */
     public function selectPatient(Request $request)
 {
     $validated = $request->validate([
@@ -116,7 +154,19 @@ private function yearFilter($value): int
     $search = trim($validated['search'] ?? '');
 
     $patients = Patient::query()
-        ->where('status', 'ONGOING')
+        ->whereIn('status', ['ONGOING', 'REFERRED'])
+
+        // Referral-lifecycle rule (any pregnancy status): eligible only
+        // with no non-archived referral yet, or when the latest
+        // non-archived referral was Cancelled. Pending/Completed/Refused
+        // latest referrals exclude the patient; archived rows do not count
+        // (the relation only spans non-archived referrals).
+        ->where(function ($query) {
+            $query->whereDoesntHave('latestReferral')
+                ->orWhereHas('latestReferral', function ($query) {
+                    $query->where('status', 'Cancelled');
+                });
+        })
 
         // Only show patients whose LATEST assessment is HIGH.
         ->whereHas('latestPrenatalAssessment', function ($query) {
@@ -173,7 +223,9 @@ public function analytics(Request $request)
      * structured assessment). The immutable assessment snapshot and a
      * readable reason prefill are built from PERSISTED evidence only
      * (no assessment re-run). Without the parameter the form behaves as the
-     * legacy manual referral flow.
+     * legacy manual referral flow. Both modes additionally enforce the
+     * referral-lifecycle rule: no non-archived referral yet, or a Cancelled
+     * latest one (Pending/Completed/Refused are refused with a redirect).
      */
     public function create(Request $request, $id)
     {
@@ -183,6 +235,17 @@ public function analytics(Request $request)
         if ($patient->status === 'DELIVERED') {
             return redirect()->back()
                 ->with('error', 'Delivered patients cannot be referred.');
+        }
+
+        // Referral-lifecycle rule (mirrors selectPatient()/store()): the
+        // form itself is refused when the latest non-archived referral is
+        // Pending, Completed or Refused, so a direct URL visit cannot
+        // bypass the selector. Cancelled or no referral stays allowed.
+        $latestReferral = $patient->latestReferral;
+
+        if ($latestReferral && $latestReferral->status !== 'Cancelled') {
+            return redirect()->back()
+                ->with('error', 'This patient\'s latest referral is ' . $latestReferral->status . '. Only patients with no referral or a cancelled referral can be referred.');
         }
 
         $prenatalVisitId = $request->query('prenatal_visit_id');
@@ -234,7 +297,11 @@ public function analytics(Request $request)
      *    (non-empty array), must not already have a Pending referral, and
      *    the immutable `assessment_snapshot` is always rebuilt server-side —
      *    never read from the request.
-     *  - Manual/legacy: no `prenatal_visit_id`; snapshot stays null.
+     *  - Manual/legacy: no `prenatal_visit_id`; snapshot stays null. A
+     *    second Pending referral for the same patient is rejected while a
+     *    Pending one exists. Regardless of mode, the referral-lifecycle
+     *    guard below additionally requires no prior non-archived referral
+     *    or a Cancelled latest one (Completed/Refused rejected).
      *
      * Delivered patients are rejected in both modes (the store() gap from
      * Phase 16A). Referral workflow state is fully decoupled from the
@@ -312,6 +379,41 @@ public function analytics(Request $request)
                     ->withInput()
                     ->withErrors(['prenatal_visit_id' => 'A pending referral already exists for this assessment.']);
             }
+        }
+
+        // Manual mode: one active (Pending) referral per patient. A
+        // follow-up after a Cancelled referral is always a new row (the
+        // closed row stays untouched as history); Completed/Refused latest
+        // rows are rejected by the lifecycle guard below. Archived rows
+        // are excluded by the SoftDeletes scope. The assessment-linked
+        // mode keeps its existing per-assessment pending rule above.
+        if (! $prenatalVisitId) {
+            $duplicatePending = Referral::where('patient_id', $patient->id)
+                ->where('status', 'Pending')
+                ->exists();
+
+            if ($duplicatePending) {
+                return redirect()->back()
+                    ->withInput()
+                    ->withErrors(['patient_id' => 'A pending referral already exists for this patient.']);
+            }
+        }
+
+        // Referral-lifecycle rule (both modes, mirrors selectPatient() and
+        // create()): a new referral row may only be created when the patient
+        // has no non-archived referral yet or the latest one is Cancelled.
+        // Pending is already rejected by the mode-specific duplicate guards
+        // above for manual and same-visit linked attempts; this final guard
+        // additionally rejects Pending/Completed/Refused latest rows so a
+        // direct POST cannot bypass the selector. The previous Cancelled row
+        // is never touched — creation always inserts a brand-new referral
+        // with its own id.
+        $latestReferral = $patient->latestReferral;
+
+        if ($latestReferral && $latestReferral->status !== 'Cancelled') {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['patient_id' => 'This patient\'s latest referral is ' . $latestReferral->status . '. Only patients with no referral or a cancelled referral can be referred.']);
         }
 
         $referral = Referral::create([
@@ -514,5 +616,59 @@ public function analytics(Request $request)
         ])->findOrFail($id);
 
         return view('referrals.show', compact('referral'));
+    }
+
+    /**
+     * Archive a referral (soft delete).
+     *
+     * The row is never physically removed: `delete()` only stamps
+     * `deleted_at`, which hides the referral from every normal Eloquent
+     * query (active listing, summary counters, follow-through) while the
+     * Archived Referrals page can still surface and restore it.
+     */
+    public function destroy($id)
+    {
+        $referral = Referral::findOrFail($id);
+
+        $referral->delete();
+
+        $this->logAction(
+            'ARCHIVE',
+            'REFERRAL',
+            'Archived referral #' . $referral->id . ' for patient ID: ' . $referral->patient_id
+        );
+
+        return redirect()->route('referrals.index')
+            ->with('success', 'Referral archived successfully.');
+    }
+
+    /**
+     * List archived referrals (soft-deleted only), newest archived first.
+     */
+    public function archived()
+    {
+        $referrals = Referral::onlyTrashed()
+            ->with(['patient', 'prenatalVisit'])
+            ->whereHas('patient')
+            ->orderByDesc('deleted_at')
+            ->orderByDesc('id')
+            ->get();
+
+        return view('referrals.archived', compact('referrals'));
+    }
+
+    /**
+     * Restore an archived referral back to the active Referrals listing.
+     */
+    public function restoreArchived($id)
+    {
+        $referral = Referral::onlyTrashed()
+            ->whereHas('patient')
+            ->findOrFail($id);
+
+        $referral->restore();
+
+        return redirect()->route('referrals.index')
+            ->with('success', 'Referral restored successfully.');
     }
 }

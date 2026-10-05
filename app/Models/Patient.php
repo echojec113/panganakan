@@ -142,6 +142,15 @@ class Patient extends Model
 {
     return $this->hasMany(Referral::class);
 }
+
+/** Latest non-archived referral by clinical date; ID breaks same-day ties. */
+public function latestReferral(): HasOne
+{
+    return $this->hasOne(Referral::class)->ofMany([
+        'referral_date' => 'max',
+        'id' => 'max',
+    ], fn ($query) => $query->whereNull('deleted_at'));
+}
     public function pregnancyOutcome(): HasOne
     {
         return $this->hasOne(PregnancyOutcome::class);

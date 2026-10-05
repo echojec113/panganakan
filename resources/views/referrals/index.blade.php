@@ -33,6 +33,12 @@
     >
         @if(auth()->user()->role === 'staff')
             <x-slot name="actions">
+                <a href="{{ route('referrals.archived') }}" class="btn btn-secondary">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8l1 12a2 2 0 002 2h8a2 2 0 002-2L19 8m-9 4v4m4-4v4" />
+                    </svg>
+                    Archived
+                </a>
                 <a href="{{ route('referrals.select-patient') }}" class="btn btn-primary">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
@@ -109,45 +115,74 @@
 
         {{-- Mobile Cards --}}
         <div class="lg:hidden divide-y divide-gray-100">
-            @forelse($referrals as $referral)
+            @forelse($referrals as $patient)
+                @php($latestReferral = $patient->latestReferral)
                 <div class="p-4">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <a href="{{ route('patients.show', $referral->patient_id) }}" class="text-sm font-semibold text-gray-800 hover:text-blue-600">
-                                {{ $referral->patient->first_name }} {{ $referral->patient->last_name }}
+                            <a href="{{ route('patients.show', $patient->id) }}" class="text-sm font-semibold text-gray-800 hover:text-blue-600">
+                                {{ $patient->first_name }} {{ $patient->last_name }}
                             </a>
                             <p class="text-xs text-gray-500 truncate mt-0.5">
-                                {{ $referral->referred_to }}
+                                {{ $latestReferral->referred_to }}
                                 <span class="text-gray-400">·</span>
-                                {{ $referral->referral_date->format('M d, Y') }}
+                                {{ $latestReferral->referral_date->format('M d, Y') }}
                             </p>
-                            @if($referral->prenatal_visit_id)
-                                <p class="text-[11px] text-gray-400 mt-0.5">Visit: {{ $referral->prenatalVisit?->visit_date?->format('M d, Y') ?? $referral->referral_date->format('M d, Y') }}</p>
+                            @if($latestReferral->prenatal_visit_id)
+                                <p class="text-[11px] text-gray-400 mt-0.5">Visit: {{ $latestReferral->prenatalVisit?->visit_date?->format('M d, Y') ?? $latestReferral->referral_date->format('M d, Y') }}</p>
                             @endif
                         </div>
-                        <x-status-badge :variant="$statusVariant($referral->status)" class="shrink-0">
-                            {{ $referral->status }}
+                        <x-status-badge :variant="$statusVariant($latestReferral->status)" class="shrink-0">
+                            {{ $latestReferral->status }}
                         </x-status-badge>
                     </div>
 
-                    <p class="mt-2 text-xs text-gray-600 line-clamp-2">{{ \Str::limit($referral->reason, 50) }}</p>
+                    <p class="mt-2 text-xs text-gray-600 line-clamp-2">{{ \Str::limit($latestReferral->reason, 50) }}</p>
 
                     <div class="mt-2 flex items-center gap-2">
-                        <x-status-badge :variant="$sourceVariant($referral)">
-                            {{ $sourceLabel($referral) }}
+                        <x-status-badge :variant="$sourceVariant($latestReferral)">
+                            {{ $sourceLabel($latestReferral) }}
                         </x-status-badge>
-                        @if($referral->status === 'Refused' && $referral->refusal_recorded_at)
-                            <span class="text-[11px] text-gray-400">Recorded {{ $referral->refusal_recorded_at->format('M d') }}</span>
-                        @elseif($referral->status === 'Completed' && $referral->completed_at)
-                            <span class="text-[11px] text-gray-400">Completed {{ $referral->completed_at->format('M d, Y') }}</span>
+                        @if($latestReferral->status === 'Refused' && $latestReferral->refusal_recorded_at)
+                            <span class="text-[11px] text-gray-400">Recorded {{ $latestReferral->refusal_recorded_at->format('M d') }}</span>
+                        @elseif($latestReferral->status === 'Completed' && $latestReferral->completed_at)
+                            <span class="text-[11px] text-gray-400">Completed {{ $latestReferral->completed_at->format('M d, Y') }}</span>
                         @endif
                     </div>
 
                     <div class="mt-3 flex items-center gap-2">
-                        <a href="{{ route('referrals.show', $referral->id) }}"
+                        <a href="{{ route('referrals.show', $latestReferral->id) }}"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#55B85A] text-white text-xs font-semibold rounded-lg hover:bg-[#4aa04c] transition shadow-sm">
                             View Referral
                         </a>
+                        <button type="button" onclick="toggleReferralHistory({{ $patient->id }})"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition"
+                            aria-expanded="false" aria-controls="referral-history-mobile-{{ $patient->id }}">
+                            History ({{ $patient->referrals->count() }})
+                        </button>
+                        @if(auth()->user()->role === 'staff')
+                            <form action="{{ route('referrals.destroy', $latestReferral->id) }}" method="POST" class="inline">
+                                @csrf
+                                @method('DELETE')
+                                <button type="button" onclick="confirmArchiveReferral(this)"
+                                    class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-red-700 hover:bg-red-50 hover:text-red-900 transition-all duration-150"
+                                    title="Archive" aria-label="Archive referral">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                </button>
+                            </form>
+                        @endif
+                    </div>
+
+                    <div id="referral-history-mobile-{{ $patient->id }}" class="hidden mt-3 border-t border-gray-100 pt-3">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Referral History ({{ $patient->referrals->count() }})</p>
+                        @include('referrals.partials.history-list', [
+                            'patient' => $patient,
+                            'statusVariant' => $statusVariant,
+                            'sourceVariant' => $sourceVariant,
+                            'sourceLabel' => $sourceLabel,
+                        ])
                     </div>
                 </div>
             @empty
@@ -170,41 +205,71 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    @forelse($referrals as $referral)
-                        <tr class="hover:bg-gray-50 transition">
+                    @forelse($referrals as $patient)
+                        @php($latestReferral = $patient->latestReferral)
+                        <tr class="hover:bg-gray-50 transition cursor-pointer" onclick="toggleReferralHistory({{ $patient->id }})">
                             <td class="px-4 py-3 text-sm text-gray-900">
-                                <a href="{{ route('patients.show', $referral->patient_id) }}" class="font-medium hover:text-blue-600">
-                                    {{ $referral->patient->first_name }} {{ $referral->patient->last_name }}
+                                <a href="{{ route('patients.show', $patient->id) }}" class="font-medium hover:text-blue-600">
+                                    {{ $patient->first_name }} {{ $patient->last_name }}
                                 </a>
-                                @if($referral->prenatal_visit_id)
-                                    <div class="text-[11px] text-gray-400">Visit: {{ $referral->prenatalVisit?->visit_date?->format('M d, Y') ?? $referral->referral_date->format('M d, Y') }}</div>
+                                @if($latestReferral->prenatal_visit_id)
+                                    <div class="text-[11px] text-gray-400">Visit: {{ $latestReferral->prenatalVisit?->visit_date?->format('M d, Y') ?? $latestReferral->referral_date->format('M d, Y') }}</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-sm text-gray-800">{{ $referral->referred_to }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{{ $referral->referral_date->format('M d, Y') }}</td>
-                            <td class="px-4 py-3 text-sm text-gray-500">{{ \Str::limit($referral->reason, 50) }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-800">{{ $latestReferral->referred_to }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{{ $latestReferral->referral_date->format('M d, Y') }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-500">{{ \Str::limit($latestReferral->reason, 50) }}</td>
                             <td class="px-4 py-3">
-                                <x-status-badge :variant="$sourceVariant($referral)">
-                                    {{ $sourceLabel($referral) }}
+                                <x-status-badge :variant="$sourceVariant($latestReferral)">
+                                    {{ $sourceLabel($latestReferral) }}
                                 </x-status-badge>
                             </td>
                             <td class="px-4 py-3">
-                                <x-status-badge :variant="$statusVariant($referral->status)">
-                                    {{ $referral->status }}
+                                <x-status-badge :variant="$statusVariant($latestReferral->status)">
+                                    {{ $latestReferral->status }}
                                 </x-status-badge>
-                                @if($referral->status === 'Refused' && $referral->refusal_recorded_at)
-                                    <div class="text-[11px] text-gray-400 mt-0.5">Recorded {{ $referral->refusal_recorded_at->format('M d') }}</div>
-                                @elseif($referral->status === 'Completed' && $referral->completed_at)
-                                    <div class="text-[11px] text-gray-400 mt-0.5">{{ $referral->completed_at->format('M d, Y') }}</div>
+                                @if($latestReferral->status === 'Refused' && $latestReferral->refusal_recorded_at)
+                                    <div class="text-[11px] text-gray-400 mt-0.5">Recorded {{ $latestReferral->refusal_recorded_at->format('M d') }}</div>
+                                @elseif($latestReferral->status === 'Completed' && $latestReferral->completed_at)
+                                    <div class="text-[11px] text-gray-400 mt-0.5">{{ $latestReferral->completed_at->format('M d, Y') }}</div>
                                 @endif
                             </td>
-                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <td class="px-4 py-3 text-right whitespace-nowrap" onclick="event.stopPropagation()">
                                 <div class="inline-flex items-center gap-2">
-                                    <a href="{{ route('referrals.show', $referral->id) }}"
+                                    <a href="{{ route('referrals.show', $latestReferral->id) }}"
                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#55B85A] text-white text-xs font-semibold rounded-lg hover:bg-[#4aa04c] transition shadow-sm">
                                         View Referral
                                     </a>
+                                    <button type="button" onclick="toggleReferralHistory({{ $patient->id }})"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition"
+                                        aria-expanded="false" aria-controls="referral-history-{{ $patient->id }}">
+                                        History ({{ $patient->referrals->count() }})
+                                    </button>
+                                    @if(auth()->user()->role === 'staff')
+                                        <form action="{{ route('referrals.destroy', $latestReferral->id) }}" method="POST" class="inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="button" onclick="confirmArchiveReferral(this)"
+                                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-red-700 hover:bg-red-50 hover:text-red-900 transition-all duration-150"
+                                                title="Archive" aria-label="Archive referral">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </form>
+                                    @endif
                                 </div>
+                            </td>
+                        </tr>
+                        <tr id="referral-history-{{ $patient->id }}" class="hidden bg-gray-50">
+                            <td colspan="7" class="px-4 py-4">
+                                <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Referral History ({{ $patient->referrals->count() }})</p>
+                                @include('referrals.partials.history-list', [
+                                    'patient' => $patient,
+                                    'statusVariant' => $statusVariant,
+                                    'sourceVariant' => $sourceVariant,
+                                    'sourceLabel' => $sourceLabel,
+                                ])
                             </td>
                         </tr>
                     @empty
@@ -1170,12 +1235,82 @@ document.addEventListener('DOMContentLoaded', function () {
     if (yearSelect) {
         yearSelect.addEventListener('change', loadAnalytics);
     }
-
     if (monthSelect) {
         monthSelect.addEventListener('change', loadAnalytics);
     }
 
 });
+
+</script>
+
+{{-- Archive confirmation (referral-specific; mirrors the Prenatal Visits pattern) --}}
+<div id="archiveReferralModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+    <div class="mx-4 w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+        <div class="mb-4 flex items-center gap-3">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </div>
+            <div>
+                <h3 class="font-semibold text-gray-900">Archive Referral?</h3>
+                <p class="text-sm text-gray-500">This referral will be moved to Archived Referrals and can be restored later.</p>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end gap-3">
+            <button type="button" onclick="closeArchiveReferralModal()" class="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-50">
+                Cancel
+            </button>
+            <button type="button" id="confirmArchiveReferralButton" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700">
+                Archive Referral
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let pendingArchiveReferralForm = null;
+
+    // Expand/collapse the per-patient referral history (desktop details row
+    // and mobile card block; only one of them is visible per breakpoint).
+    function toggleReferralHistory(patientId) {
+        ['referral-history-', 'referral-history-mobile-'].forEach(function (prefix) {
+            const el = document.getElementById(prefix + patientId);
+            if (el) el.classList.toggle('hidden');
+        });
+    }
+
+    function confirmArchiveReferral(button) {
+        pendingArchiveReferralForm = button.closest('form');
+        const modal = document.getElementById('archiveReferralModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeArchiveReferralModal() {
+        const modal = document.getElementById('archiveReferralModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        pendingArchiveReferralForm = null;
+    }
+
+    document.getElementById('confirmArchiveReferralButton')?.addEventListener('click', function () {
+        if (pendingArchiveReferralForm) {
+            pendingArchiveReferralForm.submit();
+        }
+    });
+
+    document.getElementById('archiveReferralModal')?.addEventListener('click', function (event) {
+        if (event.target === this) {
+            closeArchiveReferralModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            closeArchiveReferralModal();
+        }
+    });
 </script>
 
 </x-app-layout>

@@ -1,331 +1,327 @@
 <x-app-layout>
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="min-h-screen bg-[#FCFBF8]">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {{-- Page Header --}}
-        <x-app-header
-            title="Create Referral"
-            subtitle="Select a high-risk patient for referral."
-            class="mb-8"
-        >
-            <x-slot name="actions">
-                <a
-                    href="{{ route('referrals.index') }}"
-                    class="inline-flex items-center justify-center gap-2 rounded-lg
-                           border border-gray-300 bg-white px-4 py-2.5
-                           text-sm font-semibold text-gray-700 shadow-sm
-                           transition
-                           hover:bg-gray-50 hover:text-gray-900
-                           focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                >
-                    <svg
-                        class="h-4 w-4"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                    >
-                        <path d="m15 18-6-6 6-6"/>
-                    </svg>
-
-                    Back to Referrals
-                </a>
-            </x-slot>
-        </x-app-header>
-
-
-        {{-- Validation Errors --}}
-        <x-error-summary :errors="$errors" class="mb-4" />
-
-
-        {{-- Main Card --}}
-        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-
-            {{-- Search --}}
-            <form
-                method="GET"
-                action="{{ route('referrals.select-patient') }}"
-                class="flex flex-col gap-3 border-b border-gray-100 p-5 sm:flex-row"
+            {{-- Page Header --}}
+            <x-app-header
+                title="Create Referral"
+                subtitle="Select a high-risk patient for referral."
+                class="mb-8"
             >
-                <label for="referral-patient-search" class="sr-only">
-                    Search patients by name
-                </label>
-
-                <input
-                    id="referral-patient-search"
-                    type="search"
-                    name="search"
-                    value="{{ $search }}"
-                    placeholder="Search by patient name..."
-                    class="min-w-0 flex-1 rounded-lg border-gray-300 text-sm
-                           focus:border-blue-500 focus:ring-blue-500"
-                >
-
-                <button
-                    type="submit"
-                    class="inline-flex items-center justify-center rounded-lg
-                           bg-blue-600 px-5 py-2.5 text-sm font-semibold
-                           text-white shadow-sm transition
-                           hover:bg-blue-700
-                           focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                >
-                    Search
-                </button>
-
-                @if($search !== '')
-                    <a
-                        href="{{ route('referrals.select-patient') }}"
-                        class="inline-flex items-center justify-center rounded-lg
-                               border border-gray-300 bg-white px-5 py-2.5
-                               text-sm font-semibold text-gray-700 shadow-sm
-                               transition hover:bg-gray-50
-                               focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                        Clear
+                <x-slot name="actions">
+                    <a href="{{ route('referrals.index') }}" class="btn btn-secondary">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                        Back to Referrals
                     </a>
-                @endif
-            </form>
+                </x-slot>
+            </x-app-header>
+
+            <x-flash type="success" :message="session('success')" class="mb-6" />
+            <x-flash type="error" :message="session('error')" class="mb-6" />
+
+            {{-- Validation Errors --}}
+            <x-error-summary :errors="$errors" class="mb-6" />
 
 
-            {{-- Patient List --}}
-            <ul class="divide-y divide-gray-100">
+            {{-- Main Card --}}
+            <div class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
 
-                @forelse($patients as $patient)
+                {{-- Search --}}
+                <form
+                    method="GET"
+                    action="{{ route('referrals.select-patient') }}"
+                    class="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:px-6"
+                >
+                    <label for="referral-patient-search" class="sr-only">
+                        Search patients by name
+                    </label>
 
-                    @php
-                        $latestAssessment = $patient->latestPrenatalAssessment;
-
-                        $canLinkAssessment = $latestAssessment
-                            && $latestAssessment->risk_level === 'HIGH'
-                            && is_array($latestAssessment->assessment_metadata)
-                            && count($latestAssessment->assessment_metadata) > 0;
-
-                        $referralParameters = [
-                            'id' => $patient->id
-                        ];
-
-                        if ($canLinkAssessment) {
-                            $referralParameters['prenatal_visit_id']
-                                = $latestAssessment->id;
-                        }
-
-                        $patientName = trim(
-                            $patient->first_name . ' ' .
-                            ($patient->middle_name ? $patient->middle_name . ' ' : '') .
-                            $patient->last_name
-                        );
-                    @endphp
-
-
-                    <li
-                        class="flex flex-col gap-5 p-5
-                               sm:flex-row sm:items-center sm:justify-between"
-                    >
-
-                        {{-- Patient Information --}}
-<div class="min-w-0">
-
-    <p class="text-base font-semibold text-gray-900">
-        {{ $patientName }}
-    </p>
-
-    {{-- Basic Patient Details --}}
-    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-
-        <span>
-            Birthdate:
-            {{ $patient->birthdate?->format('M d, Y') ?? 'Not recorded' }}
-        </span>
-
-        <span class="hidden text-gray-300 sm:inline">
-            &middot;
-        </span>
-
-        <span>
-            EDD:
-            {{ $patient->edd?->format('M d, Y') ?? 'Not recorded' }}
-        </span>
-
-    </div>
-
-    {{-- Latest Assessment --}}
-    @if($latestAssessment)
-        <p class="mt-2 text-sm text-gray-600">
-            Latest assessment:
-            <span class="font-medium text-gray-700">
-                {{ $latestAssessment->visit_date?->format('M d, Y') ?? 'Not recorded' }}
-            </span>
-        </p>
-    @endif
-
-</div>
-
-
-                        {{-- Create Referral --}}
-                        <button
-                            type="button"
-                            class="open-referral-modal inline-flex shrink-0
-                                   items-center justify-center rounded-lg
-                                   bg-blue-600 px-4 py-2.5
-                                   text-sm font-semibold text-white shadow-sm
-                                   transition
-                                   hover:bg-blue-700
-                                   focus:outline-none
-                                   focus:ring-2 focus:ring-blue-500/30"
-                            data-patient="{{ $patientName }}"
-                            data-birthdate="{{ $patient->birthdate?->format('M d, Y') ?? 'Not recorded' }}"
-                            data-edd="{{ $patient->edd?->format('M d, Y') ?? 'Not recorded' }}"
-                            data-assessment="{{ $latestAssessment?->visit_date?->format('M d, Y') ?? 'Not recorded' }}"
-                            data-url="{{ route('referrals.create', $referralParameters) }}"
+                    <div class="relative min-w-0 flex-1">
+                        <svg
+                            class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
                         >
-                            Create Referral
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+
+                        <input
+                            id="referral-patient-search"
+                            type="search"
+                            name="search"
+                            value="{{ $search }}"
+                            placeholder="Search by patient name..."
+                            class="w-full rounded-lg border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-700 transition placeholder:text-gray-400 focus:border-[#55B85A] focus:outline-none focus:ring-2 focus:ring-[#55B85A]"
+                        >
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button type="submit" class="btn bg-[#55B85A] text-white transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A]/30">
+                            Search
                         </button>
 
-                    </li>
-
-
-                @empty
-
-                    {{-- Empty State --}}
-                    <li class="px-5 py-12 text-center">
-
                         @if($search !== '')
-
-                            <p class="text-sm font-semibold text-gray-800">
-                                No patients found
-                            </p>
-
-                            <p class="mt-1 text-sm text-gray-500">
-                                No high-risk patients match your search.
-                            </p>
-
                             <a
                                 href="{{ route('referrals.select-patient') }}"
-                                class="mt-4 inline-flex items-center justify-center
-                                       rounded-lg border border-gray-300 bg-white
-                                       px-4 py-2 text-sm font-semibold
-                                       text-gray-700 shadow-sm transition
-                                       hover:bg-gray-50"
+                                class="whitespace-nowrap rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 transition hover:bg-red-50"
                             >
-                                Clear Search
+                                Clear
                             </a>
-
-                        @else
-
-                            <p class="text-sm font-semibold text-gray-800">
-                                No patients available for referral
-                            </p>
-
-                            <p class="mt-1 text-sm text-gray-500">
-                                There are currently no high-risk patients available.
-                            </p>
-
                         @endif
-
-                    </li>
-
-                @endforelse
-
-            </ul>
+                    </div>
+                </form>
 
 
-            {{-- Pagination --}}
-            @if($patients->total() > 0)
+                {{-- Patient List --}}
+                <ul class="divide-y divide-gray-100">
 
-                <div class="border-t border-gray-100 px-5 py-4">
+                    @forelse($patients as $patient)
 
-                    <div
-                        class="flex flex-col gap-4
-                               sm:flex-row sm:items-center sm:justify-between"
-                    >
+                        @php
+                            $latestAssessment = $patient->latestPrenatalAssessment;
 
-                        {{-- Result Count --}}
-                        <p class="text-sm text-gray-500">
-                            Showing
+                            $canLinkAssessment = $latestAssessment
+                                && $latestAssessment->risk_level === 'HIGH'
+                                && is_array($latestAssessment->assessment_metadata)
+                                && count($latestAssessment->assessment_metadata) > 0;
 
-                            <span class="font-medium text-gray-700">
-                                {{ $patients->firstItem() }}
-                            </span>
+                            $referralParameters = [
+                                'id' => $patient->id
+                            ];
 
-                            to
+                            if ($canLinkAssessment) {
+                                $referralParameters['prenatal_visit_id']
+                                    = $latestAssessment->id;
+                            }
 
-                            <span class="font-medium text-gray-700">
-                                {{ $patients->lastItem() }}
-                            </span>
-
-                            of
-
-                            <span class="font-medium text-gray-700">
-                                {{ $patients->total() }}
-                            </span>
-
-                            patients
-                        </p>
+                            $patientName = trim(
+                                $patient->first_name . ' ' .
+                                ($patient->middle_name ? $patient->middle_name . ' ' : '') .
+                                $patient->last_name
+                            );
+                        @endphp
 
 
-                        {{-- Laravel Pagination --}}
-                        @if($patients->hasPages())
-                            <div>
-                                {{ $patients->links() }}
+                        <li
+                            class="flex flex-col gap-4 px-4 py-5
+                                   sm:flex-row sm:items-center sm:justify-between sm:px-6"
+                        >
+
+                            {{-- Patient Information --}}
+                            <div class="min-w-0">
+
+                                <p class="text-base font-semibold text-gray-900">
+                                    {{ $patientName }}
+                                </p>
+
+                                {{-- Basic Patient Details --}}
+                                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
+
+                                    <span>
+                                        Birthdate:
+                                        {{ $patient->birthdate?->format('M d, Y') ?? 'Not recorded' }}
+                                    </span>
+
+                                    <span class="hidden text-gray-300 sm:inline">
+                                        &middot;
+                                    </span>
+
+                                    <span>
+                                        EDD:
+                                        {{ $patient->edd?->format('M d, Y') ?? 'Not recorded' }}
+                                    </span>
+
+                                </div>
+
+                                {{-- Latest Assessment --}}
+                                @if($latestAssessment)
+                                    <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                                        <span>
+                                            Latest assessment:
+                                            <span class="font-medium text-gray-700">
+                                                {{ $latestAssessment->visit_date?->format('M d, Y') ?? 'Not recorded' }}
+                                            </span>
+                                        </span>
+
+                                        @if($latestAssessment->risk_level === 'HIGH')
+                                            <x-status-badge variant="danger">
+                                                HIGH
+                                            </x-status-badge>
+                                        @endif
+                                    </div>
+                                @endif
+
                             </div>
-                        @endif
+
+
+                            {{-- Create Referral --}}
+                            <button
+                                type="button"
+                                class="open-referral-modal btn shrink-0 bg-[#55B85A] text-white transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A]/30"
+                                data-patient="{{ $patientName }}"
+                                data-birthdate="{{ $patient->birthdate?->format('M d, Y') ?? 'Not recorded' }}"
+                                data-edd="{{ $patient->edd?->format('M d, Y') ?? 'Not recorded' }}"
+                                data-assessment="{{ $latestAssessment?->visit_date?->format('M d, Y') ?? 'Not recorded' }}"
+                                data-url="{{ route('referrals.create', $referralParameters) }}"
+                            >
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                </svg>
+                                Create Referral
+                            </button>
+
+                        </li>
+
+
+                    @empty
+
+                        {{-- Empty State --}}
+                        <li class="px-4 py-14 text-center sm:px-6">
+
+                            <div class="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                                <svg
+                                    class="h-5 w-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                            </div>
+
+                            @if($search !== '')
+
+                                <p class="mt-3 font-semibold text-gray-700">
+                                    No patients found
+                                </p>
+
+                                <p class="mt-1 text-sm text-gray-400">
+                                    No high-risk patients match your search.
+                                </p>
+
+                                <a
+                                    href="{{ route('referrals.select-patient') }}"
+                                    class="mt-3 inline-flex text-sm font-semibold text-[#19355F] hover:underline"
+                                >
+                                    Clear search
+                                </a>
+
+                            @else
+
+                                <p class="mt-3 font-semibold text-gray-700">
+                                    No patients available for referral
+                                </p>
+
+                                <p class="mt-1 text-sm text-gray-400">
+                                    There are currently no high-risk patients available.
+                                </p>
+
+                            @endif
+
+                        </li>
+
+                    @endforelse
+
+                </ul>
+
+
+                {{-- Pagination --}}
+                @if($patients->total() > 0)
+
+                    <div class="border-t border-gray-100 bg-gray-50 px-4 py-4 sm:px-6">
+
+                        <div
+                            class="flex flex-col gap-4
+                                   sm:flex-row sm:items-center sm:justify-between"
+                        >
+
+                            {{-- Result Count --}}
+                            <p class="text-sm text-gray-500">
+                                Showing
+
+                                <span class="font-medium text-gray-700">
+                                    {{ $patients->firstItem() }}
+                                </span>
+
+                                to
+
+                                <span class="font-medium text-gray-700">
+                                    {{ $patients->lastItem() }}
+                                </span>
+
+                                of
+
+                                <span class="font-medium text-gray-700">
+                                    {{ $patients->total() }}
+                                </span>
+
+                                patients
+                            </p>
+
+
+                            {{-- Laravel Pagination --}}
+                            @if($patients->hasPages())
+                                <div>
+                                    {{ $patients->links() }}
+                                </div>
+                            @endif
+
+                        </div>
 
                     </div>
 
-                </div>
-
-            @endif
-
-        </div>
-    </div>
-
-
-    {{-- =========================================================
-         CONFIRM PATIENT MODAL
-    ========================================================== --}}
-    <div
-        id="referral-confirmation-modal"
-        class="fixed inset-0 z-50 hidden items-center justify-center p-4"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="referral-modal-title"
-    >
-
-        {{-- Backdrop --}}
-        <div
-            id="referral-modal-backdrop"
-            class="absolute inset-0 bg-gray-900/50"
-        ></div>
-
-
-        {{-- Modal --}}
-        <div
-            class="relative w-full max-w-md overflow-hidden
-                   rounded-xl bg-white shadow-xl"
-        >
-
-            {{-- Header --}}
-            <div class="border-b border-gray-100 px-6 py-5">
-
-                <h2
-                    id="referral-modal-title"
-                    class="text-lg font-semibold text-gray-900"
-                >
-                    Confirm Patient
-                </h2>
-
-                <p class="mt-1 text-sm text-gray-500">
-                    Review the patient before proceeding with the referral.
-                </p>
+                @endif
 
             </div>
+        </div>
 
 
-            {{-- Patient Details --}}
-            <div class="px-6 py-5">
+        {{-- =========================================================
+             CONFIRM PATIENT MODAL
+        ========================================================== --}}
+        <div
+            id="referral-confirmation-modal"
+            class="fixed inset-0 z-50 hidden items-center justify-center px-4 py-6 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="referral-modal-title"
+        >
 
+            {{-- Backdrop --}}
+            <div
+                id="referral-modal-backdrop"
+                class="absolute inset-0 bg-black/40"
+            ></div>
+
+
+            {{-- Modal --}}
+            <div
+                class="relative w-full max-w-md overflow-hidden
+                       rounded-xl bg-white p-6 shadow-xl"
+            >
+
+                {{-- Header --}}
+                <div class="mb-4">
+                    <h2
+                        id="referral-modal-title"
+                        class="text-lg font-semibold text-gray-900"
+                    >
+                        Confirm Patient
+                    </h2>
+
+                    <p class="mt-1 text-sm text-gray-500">
+                        Review the patient before proceeding with the referral.
+                    </p>
+                </div>
+
+
+                {{-- Patient Details --}}
                 <dl class="space-y-4">
 
                     <div>
@@ -389,135 +385,126 @@
 
                 </dl>
 
-            </div>
 
-
-            {{-- Actions --}}
-            <div
-                class="flex flex-col-reverse gap-2
-                       border-t border-gray-100 bg-gray-50
-                       px-6 py-4 sm:flex-row sm:justify-end"
-            >
-
-                <button
-                    id="cancel-referral"
-                    type="button"
-                    class="inline-flex items-center justify-center
-                           rounded-lg border border-gray-300 bg-white
-                           px-4 py-2.5 text-sm font-semibold
-                           text-gray-700 shadow-sm transition
-                           hover:bg-gray-50
-                           focus:outline-none focus:ring-2
-                           focus:ring-gray-300"
+                {{-- Actions --}}
+                <div
+                    class="mt-6 flex flex-col-reverse gap-2
+                           sm:flex-row sm:justify-end"
                 >
-                    Cancel
-                </button>
+
+                    <button
+                        id="cancel-referral"
+                        type="button"
+                        class="rounded-lg border border-gray-200 bg-white
+                               px-4 py-2 text-sm font-semibold text-gray-600
+                               transition hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
 
 
-                <a
-                    id="confirm-referral"
-                    href="#"
-                    class="inline-flex items-center justify-center
-                           rounded-lg bg-blue-600 px-4 py-2.5
-                           text-sm font-semibold text-white
-                           shadow-sm transition
-                           hover:bg-blue-700
-                           focus:outline-none focus:ring-2
-                           focus:ring-blue-500/30"
-                >
-                    Continue
-                </a>
+                    <a
+                        id="confirm-referral"
+                        href="#"
+                        class="rounded-lg bg-[#55B85A] px-4 py-2
+                               text-sm font-semibold text-white
+                               transition hover:bg-[#4aa04c]
+                               focus:outline-none focus:ring-2 focus:ring-[#55B85A]/30"
+                    >
+                        Continue
+                    </a>
+
+                </div>
 
             </div>
-
         </div>
-    </div>
 
 
-    {{-- =========================================================
-         MODAL SCRIPT
-    ========================================================== --}}
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        {{-- =========================================================
+             MODAL SCRIPT
+        ========================================================== --}}
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
 
-            const modal = document.getElementById('referral-confirmation-modal');
-            const backdrop = document.getElementById('referral-modal-backdrop');
+                const modal = document.getElementById('referral-confirmation-modal');
+                const backdrop = document.getElementById('referral-modal-backdrop');
 
-            const patientName = document.getElementById('modal-patient-name');
-            const birthdate = document.getElementById('modal-birthdate');
-            const edd = document.getElementById('modal-edd');
-            const assessment = document.getElementById('modal-assessment');
+                const patientName = document.getElementById('modal-patient-name');
+                const birthdate = document.getElementById('modal-birthdate');
+                const edd = document.getElementById('modal-edd');
+                const assessment = document.getElementById('modal-assessment');
 
-            const confirmButton = document.getElementById('confirm-referral');
-            const cancelButton = document.getElementById('cancel-referral');
+                const confirmButton = document.getElementById('confirm-referral');
+                const cancelButton = document.getElementById('cancel-referral');
 
-            const referralButtons =
-                document.querySelectorAll('.open-referral-modal');
-
-
-            function openModal(button) {
-
-                patientName.textContent =
-                    button.dataset.patient;
-
-                birthdate.textContent =
-                    button.dataset.birthdate;
-
-                edd.textContent =
-                    button.dataset.edd;
-
-                assessment.textContent =
-                    button.dataset.assessment;
-
-                confirmButton.href =
-                    button.dataset.url;
-
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-
-                document.body.classList.add('overflow-hidden');
-
-                cancelButton.focus();
-            }
+                const referralButtons =
+                    document.querySelectorAll('.open-referral-modal');
 
 
-            function closeModal() {
+                function openModal(button) {
 
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
+                    patientName.textContent =
+                        button.dataset.patient;
 
-                document.body.classList.remove('overflow-hidden');
+                    birthdate.textContent =
+                        button.dataset.birthdate;
 
-                confirmButton.href = '#';
-            }
+                    edd.textContent =
+                        button.dataset.edd;
+
+                    assessment.textContent =
+                        button.dataset.assessment;
+
+                    confirmButton.href =
+                        button.dataset.url;
+
+                    modal.classList.remove('hidden');
+                    modal.classList.add('flex');
+
+                    document.body.classList.add('overflow-hidden');
+
+                    cancelButton.focus();
+                }
 
 
-            referralButtons.forEach(function (button) {
+                function closeModal() {
 
-                button.addEventListener('click', function () {
-                    openModal(button);
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+
+                    document.body.classList.remove('overflow-hidden');
+
+                    confirmButton.href = '#';
+                }
+
+
+                referralButtons.forEach(function (button) {
+
+                    button.addEventListener('click', function () {
+                        openModal(button);
+                    });
+
+                });
+
+
+                cancelButton.addEventListener('click', closeModal);
+
+                backdrop.addEventListener('click', closeModal);
+
+
+                document.addEventListener('keydown', function (event) {
+
+                    if (
+                        event.key === 'Escape' &&
+                        !modal.classList.contains('hidden')
+                    ) {
+                        closeModal();
+                    }
+
                 });
 
             });
+        </script>
 
-
-            cancelButton.addEventListener('click', closeModal);
-
-            backdrop.addEventListener('click', closeModal);
-
-
-            document.addEventListener('keydown', function (event) {
-
-                if (
-                    event.key === 'Escape' &&
-                    !modal.classList.contains('hidden')
-                ) {
-                    closeModal();
-                }
-
-            });
-
-        });
-    </script>
-
+    </div>
 </x-app-layout>

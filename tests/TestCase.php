@@ -21,6 +21,45 @@ abstract class TestCase extends BaseTestCase
         $this->app = $this->createApplication();
 
         $this->ensureDatabaseIsolation();
+
+        $this->registerMysqlCompatibilityFunctions();
+    }
+
+    /**
+     * Test-only shim: register the MySQL-only SQL functions used by raw
+     * queries in production code (YEAR/MONTH/DAY in analytics and
+     * dashboard queries, CONCAT in risk search) on the isolated SQLite
+     * connection, so those queries behave like they do on MySQL.
+     *
+     * This intentionally lives in test infrastructure only: no production
+     * query, model, or service is changed, and the MySQL code path used
+     * at runtime is untouched. Returns NULL for NULL input, matching
+     * MySQL semantics.
+     */
+    private function registerMysqlCompatibilityFunctions(): void
+    {
+        $pdo = $this->app->make('db')->connection('sqlite')->getPdo();
+
+        $extract = static fn (?string $format): callable => static function ($value) use ($format) {
+            if ($value === null || $value === '') {
+                return null;
+            }
+
+            $timestamp = strtotime($value);
+
+            return $timestamp === false ? null : (int) date($format, $timestamp);
+        };
+
+        $pdo->sqliteCreateFunction('year', $extract('Y'));
+        $pdo->sqliteCreateFunction('month', $extract('n'));
+        $pdo->sqliteCreateFunction('day', $extract('j'));
+
+        $pdo->sqliteCreateFunction(
+            'concat',
+            static fn (...$parts): ?string => in_array(null, $parts, true)
+                ? null
+                : implode('', $parts)
+        );
     }
 
     /**

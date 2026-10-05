@@ -16,14 +16,33 @@ use Illuminate\Support\Facades\Mail;
 */
 
 beforeEach(function () {
-    // Only the isolated SQLite test schema lacks the manually added production columns.
-    \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) {
+    // The six profile columns normally come from the migration
+    // 2026_10_05_000002_add_profile_fields_to_users_table. Add them only
+    // when the running schema path has not created them yet.
+    $missing = array_filter(
+        ['first_name', 'middle_name', 'last_name', 'address', 'contact_number', 'birthday'],
+        fn (string $column) => !\Illuminate\Support\Facades\Schema::hasColumn('users', $column)
+    );
+
+    if ($missing === []) {
+        return;
+    }
+
+    \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) use ($missing) {
         foreach (['first_name', 'middle_name', 'last_name'] as $field) {
-            $table->string($field, 100)->nullable();
+            if (in_array($field, $missing, true)) {
+                $table->string($field, 100)->nullable();
+            }
         }
-        $table->text('address')->nullable();
-        $table->string('contact_number', 30)->nullable();
-        $table->date('birthday')->nullable();
+        if (in_array('address', $missing, true)) {
+            $table->text('address')->nullable();
+        }
+        if (in_array('contact_number', $missing, true)) {
+            $table->string('contact_number', 30)->nullable();
+        }
+        if (in_array('birthday', $missing, true)) {
+            $table->date('birthday')->nullable();
+        }
     });
 });
 
