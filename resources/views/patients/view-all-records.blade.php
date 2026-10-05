@@ -54,54 +54,55 @@
             <div class="border-b border-gray-100 px-5 py-5 sm:px-6">
 
                 <form
+                    id="view-all-records-search"
                     method="GET"
                     action="{{ route('view-all-records.index') }}"
-                    class="flex flex-col gap-3 sm:flex-row sm:items-end"
+                    class="flex flex-col gap-3 lg:flex-row lg:items-end"
                 >
                     {{-- Search --}}
                     <div class="min-w-0 flex-1">
-                        <label for="search" class="mb-1.5 block text-xs font-medium text-gray-600">Search Records</label>
-                        <div class="relative">
-                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                            <svg
-                                class="h-5 w-5 text-gray-400"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="m21 21-4.35-4.35
-                                       m1.35-5.4
-                                       a6.75 6.75 0 11-13.5 0
-                                       6.75 6.75 0 0113.5 0z"
-                                />
-                            </svg>
-                        </div>
-
-                        <label for="search" class="sr-only">
-                            Search by patient name or Patient ID
+                        <label for="search" class="mb-1.5 block text-xs font-medium text-gray-600">
+                            Search Records
                         </label>
 
-                        <input
-                            type="search"
-                            id="search"
-                            name="search"
-                            value="{{ $search }}"
-                            placeholder="Search by patient name or Patient ID..."
-                            class="h-11 w-full rounded-lg border-gray-300 pl-10 pr-4 text-sm text-gray-900
-                                   placeholder:text-gray-400
-                                   focus:border-green-500 focus:ring-green-500"
-                        >
-                    </div>
+                        <div class="relative">
+                            <input
+                                type="search"
+                                id="search"
+                                name="search"
+                                value="{{ $search }}"
+                                placeholder="Search by patient name or Patient ID..."
+                                class="h-11 w-full rounded-lg border border-gray-300 pl-4 pr-12 text-sm text-gray-900
+                                       placeholder:text-gray-400
+                                       focus:border-green-500 focus:ring-green-500
+                                       [&::-webkit-search-cancel-button]:appearance-none
+                                       [&::-webkit-search-decoration]:appearance-none"
+                            >
 
-
+                            <button
+                                type="submit"
+                                class="absolute inset-y-0 right-0 flex items-center px-3
+                                       text-gray-400 hover:text-green-600
+                                       focus:outline-none focus-visible:ring-2 focus-visible:ring-green-500 rounded-r-lg"
+                                aria-label="Search"
+                            >
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="m21 21-4.35-4.35
+                                           m1.35-5.4
+                                           a6.75 6.75 0 11-13.5 0
+                                           6.75 6.75 0 0113.5 0z"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                     {{-- Status --}}
-                    <div class="w-full sm:w-48 sm:shrink-0">
+                    <div class="w-full lg:w-48 lg:shrink-0">
                         <label for="status" class="mb-1.5 block text-xs font-medium text-gray-600">
                             Status
                         </label>
@@ -110,11 +111,11 @@
                             id="status"
                             name="status"
                             onchange="this.form.submit()"
-                            class="h-11 w-full rounded-lg border-gray-300 pl-3 pr-10 text-sm text-gray-700
+                            class="h-11 w-full rounded-lg border border-gray-300 pl-3 pr-10 text-sm text-gray-700
                                    focus:border-green-500 focus:ring-green-500"
                         >
                             <option value="" @selected($status === '')>
-                                All Statuses
+                                All Status
                             </option>
 
                             <option value="ONGOING" @selected($status === 'ONGOING')>
@@ -130,11 +131,6 @@
                             </option>
                         </select>
                     </div>
-
-                    {{-- Search still works by Enter --}}
-                    <button type="submit" class="sr-only">
-                        Search
-                    </button>
                 </form>
 
             </div>
@@ -504,5 +500,30 @@
         </div>
 
     </div>
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('view-all-records-search');
+    const searchInput = form?.querySelector('input[name="search"]');
+
+    if (!form || !searchInput) return;
+
+    let searchTimer;
+    let lastSubmittedValue = searchInput.value.trim();
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+
+        searchTimer = setTimeout(function () {
+            const currentValue = searchInput.value.trim();
+
+            if (currentValue === lastSubmittedValue) return;
+
+            lastSubmittedValue = currentValue;
+            form.submit();
+        }, 350);
+    });
+});
+</script>
     </div>
+    
 </x-app-layout>

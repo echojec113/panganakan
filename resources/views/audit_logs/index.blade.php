@@ -51,8 +51,18 @@
         .audit-logs-theme * { box-sizing: border-box; }
         .audit-logs-theme .flex > * { min-width: 0; }
         .audit-logs-theme form.audit-filter { flex-wrap: wrap; }
-        .audit-logs-theme form.audit-filter input { flex: 1 1 220px; min-width: 0; max-width: 100%; }
-        .audit-logs-theme form.audit-filter select { min-width: 0; max-width: 100%; }
+.audit-logs-theme form.audit-filter input { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+.audit-logs-theme form.audit-filter select {
+    min-width: 0;
+    max-width: 100%;
+    /* Reserve space for the native dropdown arrow so text isn't clipped */
+    padding-right: 2.25rem;
+    text-overflow: ellipsis;
+}
+.audit-logs-theme form.audit-filter select.audit-select-fixed {
+    /* Fixed min width on desktop so labels never clip */
+    min-width: 10rem;
+}
         .audit-logs-theme table { table-layout: fixed; }
         .audit-logs-theme th:nth-child(4) { width: 30%; }
         .audit-logs-theme td { overflow-wrap: anywhere; }
@@ -89,27 +99,38 @@
             class="mb-6"
         />
 
-        <!-- FILTERS (UNCHANGED DESIGN, RESPONSIVE LANG) -->
-        <form method="GET" class="audit-filter flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm md:flex-row md:items-center mb-6">
+                <!-- FILTERS (UNCHANGED DESIGN, RESPONSIVE LANG) -->
+        <form id="audit-logs-search" method="GET" class="audit-filter flex flex-col gap-3 rounded-2xl border bg-white p-4 shadow-sm md:flex-row md:items-center mb-6">
 
-            <input type="text" name="search" value="{{ request('search') }}"
-                placeholder="Search description..."
-                class="audit-filter w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+            <div class="relative w-full md:w-auto md:flex-1">
+                <input type="search" name="search" value="{{ request('search') }}"
+                    placeholder="Search description..."
+                    class="audit-filter w-full rounded-lg border px-4 pr-12 py-2 text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none">
 
-            <select name="action" class="audit-select w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+                <button type="submit"
+                    class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-[#55B85A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#55B85A] rounded-r-lg"
+                    aria-label="Search">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <select name="action" class="audit-select audit-select-fixed w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
                 <option value="">All Actions</option>
                 <option value="CREATE" {{ request('action') == 'CREATE' ? 'selected' : '' }}>Create</option>
                 <option value="UPDATE" {{ request('action') == 'UPDATE' ? 'selected' : '' }}>Update</option>
                 <option value="DELETE" {{ request('action') == 'DELETE' ? 'selected' : '' }}>Delete</option>
             </select>
 
-            <select name="module" class="audit-select w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+            <select name="module" class="audit-select audit-select-fixed w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
                 <option value="">All Modules</option>
                 <option value="STAFF" {{ request('module') == 'STAFF' ? 'selected' : '' }}>Staff</option>
                 <option value="PATIENT" {{ request('module') == 'PATIENT' ? 'selected' : '' }}>Patient</option>
             </select>
 
-            <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#55B85A] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2">
+            <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#55B85A] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2 whitespace-nowrap">
                 Apply Filters
             </button>
         </form>
@@ -186,4 +207,29 @@
 
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const form = document.getElementById('audit-logs-search');
+            const searchInput = form?.querySelector('input[name="search"]');
+
+            if (!form || !searchInput) return;
+
+            let searchTimer;
+            let lastSubmittedValue = searchInput.value.trim();
+
+            searchInput.addEventListener('input', function () {
+                clearTimeout(searchTimer);
+
+                searchTimer = setTimeout(function () {
+                    const currentValue = searchInput.value.trim();
+
+                    if (currentValue === lastSubmittedValue) return;
+
+                    lastSubmittedValue = currentValue;
+                    form.submit();
+                }, 350);
+            });
+        });
+    </script>
 </x-app-layout>
