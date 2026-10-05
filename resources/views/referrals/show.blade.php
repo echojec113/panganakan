@@ -148,6 +148,9 @@
 
     <x-flash type="success" :message="session('success')" class="mb-6" />
     <x-flash type="error" :message="session('error')" class="mb-6" />
+    {{-- Server-side validation rejections (e.g. the optional refusal image
+         failing type/size rules) surface here; renders nothing when clean. --}}
+    <x-error-summary :errors="$errors" />
 
     {{-- A. Patient + destination header --}}
     <x-app-header class="mb-8">
@@ -300,6 +303,13 @@
                         <div class="mt-3 pt-3 border-t border-orange-100">
                             <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Refusal Notes</p>
                             <p class="mt-1 text-sm text-gray-800">{{ $referral->refusal_notes }}</p>
+                        </div>
+                        @endif
+                        @if($referral->refusal_image_path)
+                        <div class="mt-3 pt-3 border-t border-orange-100">
+                            <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Supporting Image</p>
+                            <a href="{{ route('referrals.refusal-image', $referral) }}" target="_blank" rel="noopener noreferrer"
+                                class="mt-1 inline-flex items-center text-sm font-semibold text-[#55B85A] hover:underline">View Supporting Image</a>
                         </div>
                         @endif
                     </div>
@@ -541,7 +551,7 @@
             <h3 class="text-lg font-semibold text-gray-900">Record Referral Refusal</h3>
             <button type="button" onclick="closeRefuseModal()" aria-label="Close" class="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
-        <form method="POST" id="refuseForm">
+        <form method="POST" id="refuseForm" enctype="multipart/form-data">
             @csrf
             <p class="text-sm text-gray-500">
                 Record that the patient refused this referral. The staff member and time are recorded automatically.
@@ -554,6 +564,12 @@
                 <input type="checkbox" name="waiver_signed" value="1" class="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500">
                 Physical waiver signed/recorded
             </label>
+            <label for="refusal-image" class="block mt-4 text-sm font-medium text-gray-700">Supporting Image (Optional)</label>
+            <input type="file" id="refusal-image" name="refusal_image"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                class="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-700 hover:file:bg-gray-200 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500">
+            <p class="mt-1 text-xs text-gray-500">JPG, JPEG, PNG, or WebP. Maximum 5MB.</p>
+            <p id="refusal-image-error" role="alert" class="mt-1 hidden text-sm font-medium text-red-600"></p>
             <div class="mt-6 flex justify-end gap-3">
                 <button type="button" onclick="closeRefuseModal()" class="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition">Back</button>
                 <button type="submit" class="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition">Record Refusal</button>
@@ -628,6 +644,70 @@
         if (button) button.disabled = true;
         form.requestSubmit();
     }
+
+    // Optional supporting-image checks: immediate UX feedback only — the
+    // browser clears an invalid selection and shows the same message the
+    // server would return. Server-side Laravel validation stays authoritative.
+    (function () {
+        const imageInput = document.getElementById('refusal-image');
+        const imageError = document.getElementById('refusal-image-error');
+        const imageForm = document.getElementById('refuseForm');
+        if (!imageInput || !imageError || !imageForm) return;
+
+        const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+        const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+
+        function showImageError(message) {
+            imageError.textContent = message;
+            imageError.classList.remove('hidden');
+            imageInput.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+        }
+
+        function clearImageError() {
+            imageError.textContent = '';
+            imageError.classList.add('hidden');
+            imageInput.classList.remove('border-red-500', 'ring-1', 'ring-red-500');
+        }
+
+        function validateImageFile(file) {
+            if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+                return 'Please upload a JPG, JPEG, PNG, or WebP image.';
+            }
+            if (file.size > MAX_IMAGE_BYTES) {
+                return 'The supporting image must not exceed 5MB.';
+            }
+            return null;
+        }
+
+        imageInput.addEventListener('change', function () {
+            const file = this.files && this.files[0];
+            if (!file) {
+                clearImageError();
+                return;
+            }
+
+            const message = validateImageFile(file);
+            if (message) {
+                showImageError(message);
+                this.value = '';
+                return;
+            }
+
+            clearImageError();
+        });
+
+        imageForm.addEventListener('submit', function (event) {
+            const file = imageInput.files && imageInput.files[0];
+            if (!file) return;
+
+            const message = validateImageFile(file);
+            if (message) {
+                event.preventDefault();
+                showImageError(message);
+                imageInput.value = '';
+            }
+        });
+    })();
 </script>
 @endif
 

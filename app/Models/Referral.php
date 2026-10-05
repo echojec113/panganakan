@@ -25,6 +25,7 @@ class Referral extends Model
         'refusal_recorded_at',
         'refusal_recorded_by',
         'refusal_notes',
+        'refusal_image_path',
     ];
 
     protected $casts = [

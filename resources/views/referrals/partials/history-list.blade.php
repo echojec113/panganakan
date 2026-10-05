@@ -50,6 +50,13 @@
 
             @if($historyReferral->status === 'Refused' && $historyReferral->refusal_recorded_at)
                 <p class="text-[11px] text-gray-400 mt-0.5">Recorded {{ $historyReferral->refusal_recorded_at->format('M d') }}</p>
+                @if($historyReferral->refusal_image_path)
+                    {{-- Exact referral ID (never the patient's latest row), so
+                         the evidence link always opens THIS refusal's file. --}}
+                    <a href="{{ route('referrals.refusal-image', $historyReferral) }}" target="_blank" rel="noopener noreferrer"
+                        onclick="event.stopPropagation()"
+                        class="inline-block text-[11px] font-semibold text-[#55B85A] hover:underline mt-0.5">View Supporting Image</a>
+                @endif
             @elseif($historyReferral->status === 'Completed' && $historyReferral->completed_at)
                 <p class="text-[11px] text-gray-400 mt-0.5">Completed {{ $historyReferral->completed_at->format('M d, Y') }}</p>
             @endif

@@ -139,6 +139,12 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     Route::get('/referrals/{id}/print', [ReferralController::class, 'print'])
         ->name('referrals.print');
 
+    // Optional supporting image recorded with a refusal. Static suffix on a
+    // two-segment path, so it can never collide with the single-segment
+    // /referrals/{id} wildcard below. Auth only (no public storage URL).
+    Route::get('/referrals/{referral}/refusal-image', [ReferralController::class, 'refusalImage'])
+        ->name('referrals.refusal-image');
+
     Route::get('/referrals/{id}', [ReferralController::class, 'show'])
         ->name('referrals.show');
 

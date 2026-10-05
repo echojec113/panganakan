@@ -51,23 +51,30 @@ class ReferralFollowThroughService
      * narrative and a boolean "physical waiver signed/recorded" flag. The
      * refusal is server-stamped; the browser can never provide timestamps or
      * actor ids. `completed_at` stays null because the referral never closed.
+     *
+     * An optional server-generated storage path may accompany the refusal as
+     * supporting image evidence. The path always belongs to this exact
+     * referral row (a later referral for the same patient starts null and
+     * never inherits it). The request never supplies this value directly.
      */
     public function refuse(
         Referral $referral,
         User $actor,
         string $notes,
-        bool $waiverSigned
+        bool $waiverSigned,
+        ?string $imagePath = null
     ): Referral {
         if (trim($notes) === '') {
             throw new DomainException('A refusal note is required to record a refusal.');
         }
 
-        $this->transition($referral, 'Refused', function (Referral $row) use ($actor, $notes, $waiverSigned) {
+        $this->transition($referral, 'Refused', function (Referral $row) use ($actor, $notes, $waiverSigned, $imagePath) {
             $row->completed_at = null;
             $row->refusal_notes = $notes;
             $row->refusal_recorded_at = now();
             $row->refusal_recorded_by = $actor->id;
             $row->waiver_signed = (bool) $waiverSigned;
+            $row->refusal_image_path = $imagePath;
         });
 
         return $referral->refresh();

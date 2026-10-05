@@ -11,6 +11,8 @@ use App\Services\ReferralFollowThroughService;
 use App\Services\SystemNotificationService;
 use DomainException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ReferralController extends Controller
 {
@@ -496,15 +498,30 @@ public function analytics(Request $request)
      * Only Pending referrals may be refused. `refusal_notes` is required and
      * strongly validated; `waiver_signed` is a staff-entered boolean flag
      * documenting that a physical waiver was signed/recorded (documentation
-     * only — no legal claims, no digital signatures, no uploads). The
-     * server stamps `refusal_recorded_at` and `refusal_recorded_by`; the
-     * browser can never forge them. `completed_at` stays null.
+     * only — no legal claims, no digital signatures). An OPTIONAL supporting
+     * image (`refusal_image`) may be attached as evidence: it is validated
+     * server-side (image, JPG/JPEG/PNG/WebP, max 5 MB), stored on the public
+     * disk under a SERVER-GENERATED name in `referrals/`, and only its
+     * relative path is persisted on this exact referral row. The server
+     * stamps `refusal_recorded_at` and `refusal_recorded_by`; the browser
+     * can never forge them. `completed_at` stays null. The image is stored
+     * before the refusal operation runs, so if that operation then fails for
+     * ANY reason (DomainException from the lifecycle guard or an unexpected
+     * Throwable such as a QueryException during the database save), the
+     * newly stored file is deleted before the failure is handled/rethrown -
+     * only the file created by THIS request is ever removed, and files that
+     * already belong to a recorded refusal are never touched.
      */
     public function refuse(Request $request, $id)
     {
         $request->validate([
             'refusal_notes'  => 'required|string|min:10|max:2000',
             'waiver_signed'  => 'nullable|boolean',
+            'refusal_image'  => 'nullable|file|image|mimes:jpg,jpeg,png,webp|max:5120',
+        ], [
+            'refusal_image.max'   => 'The supporting image must not exceed 5MB.',
+            'refusal_image.mimes' => 'Please upload a JPG, JPEG, PNG, or WebP image.',
+            'refusal_image.image' => 'Please upload a JPG, JPEG, PNG, or WebP image.',
         ]);
 
         $referral = Referral::with('patient')->findOrFail($id);
@@ -513,15 +530,51 @@ public function analytics(Request $request)
             return redirect()->back()->with('error', 'Delivered patients are read-only; referral status cannot be changed.');
         }
 
+        // Store the optional supporting image BEFORE the transition. The
+        // directory and filename are generated server-side: the request
+        // never controls the path and the original filename is never used.
+        // $storedImagePath is set ONLY by this request's storeAs() call, so
+        // it is the sole path cleanup is ever allowed to delete.
+        $storedImagePath = null;
+
+        if ($request->hasFile('refusal_image')) {
+            $file = $request->file('refusal_image');
+            $fileName = 'refusal_' . $referral->id . '_' . time() . '_' . Str::random(8)
+                . '.' . ($file->guessExtension() ?: 'jpg');
+
+            $storedPath = $file->storeAs('referrals', $fileName, 'public');
+
+            if ($storedPath === false) {
+                return redirect()->back()->with('error', 'The supporting image could not be stored. Please try again.');
+            }
+
+            $storedImagePath = $storedPath;
+        }
+
         try {
             $this->followThrough->refuse(
                 $referral,
                 auth()->user(),
                 $request->input('refusal_notes'),
-                $request->boolean('waiver_signed')
+                $request->boolean('waiver_signed'),
+                $storedImagePath
             );
         } catch (DomainException $e) {
+            // Existing user-facing behavior: lifecycle guard failures show
+            // their message as an error flash. The refusal was never
+            // recorded, so the file newly stored by this request is removed
+            // (no orphan). Files belonging to other records are never touched.
+            $this->deleteStoredRefusalImage($storedImagePath);
+
             return redirect()->back()->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            // Unexpected failure after the file was stored (e.g. a
+            // QueryException while persisting refusal_image_path): remove
+            // ONLY this request's newly stored file, then rethrow so the
+            // original error is never swallowed or replaced.
+            $this->deleteStoredRefusalImage($storedImagePath);
+
+            throw $e;
         }
 
         // Audit log
@@ -530,12 +583,32 @@ public function analytics(Request $request)
             'REFERRAL',
             'Recorded refusal for referral #' . $referral->id . ' for patient: ' . $referral->patient->first_name . ' ' . $referral->patient->last_name
                 . ' (Pending -> Refused)' . ($referral->waiver_signed ? ' — physical waiver signed/recorded' : ' — no waiver signed')
+                . ($storedImagePath !== null ? ' — supporting image attached' : '')
         );
 
         $this->notifications->notifyReferralClosed($referral);
 
         return redirect()->back()
             ->with('success', 'Referral refusal recorded.');
+    }
+
+    /**
+     * Delete ONLY a supporting image newly stored by the current refusal
+     * request. Defensive guards: the path must be non-null and must live
+     * under this feature's `referrals/` folder, so an unrelated or already
+     * persisted file can never be removed by mistake. Runs only when the
+     * refusal was NOT recorded (transaction rolled back / guard rejected),
+     * meaning the database never references the deleted path.
+     */
+    private function deleteStoredRefusalImage(?string $path): void
+    {
+        if ($path === null || !Str::startsWith($path, 'referrals/')) {
+            return;
+        }
+
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     /**
@@ -616,6 +689,26 @@ public function analytics(Request $request)
         ])->findOrFail($id);
 
         return view('referrals.show', compact('referral'));
+    }
+
+    /**
+     * Stream the optional supporting image stored with a recorded refusal.
+     *
+     * The path always comes from the persisted referral row — never from the
+     * request — and mirrors the UltrasoundController::file() pattern: the
+     * route sits inside the authenticated no-store group, and a missing
+     * file resolves to 404 just like the detail page of an archived row
+     * (route-model binding applies the SoftDeletes scope automatically).
+     */
+    public function refusalImage(Referral $referral)
+    {
+        $path = $referral->refusal_image_path;
+
+        if (!$path || !Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        return response()->file(Storage::disk('public')->path($path));
     }
 
     /**
