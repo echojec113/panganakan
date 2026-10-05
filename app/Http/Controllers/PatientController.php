@@ -6,8 +6,11 @@ use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use App\Services\PregnancyOutcomeRecordingService;
 use App\Services\PregnancyOutcomeMonitoringService;
+use App\Support\ListNormalizer;
 use App\Support\PregnancyOutcomeVocabulary;
 use App\Support\WeightFormatter;
+use App\ValueObjects\ClinicalFactorEvidence;
+use App\ValueObjects\ClinicalInteractionEvidence;
 use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\Request;
@@ -340,7 +343,7 @@ class PatientController extends Controller
             'format' => 'required|in:csv',
         ]);
 
-        $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','ultrasounds','babies'])->findOrFail($id);
+        $patient = Patient::with(['prenatalVisits','medicalHistory','birthPlan','ultrasounds','babies','pregnancyOutcome'])->findOrFail($id);
 
         $missingFields = $this->getPatientDownloadMissingFields($patient);
 
@@ -507,120 +510,747 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
         ->with('success', 'New pregnancy record created successfully.');
 }
 
+    /**
+     * Structured Patient Record CSV (Section, Field, Value — Format Version 2).
+     *
+     * One fact per record so a spreadsheet never expands a multiline cell into
+     * several physical rows. Every value is stored or already-derived
+     * application data: this method never recalculates risk, never invents a
+     * placeholder record, and never emits raw JSON, storage paths, audit
+     * timestamps, foreign keys, or the Safety Disclaimer narrative.
+     */
     private function downloadPatientCsv(Patient $patient)
     {
-        $latestVisit = $this->latestPrenatalVisit($patient);
-
-        $patientInfo = collect([
-            'Name' => trim($patient->first_name . ' ' . ($patient->middle_name ? $patient->middle_name . ' ' : '') . $patient->last_name),
-            'Age' => $patient->age,
-            'Birthdate' => $patient->birthdate,
-            'Address' => str_replace("\n", ', ', $patient->formatted_address),
-            'Contact Number' => $patient->contact_number,
-            'Civil Status' => $patient->civil_status,
-            'PhilHealth Member' => $patient->philhealth_member ? 'Yes' : 'No',
-            'PhilHealth Number' => $patient->philhealth_number ?: 'N/A',
-        ])->map(fn($value, $key) => "$key: $value")->implode("\n");
-
-        $pregnancyInfo = collect([
-            'Gravida' => $patient->gravida,
-            'Para' => $patient->para,
-            'LMP' => $patient->lmp,
-            'EDD' => $patient->edd,
-            'Pregnancy Status' => $patient->status === 'DELIVERED' ? 'Delivered' : 'Ongoing',
-            'Delivery Date' => $patient->delivery_date ?: 'N/A',
-        ])->map(fn($value, $key) => "$key: $value")->implode("\n");
-
-        $medicalHistory = collect([
-            'Epilepsy' => $patient->medicalHistory->epilepsy ? 'Yes' : 'No',
-            'Severe Headache' => $patient->medicalHistory->severe_headache ? 'Yes' : 'No',
-            'Visual Disturbance' => $patient->medicalHistory->visual_disturbance ? 'Yes' : 'No',
-            'Chest Pain' => $patient->medicalHistory->chest_pain ? 'Yes' : 'No',
-            'Shortness of Breath' => $patient->medicalHistory->shortness_breath ? 'Yes' : 'No',
-            'Breast Mass' => $patient->medicalHistory->breast_mass ? 'Yes' : 'No',
-            'Liver Disease' => $patient->medicalHistory->liver_disease ? 'Yes' : 'No',
-            'Smoking' => $patient->medicalHistory->smoking ? 'Yes' : 'No',
-            'Allergies' => $patient->medicalHistory->allergies ? 'Yes' : 'No',
-            'Drug Intake' => $patient->medicalHistory->drug_intake ? 'Yes' : 'No',
-            'STD History' => $patient->medicalHistory->std_history ? 'Yes' : 'No',
-            'Diabetes' => $patient->medicalHistory->diabetes ? 'Yes' : 'No',
-            'Hypertension' => $patient->medicalHistory->hypertension ? 'Yes' : 'No',
-            'Asthma' => $patient->medicalHistory->asthma ? 'Yes' : 'No',
-            'Thyroid Disease' => $patient->medicalHistory->thyroid_disease ? 'Yes' : 'No',
-            'Heart Disease' => $patient->medicalHistory->heart_disease ? 'Yes' : 'No',
-            'Anemia' => $patient->medicalHistory->anemia ? 'Yes' : 'No',
-            'Mental Health Condition' => $patient->medicalHistory->mental_health_condition ? 'Yes' : 'No',
-        ])->map(fn($value, $key) => "$key: $value")->implode("\n");
-
-        if ($patient->medicalHistory->other_specify) {
-            $medicalHistory .= "\nOther: " . $patient->medicalHistory->other_specify;
-        }
-
-        $latestVisitInfo = 'No visit recorded';
-        $riskData = 'No risk data available';
-
-        if ($latestVisit) {
-            $latestVisitInfo = collect([
-                'Visit Date' => $latestVisit->visit_date,
-                'Blood Pressure' => $latestVisit->bp_sys . '/' . $latestVisit->bp_dia,
-                'Weight' => $latestVisit->weight !== null
-                    ? WeightFormatter::formatKg($latestVisit->weight) . ' kg'
-                    : null,
-                'Temperature' => $latestVisit->temperature,
-                'Gestational Age' => $latestVisit->gestational_age,
-                'Assessment' => $latestVisit->assessment,
-                'Risk Level' => $latestVisit->risk_level,
-                'Risk Factors' => $latestVisit->risk_reasons,
-                'Next Visit Date' => $latestVisit->next_visit_date,
-            ])->map(fn($value, $key) => "$key: " . ($value ?: 'N/A'))->implode("\n");
-
-            $riskData = collect([
-                'Current Risk Level' => $latestVisit->risk_level,
-                'Identified Risk Factors' => $latestVisit->risk_reasons ?: 'N/A',
-                'Overdue Status' => $latestVisit->next_visit_date && Carbon::parse($latestVisit->next_visit_date)->isPast() ? 'Overdue' : 'On time',
-            ])->map(fn($value, $key) => "$key: $value")->implode("\n");
-        }
-
-        $csvRows = [];
-        $csvRows[] = ['Patient Info', 'Pregnancy Info', 'Medical History', 'Latest Visit', 'Risk Data'];
-        $csvRows[] = [$patientInfo, $pregnancyInfo, $medicalHistory, $latestVisitInfo, $riskData];
-
-        // Add baby information for delivered patients
-        if ($patient->status === 'DELIVERED' && $patient->babies->count() > 0) {
-            $csvRows[] = ['', '', '', '', '']; // Empty row for separation
-            $csvRows[] = ['Baby Information', '', '', '', ''];
-
-            foreach ($patient->babies as $index => $baby) {
-                $babyNumber = $index + 1;
-                $babyInfo = collect([
-                    'Baby ' . $babyNumber . ' Name' => $baby->full_name,
-                    'Sex' => $baby->sex ?: 'N/A',
-                    'Date of Birth' => $baby->date_of_birth ? Carbon::parse($baby->date_of_birth)->format('M d, Y') : 'N/A',
-                    'Time of Birth' => $baby->time_of_birth ? Carbon::parse($baby->time_of_birth)->format('g:i A') : 'N/A',
-                    'Birth Weight' => $baby->birth_weight !== null
-                        ? WeightFormatter::formatKg($baby->birth_weight) . ' kg'
-                        : 'N/A',
-                    'Birth Length' => $baby->birth_length ? $baby->birth_length . ' cm' : 'N/A',
-                ])->map(fn($value, $key) => "$key: $value")->implode("\n");
-
-                $csvRows[] = [$babyInfo, '', '', '', ''];
-            }
-        }
-
-        $filename = $this->patientRecordFilename($patient, 'csv');
         $handle = fopen('php://memory', 'r+');
 
-        foreach ($csvRows as $row) {
-            fputcsv($handle, $row);
+        foreach ($this->patientRecordCsvRows($patient) as $row) {
+            fputcsv(
+                $handle,
+                array_map(fn ($value) => $this->csvCellValue($value), $row),
+                ',',
+                '"',
+                ''
+            );
         }
 
         rewind($handle);
         $content = stream_get_contents($handle);
+        fclose($handle);
+
+        // UTF-8 BOM: Excel on Windows only renders °C / • / – with a BOM.
+        $content = "\xEF\xBB\xBF" . $content;
 
         return response($content, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Disposition' => 'attachment; filename="' . $this->patientRecordFilename($patient, 'csv') . '"',
         ]);
+    }
+
+    /**
+     * Every exported row as [Section, Field, Value], in a fixed order.
+     *
+     * A section with no stored record is omitted instead of being invented
+     * (no Birth Plan section without a birth plan, no Risk Assessment section
+     * without a visit, no fake "No risk data available" placeholder).
+     *
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function patientRecordCsvRows(Patient $patient): array
+    {
+        return array_merge(
+            [['Section', 'Field', 'Value']],
+            $this->csvPatientInformationRows($patient),
+            $this->csvCurrentPregnancyRows($patient),
+            $this->csvMedicalHistoryRows($patient),
+            $this->csvPrenatalVisitRows($patient),
+            $this->csvRiskAssessmentRows($patient),
+            $this->csvBirthPlanRows($patient),
+            $this->csvUltrasoundRows($patient),
+            $this->csvBabyRows($patient),
+            $this->csvPregnancyOutcomeRows($patient),
+            $this->csvExportMetadataRows(),
+        );
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvPatientInformationRows(Patient $patient): array
+    {
+        $section = 'Patient Information';
+
+        $fullName = trim(
+            $patient->first_name . ' '
+            . ($patient->middle_name ? $patient->middle_name . ' ' : '')
+            . $patient->last_name
+        );
+
+        // Structured components take precedence over the legacy single-column
+        // address, exactly like Patient::getFormattedAddressAttribute().
+        $hasStructuredAddress = trim((string) $patient->address_line) !== ''
+            || trim((string) $patient->barangay) !== ''
+            || trim((string) $patient->city_municipality) !== '';
+
+        $rows = [
+            [$section, 'Patient ID', $patient->id],
+            [$section, 'Full Name', $fullName],
+            [$section, 'Birthdate', $this->csvDate($patient->birthdate)],
+            [$section, 'Age', $patient->age],
+            [$section, 'Civil Status', $patient->civil_status],
+            [$section, 'Address Line', $hasStructuredAddress ? $patient->address_line : $patient->address],
+            [$section, 'Barangay', $hasStructuredAddress ? $patient->barangay : null],
+            [$section, 'City / Municipality', $hasStructuredAddress ? $patient->city_municipality : null],
+            [$section, 'Contact Number', $patient->contact_number],
+        ];
+
+        if ($patient->email) {
+            $rows[] = [$section, 'Email Address', $patient->email];
+        }
+
+        $rows[] = [$section, 'PhilHealth Member', $patient->philhealth_member ? 'Yes' : 'No'];
+
+        if ($patient->philhealth_number) {
+            $rows[] = [$section, 'PhilHealth Number', $patient->philhealth_number];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvCurrentPregnancyRows(Patient $patient): array
+    {
+        $section = 'Current Pregnancy';
+
+        $rows = [
+            [$section, 'Gravida', $patient->gravida],
+            [$section, 'Para', $patient->para],
+            [$section, 'LMP', $this->csvDate($patient->lmp)],
+            [$section, 'EDD', $this->csvDate($patient->edd)],
+            [$section, 'Pregnancy Status', $this->csvPregnancyStatus($patient->status)],
+        ];
+
+        if ($patient->delivery_date !== null) {
+            $rows[] = [$section, 'Delivery Date', $this->csvDate($patient->delivery_date)];
+        }
+
+        if ($patient->previous_cs !== null) {
+            $rows[] = [$section, 'Previous Cesarean Section', $patient->previous_cs ? 'Yes' : 'No'];
+        }
+
+        if ($patient->miscarriage !== null) {
+            $rows[] = [$section, 'Previous Miscarriage Count', $patient->miscarriage];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * MedicalHistory is not guaranteed: the export gate does not require one,
+     * so a missing record must never be dereferenced and must never be
+     * fabricated into condition rows. The section states Recorded: No only.
+     *
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvMedicalHistoryRows(Patient $patient): array
+    {
+        $section = 'Medical History';
+        $history = $patient->medicalHistory;
+
+        if ($history === null) {
+            return [[$section, 'Recorded', 'No']];
+        }
+
+        $rows = [[$section, 'Recorded', 'Yes']];
+
+        $conditions = [
+            'Epilepsy' => 'epilepsy',
+            'Severe Headache' => 'severe_headache',
+            'Visual Disturbance' => 'visual_disturbance',
+            'Chest Pain' => 'chest_pain',
+            'Shortness of Breath' => 'shortness_breath',
+            'Breast Mass' => 'breast_mass',
+            'Liver Disease' => 'liver_disease',
+            'Smoking' => 'smoking',
+            'Allergies' => 'allergies',
+            'Drug Intake' => 'drug_intake',
+            'STD History' => 'std_history',
+            'Diabetes' => 'diabetes',
+            'Hypertension' => 'hypertension',
+            'Asthma' => 'asthma',
+            'Thyroid Disease' => 'thyroid_disease',
+            'Heart Disease' => 'heart_disease',
+            'Anemia' => 'anemia',
+            'Mental Health Condition' => 'mental_health_condition',
+        ];
+
+        foreach ($conditions as $label => $column) {
+            $rows[] = [$section, $label, $history->{$column} ? 'Yes' : 'No'];
+        }
+
+        if ($history->other_specify) {
+            $rows[] = [$section, 'Other', $history->other_specify];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * All prenatal visits, newest first (visit_date, then id as tie-breaker).
+     * The newest encounter is section "Prenatal Visit 1 (Latest)"; older
+     * assessments stay in the export rather than being dropped.
+     *
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvPrenatalVisitRows(Patient $patient): array
+    {
+        $sectionLabel = 'Prenatal Visit';
+
+        $visits = $patient->prenatalVisits()
+            ->orderByDesc('visit_date')
+            ->orderByDesc('id')
+            ->get();
+
+        $rows = [];
+
+        foreach ($visits->values() as $index => $visit) {
+            $number = $index + 1;
+            $section = $number === 1
+                ? $sectionLabel . ' 1 (Latest)'
+                : $sectionLabel . ' ' . $number;
+
+            $rows[] = [$section, 'Visit Date', $this->csvDate($visit->visit_date)];
+            $rows[] = [$section, 'Is Latest Visit', $number === 1 ? 'Yes' : 'No'];
+            $rows[] = [$section, 'Blood Pressure', $this->csvBloodPressure($visit->bp_sys, $visit->bp_dia)];
+            $rows[] = [$section, 'Repeat Blood Pressure', $this->csvBloodPressure($visit->repeat_bp_sys, $visit->repeat_bp_dia)];
+            $rows[] = [$section, 'Repeat BP Recorded At', $this->csvDateTime($visit->repeat_bp_recorded_at)];
+            $rows[] = [$section, 'BP Verification Status', $visit->bp_verification_status ? str_replace('_', ' ', $visit->bp_verification_status) : null];
+            $rows[] = [$section, 'Weight', $visit->weight !== null ? WeightFormatter::formatKg($visit->weight) . ' kg' : null];
+            $rows[] = [$section, 'Temperature', $visit->temperature !== null ? $this->csvNumber($visit->temperature) . ' °C' : null];
+            $rows[] = [$section, 'Gestational Age', $visit->gestational_age !== null ? $this->csvNumber($visit->gestational_age) . ' wks' : null];
+            $rows[] = [$section, 'Risk Factors', implode(' | ', $this->identifiedRiskFactors($visit))];
+            $rows[] = [$section, 'Clinical Assessment', $visit->assessment];
+            $rows[] = [$section, 'Recommended Action', $visit->recommendation];
+            $rows[] = [$section, 'Next Visit Date', $this->csvDate($visit->next_visit_date)];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Risk Assessment is the stored summary of the latest visit only. Without
+     * a visit there is no stored assessment to export, so the section is
+     * omitted rather than filled with placeholders or a fresh recalculation.
+     *
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvRiskAssessmentRows(Patient $patient): array
+    {
+        $latestVisit = $this->latestPrenatalVisit($patient);
+
+        if ($latestVisit === null) {
+            return [];
+        }
+
+        $section = 'Risk Assessment';
+
+        $rows = [
+            [$section, 'Risk Level', $latestVisit->risk_level],
+            [$section, 'Decision Source', $this->csvDecisionSourceLabel($latestVisit->decision_source)],
+        ];
+
+        if ($latestVisit->urgency) {
+            $rows[] = [$section, 'Urgency', $this->csvUrgencyLabel($latestVisit->urgency)];
+        }
+
+        $identifiedFactors = $this->identifiedRiskFactors($latestVisit, true);
+
+        foreach ($identifiedFactors as $factor) {
+            $rows[] = [$section, 'Identified Risk Factor', $factor];
+        }
+
+        $bpAssessment = is_array($latestVisit->bp_assessment) ? $latestVisit->bp_assessment : [];
+
+        if (!empty($bpAssessment['label'])) {
+            $rows[] = [$section, 'BP Classification', $bpAssessment['label']];
+        }
+        $bpInterpretation = $bpAssessment['interpretation'] ?? $bpAssessment['clinical_interpretation'] ?? null;
+        if ($bpInterpretation) {
+            $rows[] = [$section, 'BP Interpretation', $bpInterpretation];
+        }
+        $bpAction = $bpAssessment['action'] ?? $bpAssessment['suggested_action'] ?? null;
+        if ($bpAction) {
+            $rows[] = [$section, 'BP Action', $bpAction];
+        }
+
+        $rows[] = [$section, 'Clinical Assessment', $latestVisit->assessment];
+        $rows[] = [$section, 'Recommended Action', $latestVisit->recommendation];
+
+        if ($latestVisit->next_visit_date !== null) {
+            $rows[] = [$section, 'Recommended Follow-up', $this->csvDate($latestVisit->next_visit_date)];
+        }
+
+        $rows[] = [$section, 'Next Visit Status', $this->csvNextVisitStatus($patient, $latestVisit)];
+
+        if ($latestVisit->decision_source === 'RULE_BASED') {
+            foreach (ListNormalizer::normalize($latestVisit->rule_reasons) as $rule) {
+                $rows[] = [$section, 'Triggered Clinical Rule', $rule];
+            }
+        }
+
+        if ($latestVisit->decision_source === 'COMPLETENESS') {
+            foreach (ListNormalizer::normalize($latestVisit->missing_records) as $record) {
+                $rows[] = [$section, 'Missing Required Record', $record];
+            }
+        }
+
+        if ($latestVisit->decision_source === 'MACHINE_LEARNING') {
+            if ($latestVisit->ml_prediction) {
+                $rows[] = [$section, 'ML Prediction', $latestVisit->ml_prediction];
+            }
+            $rows[] = [$section, 'ML Valid', $latestVisit->ml_valid ? 'Yes' : 'No'];
+        }
+
+        foreach (ClinicalFactorEvidence::normalizeList($latestVisit->factor_evidence) as $factor) {
+            $rows[] = [$section, 'Structured Clinical Factor', $this->csvFactorEvidenceValue($factor)];
+        }
+
+        $metadata = is_array($latestVisit->assessment_metadata) ? $latestVisit->assessment_metadata : [];
+        $interactions = ClinicalInteractionEvidence::normalizeList(
+            $metadata['interaction_evidence'] ?? $latestVisit->interaction_evidence ?? []
+        );
+
+        foreach ($interactions as $interaction) {
+            $rows[] = [$section, 'Clinical Interaction', $this->csvInteractionEvidenceValue($interaction)];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvBirthPlanRows(Patient $patient): array
+    {
+        $birthPlan = $patient->birthPlan;
+
+        if ($birthPlan === null) {
+            return [];
+        }
+
+        $section = 'Birth Plan';
+
+        return [
+            [$section, 'Planned Prenatal Visits', $birthPlan->planned_visits],
+            [$section, 'Deliver in Clinic', $birthPlan->deliver_in_clinic ? 'Yes' : 'No'],
+            [$section, 'Delivery Location', $birthPlan->delivery_location],
+            [$section, 'Transportation', $birthPlan->transportation],
+            [$section, 'Transport Cost Needed', $birthPlan->transport_cost ? 'Yes' : 'No'],
+            [$section, 'Payment Method', $birthPlan->payment_method],
+            [$section, 'Saving Started', $birthPlan->saving_started ? 'Yes' : 'No'],
+            [$section, 'Birth Companion', $birthPlan->birth_companion],
+            [$section, 'Caregiver at Home', $birthPlan->caregiver_home],
+            [$section, 'Plan More Children', $birthPlan->plan_more_children ? 'Yes' : 'No'],
+            [$section, 'Number of More Children', $birthPlan->number_more_children],
+            [$section, 'Knows Family Planning Method', $birthPlan->knows_fp_method ? 'Yes' : 'No'],
+            [$section, 'Used Family Planning Before', $birthPlan->used_fp_before ? 'Yes' : 'No'],
+            [$section, 'Family Planning Method', $birthPlan->family_planning_method],
+            [$section, 'FP Source', $birthPlan->fp_source],
+            [$section, 'Notes', $birthPlan->notes],
+        ];
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvUltrasoundRows(Patient $patient): array
+    {
+        $scans = $patient->ultrasounds()
+            ->orderByDesc('scan_date')
+            ->orderByDesc('id')
+            ->get();
+
+        if ($scans->isEmpty()) {
+            return [];
+        }
+
+        $rows = [];
+
+        foreach ($scans->values() as $index => $scan) {
+            $section = 'Ultrasound ' . ($index + 1);
+
+            $rows[] = [$section, 'Scan Date', $this->csvDate($scan->scan_date)];
+            $rows[] = [$section, 'Gestational Age at Scan', $scan->gestational_age_scan !== null ? $this->csvNumber($scan->gestational_age_scan) . ' wks' : null];
+            $rows[] = [$section, 'Presentation', $scan->presentation];
+            $rows[] = [$section, 'Amniotic Fluid', $scan->amniotic_fluid];
+            $rows[] = [$section, 'Placenta Position', $scan->placenta_position];
+            $rows[] = [$section, 'Fetal Heartbeat', $scan->fetal_heartbeat];
+            $rows[] = [$section, 'Fetal Movement', $scan->fetal_movement];
+            $rows[] = [$section, 'Estimated Fetal Weight', $scan->estimated_fetal_weight];
+            $rows[] = [$section, 'Remarks', $scan->remarks];
+            $rows[] = [$section, 'Report On File', ($scan->report_file || $scan->report_image) ? 'Yes' : 'No'];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvBabyRows(Patient $patient): array
+    {
+        $babies = $patient->babies;
+
+        if ($babies->isEmpty()) {
+            return [];
+        }
+
+        $rows = [];
+
+        foreach ($babies->values() as $index => $baby) {
+            $section = 'Baby ' . ($index + 1);
+
+            $rows[] = [$section, 'Full Name', $baby->full_name];
+            $rows[] = [$section, 'Sex', $baby->sex];
+            $rows[] = [$section, 'Date of Birth', $this->csvDate($baby->date_of_birth)];
+            $rows[] = [$section, 'Time of Birth', $this->csvTime($baby->time_of_birth)];
+            $rows[] = [$section, 'Birth Weight', $baby->birth_weight !== null ? WeightFormatter::formatKg($baby->birth_weight) . ' kg' : null];
+            $rows[] = [$section, 'Birth Length', $baby->birth_length !== null ? $this->csvNumber($baby->birth_length) . ' cm' : null];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvPregnancyOutcomeRows(Patient $patient): array
+    {
+        $outcome = $patient->pregnancyOutcome;
+
+        if ($outcome === null) {
+            return [];
+        }
+
+        $section = 'Pregnancy Outcome';
+
+        return [
+            [$section, 'Outcome Type', $outcome->outcome_type],
+            [$section, 'Delivery Location', $outcome->delivery_location ? PregnancyOutcomeVocabulary::deliveryLocationLabel($outcome->delivery_location) : null],
+            [$section, 'Confirmation Source', $outcome->confirmation_source ? PregnancyOutcomeVocabulary::confirmationSourceLabel($outcome->confirmation_source) : null],
+            [$section, 'Confirmed At', $this->csvDateTime($outcome->confirmed_at)],
+            [$section, 'Follow-up Status', $outcome->follow_up_status ? PregnancyOutcomeVocabulary::followUpStatusLabel($outcome->follow_up_status) : null],
+            [$section, 'Notes', $outcome->notes],
+        ];
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string, 2: mixed}>
+     */
+    private function csvExportMetadataRows(): array
+    {
+        $section = 'Export';
+
+        return [
+            [$section, 'Exported At', now()->format('Y-m-d H:i')],
+            [$section, 'Format Version', 2],
+        ];
+    }
+
+    /**
+     * Plain-language identified risk factors, mirroring the profile and print
+     * views: rule reasons first, then risk reasons, de-duplicated. When
+     * $withBpLabel is true, a BP-URG classification is prepended the same way
+     * the print view does.
+     *
+     * @return array<int, string>
+     */
+    private function identifiedRiskFactors(PrenatalVisit $visit, bool $withBpLabel = false): array
+    {
+        $factors = array_values(array_unique(array_merge(
+            ListNormalizer::normalize($visit->rule_reasons),
+            ListNormalizer::normalize($visit->risk_reasons),
+        )));
+
+        $bpAssessment = is_array($visit->bp_assessment) ? $visit->bp_assessment : [];
+
+        if ($withBpLabel
+            && ($bpAssessment['reason_code'] ?? null) === 'BP-URG'
+            && !empty($bpAssessment['label'])
+            && !in_array($bpAssessment['label'], $factors, true)) {
+            array_unshift($factors, $bpAssessment['label']);
+        }
+
+        return $factors;
+    }
+
+    /**
+     * Single-line rendering of one structured clinical-factor evidence row,
+     * reusing the print view's labels and observed-value formatter.
+     *
+     * @param array<string, mixed> $factor
+     */
+    private function csvFactorEvidenceValue(array $factor): string
+    {
+        $sourceLabels = [
+            'MATERNAL_DEMOGRAPHICS' => 'Maternal demographics',
+            'VITAL_SIGNS' => 'Vital signs',
+            'CURRENT_CONDITION' => 'Current condition',
+            'OBSTETRIC_HISTORY' => 'Obstetric history',
+            'ULTRASOUND' => 'Ultrasound finding',
+        ];
+
+        $category = (string) ($factor['category'] ?? '');
+        $source = $sourceLabels[$category] ?? ($category !== '' ? $category : null);
+
+        $parts = [trim((string) ($factor['label'] ?? '')) . ' (' . (string) ($factor['code'] ?? '') . ')'];
+
+        if ($source !== null && $source !== '') {
+            $parts[] = 'Source: ' . $source;
+        }
+
+        $observed = ClinicalFactorEvidence::displayObserved($factor['observed_value'] ?? null);
+        if ($observed !== '' && $observed !== '—') {
+            $parts[] = 'Observed: ' . $observed;
+        }
+
+        if (!empty($factor['threshold_or_rule'])) {
+            $parts[] = 'Rule / Threshold: ' . $factor['threshold_or_rule'];
+        }
+
+        if (!empty($factor['explanation'])) {
+            $parts[] = (string) $factor['explanation'];
+        }
+
+        if (!empty($factor['suggested_action'])) {
+            $parts[] = 'Action: ' . $factor['suggested_action'];
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Single-line rendering of one clinical interaction evidence row, reusing
+     * the print view's labels.
+     *
+     * @param array<string, mixed> $interaction
+     */
+    private function csvInteractionEvidenceValue(array $interaction): string
+    {
+        $contextLabels = [
+            'ultrasound_inputs.amniotic_fluid' => 'Amniotic fluid',
+            'ultrasound_inputs.presentation' => 'Fetal presentation',
+        ];
+
+        $parts = [trim((string) ($interaction['label'] ?? '')) . ' (' . (string) ($interaction['code'] ?? '') . ')'];
+
+        $factorCodes = array_values(array_filter((array) ($interaction['required_factor_codes'] ?? []), 'is_string'));
+        if ($factorCodes !== []) {
+            $parts[] = 'Factors: ' . implode(', ', $factorCodes);
+        }
+
+        $observedLines = [];
+        foreach ((array) ($interaction['observed_context'] ?? []) as $path => $value) {
+            $label = $contextLabels[$path] ?? null;
+            if ($label !== null && $value !== null && trim((string) $value) !== '') {
+                $observedLines[] = $label . ': ' . $value;
+            }
+        }
+        if ($observedLines !== []) {
+            $parts[] = implode(' · ', $observedLines);
+        }
+
+        if (!empty($interaction['explanation'])) {
+            $parts[] = (string) $interaction['explanation'];
+        }
+
+        if (!empty($interaction['suggested_action'])) {
+            $parts[] = 'Action: ' . $interaction['suggested_action'];
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Follow-up status, identical to the print view's logic. Never reports
+     * Overdue/On schedule for a pregnancy that already closed.
+     */
+    private function csvNextVisitStatus(Patient $patient, PrenatalVisit $latestVisit): string
+    {
+        if ($patient->status === 'DELIVERED') {
+            return 'Delivered';
+        }
+
+        if ($patient->status === 'REFERRED') {
+            return 'Referred';
+        }
+
+        if ($latestVisit->next_visit_date === null) {
+            return 'Not scheduled';
+        }
+
+        return Carbon::parse($latestVisit->next_visit_date)->isPast() ? 'Overdue' : 'On schedule';
+    }
+
+    private function csvDecisionSourceLabel(?string $decisionSource): string
+    {
+        return match ($decisionSource) {
+            'COMPLETENESS' => 'Completeness Check',
+            'RULE_BASED' => 'Clinical Rules',
+            'MACHINE_LEARNING' => 'Machine Learning',
+            'MACHINE_LEARNING_INVALID' => 'ML Assessment Unavailable',
+            null => 'Legacy Assessment',
+            default => $decisionSource,
+        };
+    }
+
+    private function csvUrgencyLabel(string $urgency): string
+    {
+        $labels = [
+            'URGENT_CLINICAL_REVIEW' => 'Urgent Clinical Review',
+            'PROMPT' => 'Prompt Clinical Review',
+        ];
+
+        return $labels[$urgency] ?? $urgency;
+    }
+
+    /**
+     * Only the three approved pregnancy states; REFERRED must never collapse
+     * into Ongoing.
+     */
+    private function csvPregnancyStatus(?string $status): ?string
+    {
+        return match ($status) {
+            'ONGOING' => 'Ongoing',
+            'DELIVERED' => 'Delivered',
+            'REFERRED' => 'Referred',
+            default => $status,
+        };
+    }
+
+    private function csvBloodPressure(mixed $systolic, mixed $diastolic): ?string
+    {
+        if ($systolic === null || $diastolic === null || $systolic === '' || $diastolic === '') {
+            return null;
+        }
+
+        return $systolic . '/' . $diastolic;
+    }
+
+    private function csvDate(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        return Carbon::parse($value)->format('Y-m-d');
+    }
+
+    private function csvDateTime(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d H:i');
+        }
+
+        return Carbon::parse($value)->format('Y-m-d H:i');
+    }
+
+    private function csvTime(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('g:i A');
+        }
+
+        return Carbon::parse($value)->format('g:i A');
+    }
+
+    /**
+     * Numeric rendering without float artefacts: database DECIMAL strings keep
+     * their stored scale (49.0 stays 49.0), while PHP floats are trimmed to a
+     * clean decimal (38.2 never becomes 38.200000000000003).
+     */
+    private function csvNumber(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.10F', (float) $value), '0'), '.');
+
+        return ($formatted === '' || $formatted === '-0') ? '0' : $formatted;
+    }
+
+    /**
+     * Central cell normalizer applied to every value in the export.
+     *
+     * - null / empty stays an empty cell (no N/A proliferation)
+     * - booleans become Yes/No
+     * - floats are rendered without binary artefacts
+     * - datetimes are never printed as 00:00:00
+     * - embedded CR/LF collapse into " | " so one fact is always one record
+     * - a leading formula character is neutralised with a leading apostrophe,
+     *   except for numeric text, which is safe as-is
+     */
+    private function csvCellValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_float($value)) {
+            return $this->csvNumber($value);
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            $hasTime = $value->format('H') !== '00'
+                || $value->format('i') !== '00'
+                || $value->format('s') !== '00';
+
+            return $hasTime ? $value->format('Y-m-d H:i') : $value->format('Y-m-d');
+        }
+
+        $text = (string) $value;
+
+        $lines = preg_split('/\r\n|\r|\n/', $text) ?: [];
+        $text = implode(' | ', array_values(array_filter(
+            array_map('trim', $lines),
+            static fn (string $line): bool => $line !== ''
+        )));
+
+        if ($text !== '' && !is_numeric($text) && preg_match('/^[=+\-@\t]/', $text) === 1) {
+            $text = "'" . $text;
+        }
+
+        return $text;
     }
 
     /**
