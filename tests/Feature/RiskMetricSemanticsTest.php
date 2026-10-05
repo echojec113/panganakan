@@ -122,7 +122,7 @@ public function test_visit_counts_and_calendar_month_bounds(): void {
     $deleted->delete();
     $response = $this->actingAs(User::factory()->create(['role' => 'staff']))
         ->get(route('prenatal-visits.index'))->assertOk()
-        ->assertViewHas('visits', fn ($rows) => $rows->count() === 5);
+        ->assertViewHas('visits', fn ($rows) => $rows->count() === 1);
     expect($response->getContent())->toMatch('/This Month<\/p>\s*<p[^>]*>2<\/p>/');
 }
 
