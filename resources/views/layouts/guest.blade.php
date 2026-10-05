@@ -164,18 +164,42 @@
                 align-items: center;
                 gap: 10px;
                 font-size: 13.5px;
-                color: #657083;
+                color: #F0F7F2;
                 padding: 8px 0;
             }
             .feature-icon {
                 width: 28px; height: 28px;
                 border-radius: 8px;
-                background: rgba(255,255,255,0.6);
-                border: 1px solid rgba(147,197,253,0.5);
+                background: rgba(255,255,255,0.92);
+                border: 1px solid rgba(255,255,255,0.55);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 flex-shrink: 0;
+            }
+
+            /* === Translucent green glass panel (left-side readability) ===
+               Light tint of the DEPLA dark green (#367E4B) at 48% opacity with
+               only a 3px blur, so the maternity photo and the people behind the
+               panel stay clearly recognizable. A soft dark text shadow keeps the
+               light copy readable on the glass without darkening the panel. */
+            .brand-panel {
+                max-width: 32rem;
+                margin-inline: auto;
+                padding: 2.5rem 2.25rem;
+                background: rgba(54, 126, 75, 0.48);
+                backdrop-filter: blur(3px);
+                -webkit-backdrop-filter: blur(3px);
+                border-radius: 26px;
+                border: 1px solid rgba(255,255,255,0.30);
+                box-shadow: 0 10px 30px rgba(8,36,23,0.14);
+                text-shadow: 0 1px 2px rgba(4,26,15,0.80), 0 0 8px rgba(4,26,15,0.45);
+            }
+            @media (max-width: 1280px) {
+                .brand-panel {
+                    padding: 2rem 1.75rem;
+                    border-radius: 22px;
+                }
             }
 
             /* === Password toggle button === */
@@ -354,7 +378,7 @@
               </a>
 
               <!-- Branding content -->
-              <div class="w-full max-w-sm space-y-10 text-left relative z-10">
+              <div class="brand-panel w-full space-y-10 text-left relative z-10">
  
                  <!-- Logo -->
                  <div class="reveal flex items-start" style="animation-delay:0.15s; position: relative">
@@ -371,19 +395,19 @@
 
                  <!-- Clinic name -->
                  <div class="reveal space-y-3 text-center" style="animation-delay:0.25s">
-                     <h1 style="font-family:'DM Serif Display',serif;font-size:3rem;color:#19355F;line-height:1.15;font-weight:400;">
+                     <h1 style="font-family:'DM Serif Display',serif;font-size:clamp(2rem, 3.2vw, 3rem);color:#FFFFFF;line-height:1.15;font-weight:400;">
                          Depla Family Care
                      </h1>
-                     <h2 class="text-base font-semibold tracking-widest text-[#55B85A] uppercase" style="letter-spacing:0.2em;">
+                     <h2 class="text-base font-semibold tracking-widest uppercase" style="letter-spacing:0.2em;color:#0F6434;">
                          Maternity & Lying-In Clinic
                      </h2>
                      <div class="flex justify-center pt-1">
                          <div class="shimmer-line w-16"></div>
                      </div>
-                     <p class="text-sm text-gray-600 italic pt-1" style="font-family:'DM Serif Display',serif;font-style:italic;">
+                     <p class="text-sm italic pt-1" style="font-family:'DM Serif Display',serif;font-style:italic;color:#F0FDF4;">
                          "Caring for Mothers and New Life"
                      </p>
-                     <p class="text-xs text-gray-500 pt-1">
+                     <p class="text-xs pt-1" style="color:rgba(255,255,255,0.90);">
                          📍 Santa Maria, Bulacan
                      </p>
                  </div>
@@ -411,7 +435,7 @@
                  </div>
  
                  <!-- Footer -->
-                 <div class="pt-8 text-left text-xs text-[#657083]/70">
+                 <div class="pt-8 text-left text-xs" style="color:rgba(255,255,255,0.75);">
                      © {{ date('Y') }} Depla Family Care. All rights reserved.
                  </div>
              </div>
