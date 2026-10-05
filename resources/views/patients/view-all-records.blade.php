@@ -57,7 +57,7 @@
                     id="view-all-records-search"
                     method="GET"
                     action="{{ route('view-all-records.index') }}"
-                    class="flex flex-col gap-3 lg:flex-row lg:items-end"
+                    class="flex flex-col gap-3 sm:flex-row sm:items-end"
                 >
                     {{-- Search --}}
                     <div class="min-w-0 flex-1">
@@ -102,7 +102,7 @@
                     </div>
 
                     {{-- Status --}}
-                    <div class="w-full lg:w-48 lg:shrink-0">
+                    <div class="w-full sm:w-48 sm:shrink-0">
                         <label for="status" class="mb-1.5 block text-xs font-medium text-gray-600">
                             Status
                         </label>

@@ -1,11 +1,20 @@
 <x-app-layout>
     @include('patients.partials.responsive-styles')
+    {{-- Page-local DEPLA green treatment for the header icon. The shared
+         x-icon-title component stays untouched for its other pages. --}}
+    <style>
+        .delivered-page-title > span:first-child {
+            background-color: #f0fdf4;
+            color: #55B85A;
+        }
+    </style>
     <div class="patient-module">
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="border-b border-gray-100 px-6 py-5 bg-gray-50">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div class="flex flex-wrap items-center gap-3">
                     <x-icon-title
+                        class="delivered-page-title"
                         title="Delivered Patients"
                         subtitle="Completed pregnancies with pregnancy history, baby information, and printing."
                     >
@@ -24,8 +33,8 @@
                 </div>
                 <form method="GET" action="{{ route('patients.delivered') }}" class="w-full sm:w-72">
                     <div class="relative">
-                        <input type="text" name="search" value="{{ request('search') }}" placeholder="Search patient..." class="w-full rounded-xl border-gray-200 pr-10 text-sm focus:border-blue-500 focus:ring-blue-500">
-                        <button class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-blue-600" type="submit">
+                        <input type="text" name="search" value="{{ request('search') }}" placeholder="Search patient..." class="w-full px-4 py-2 border border-gray-200 rounded-lg pr-10 text-sm placeholder:text-gray-400 focus:border-[#55B85A] focus:ring-[#55B85A]">
+                        <button class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-[#55B85A]" type="submit">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
@@ -40,7 +49,7 @@
             <x-error-summary :errors="$errors" title="Please review the highlighted issues." class="mb-6" />
 
             @if($patients->isEmpty())
-                <div class="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
+                <div class="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center">
                     <p class="text-sm text-gray-500">No delivered patients found.</p>
                 </div>
             @else
@@ -48,21 +57,21 @@
                     <table role="table" class="patient-data-table patient-stack-table min-w-full divide-y divide-gray-200">
                         <thead role="rowgroup" class="bg-gray-50">
                             <tr role="row">
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Patient</th>
-                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Total</th>
-                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">Total Babies</th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Last Delivery</th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Outcome</th>
-                                <th scope="col" class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Patient</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Total</th>
+                                <th scope="col" class="px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Total Babies</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Last Delivery</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Outcome</th>
+                                <th scope="col" class="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Action</th>
                             </tr>
                         </thead>
-                        <tbody role="rowgroup" class="bg-white divide-y divide-gray-200">
+                        <tbody role="rowgroup" class="bg-white divide-y divide-gray-100">
                             @foreach($patients as $row)
                                 @php($patient = $row->patient)
                                 <tr role="row" class="hover:bg-gray-50 transition">
                                     <td role="cell" data-label="Patient" class="px-4 py-4">
                                         <div class="flex items-center gap-3">
-                                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-pink-50 text-pink-600">
+                                            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-50 text-green-700">
                                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                                 </svg>
@@ -103,7 +112,7 @@
                                                 @if(auth()->user()->role !== 'admin')
                                                 <button type="button"
                                                     onclick="openStartPregnancyModal('{{ route('patients.start-new-pregnancy', $patient->id) }}', '{{ $patient->first_name }} {{ $patient->last_name }}', '{{ $patient->delivery_date ? \Carbon\Carbon::parse($patient->delivery_date)->format('M d, Y') : 'N/A' }}', '{{ $patient->gravida + 1 }}', '{{ $patient->para }}', '{{ str_replace("\n", ', ', $patient->formatted_address) }}', '{{ $patient->contact_number }}')"
-                                                    class="btn btn-primary">
+                                                    class="btn bg-[#55B85A] text-white transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A]/30">
                                                     Start New Pregnancy
                                                 </button>
                                                 @endif
