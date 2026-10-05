@@ -16,10 +16,33 @@ use Illuminate\View\View;
 class NewPasswordController extends Controller
 {
     /**
-     * Display the password reset view.
+     * Display the password reset view after validating the emailed token.
+     *
+     * The broker check happens before the form is rendered so an expired,
+     * already-used, unknown, or email-mismatched link never looks usable.
+     * Every failure mode shares one message so this endpoint does not reveal
+     * whether an email address belongs to an account.
      */
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
+        $token = $request->route('token');
+        $email = $request->query('email');
+        $broker = Password::broker();
+
+        $user = filled($email) ? $broker->getUser(['email' => $email]) : null;
+
+        if (blank($token) || is_null($user) || ! $broker->tokenExists($user, $token)) {
+            $redirect = redirect()->route('password.request');
+
+            if (filled($email)) {
+                $redirect->withInput(['email' => $email]);
+            }
+
+            return $redirect->withErrors([
+                'email' => 'This password reset link is invalid or has expired. Please request a new password reset link.',
+            ]);
+        }
+
         return view('auth.reset-password', ['request' => $request]);
     }
 
