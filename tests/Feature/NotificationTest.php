@@ -263,10 +263,11 @@ test('updating a visit that is already urgent does not create a duplicate notifi
     Notification::assertNotSentTo($staff, PendingRepeatBloodPressureNotification::class);
 });
 
-test('referral creation notifies admins but not the acting staff', function () {
+test('referral creation notifies all active admins and staff', function () {
     Notification::fake();
 
     $staff = User::factory()->create(['role' => 'staff']);
+    $otherStaff = User::factory()->create(['role' => 'staff']);
     $admin = User::factory()->create(['role' => 'admin']);
     $patient = makeNotificationPatient($staff->id);
 
@@ -277,14 +278,18 @@ test('referral creation notifies admins but not the acting staff', function () {
         'date_referred' => now()->toDateString(),
     ]);
 
+    // Single-clinic recipient model: admins AND every active staff member,
+    // including the one who created the referral and unassigned staff.
     Notification::assertSentTo($admin, ReferralCreatedNotification::class);
-    Notification::assertNotSentTo($staff, ReferralCreatedNotification::class);
+    Notification::assertSentTo($staff, ReferralCreatedNotification::class);
+    Notification::assertSentTo($otherStaff, ReferralCreatedNotification::class);
 });
 
-test('referral closure notifies admins', function () {
+test('referral closure notifies all active admins and staff', function () {
     Notification::fake();
 
     $staff = User::factory()->create(['role' => 'staff']);
+    $otherStaff = User::factory()->create(['role' => 'staff']);
     $admin = User::factory()->create(['role' => 'admin']);
     $patient = makeNotificationPatient($staff->id);
 
@@ -300,4 +305,6 @@ test('referral closure notifies admins', function () {
     $this->actingAs($staff)->post(route('referrals.complete', $referral->id));
 
     Notification::assertSentTo($admin, ReferralClosedNotification::class);
+    Notification::assertSentTo($staff, ReferralClosedNotification::class);
+    Notification::assertSentTo($otherStaff, ReferralClosedNotification::class);
 });

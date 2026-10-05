@@ -451,6 +451,11 @@ class PrenatalVisitController extends Controller
 
         $finalNextVisit = $request->next_visit_date ?: $nextVisit->toDateString();
 
+        // Snapshot the patient's EFFECTIVE risk before this visit exists so a
+        // real non-HIGH -> HIGH transition can be detected exactly once after
+        // the write (SystemNotificationService::notifyHighRiskTransition).
+        $previousEffectiveRisk = $this->notifications->effectiveRiskLevel((int) $patient->id);
+
         // ======================
         // CREATE VISIT + RISK FIELDS IN ONE TRANSACTION
         // ======================
@@ -539,6 +544,11 @@ class PrenatalVisitController extends Controller
         if ($visit->bp_verification_status === 'PENDING_REPEAT') {
             $this->notifications->notifyPendingRepeatBloodPressure($visit);
         }
+
+        // Non-HIGH -> HIGH transition of this patient's EFFECTIVE risk (no
+        // prior assessment, or a previous non-HIGH assessment). HIGH -> HIGH
+        // is a no-op inside the service, so re-saving cannot re-alert.
+        $this->notifications->notifyHighRiskTransition((int) $patient->id, $previousEffectiveRisk);
 
         // Log repeat BP recording only after the visit persisted successfully
         if ($repeatBpInputs) {
@@ -906,6 +916,7 @@ class PrenatalVisitController extends Controller
         // while a state is already active.
         $originalUrgency = $visit->getOriginal('urgency');
         $originalBpVerificationStatus = $visit->getOriginal('bp_verification_status');
+        $previousEffectiveRisk = $this->notifications->effectiveRiskLevel((int) $visit->patient_id);
 
         // ======================
         // APPLY SINGLE COHERENT PERSISTENCE UPDATE
@@ -1005,6 +1016,11 @@ class PrenatalVisitController extends Controller
         if ($visit->bp_verification_status === 'PENDING_REPEAT' && $originalBpVerificationStatus !== 'PENDING_REPEAT') {
             $this->notifications->notifyPendingRepeatBloodPressure($visit);
         }
+
+        // Non-HIGH -> HIGH transition of this patient's EFFECTIVE risk. When
+        // the latest assessment was already HIGH this is a no-op, so editing
+        // an already-HIGH visit never re-alerts the clinic.
+        $this->notifications->notifyHighRiskTransition((int) $visit->patient_id, $previousEffectiveRisk);
 
         // ======================
         // AUDIT LOGS (only after successful persistence)

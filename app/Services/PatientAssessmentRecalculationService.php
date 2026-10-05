@@ -13,13 +13,16 @@ class PatientAssessmentRecalculationService
 {
     private RiskAssessmentService $riskAssessmentService;
     private AssessmentMetadataSerializer $metadataSerializer;
+    private SystemNotificationService $notifications;
 
     public function __construct(
         RiskAssessmentService $riskAssessmentService,
-        AssessmentMetadataSerializer $metadataSerializer
+        AssessmentMetadataSerializer $metadataSerializer,
+        SystemNotificationService $notifications
     ) {
         $this->riskAssessmentService = $riskAssessmentService;
         $this->metadataSerializer = $metadataSerializer;
+        $this->notifications = $notifications;
     }
 
     /**
@@ -33,6 +36,9 @@ class PatientAssessmentRecalculationService
      * - For each recalculated incomplete visit, the stored repeat-BP pair,
      *   verification status/note, BP assessment metadata, and an existing
      *   next_visit_date are preserved.
+     * - When the batch lifts the patient's EFFECTIVE risk from non-HIGH to
+     *   HIGH, exactly one in-app notification is dispatched afterwards
+     *   (HIGH -> HIGH never notifies).
      *
      * @param int $patientId
      * @return void
@@ -63,6 +69,15 @@ class PatientAssessmentRecalculationService
         $visits = PrenatalVisit::where('patient_id', $patientId)
             ->where('risk_level', 'ASSESSMENT INCOMPLETE')
             ->get();
+
+        if ($visits->isEmpty()) {
+            return;
+        }
+
+        // Snapshot the EFFECTIVE risk before any visit is rewritten so a
+        // medical-history / ultrasound / birth-plan driven recalculation that
+        // lifts this patient into HIGH is notified exactly once afterwards.
+        $previousEffectiveRisk = $this->notifications->effectiveRiskLevel($patientId);
 
         foreach ($visits as $visit) {
             $repeatBpInputs = null;
@@ -114,5 +129,10 @@ class PatientAssessmentRecalculationService
 
             Log::info('Auto-recalculated risk assessment for patient ID: ' . $patientId . ', visit ID: ' . $visit->id);
         }
+
+        // Checked ONCE per batch, after every incomplete visit was rewritten:
+        // a batch that lifts the patient's effective risk into HIGH notifies
+        // once; HIGH -> HIGH is a no-op inside the service.
+        $this->notifications->notifyHighRiskTransition($patientId, $previousEffectiveRisk);
     }
 }

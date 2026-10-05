@@ -448,7 +448,8 @@ public function analytics(Request $request)
             $description
         );
 
-        // Notify admins that a new pending referral requires follow-through.
+        // Notify all active clinic users (admins + staff) that a new pending
+        // referral requires follow-through - single-clinic recipient model.
         $this->notifications->notifyReferralCreated($referral);
 
         return redirect()
