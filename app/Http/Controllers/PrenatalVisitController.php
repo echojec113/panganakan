@@ -148,6 +148,7 @@ class PrenatalVisitController extends Controller
 
     $query = PrenatalVisit::query()
         ->with('patient')
+        ->whereIn('id', PrenatalVisit::latestAssessmentIds())
         ->whereHas('patient', function ($patientQuery) {
             $patientQuery->where('status', 'ONGOING');
         });

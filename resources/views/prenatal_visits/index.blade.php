@@ -516,7 +516,7 @@
                                 {{ number_format($visits->total()) }}
                             </span>
 
-                            {{ Str::plural('visit', $visits->total()) }}
+                            {{ Str::plural('patient', $visits->total()) }}
                         </div>
 
                     </form>
@@ -879,7 +879,7 @@
                             <span class="font-medium text-gray-700">
                                 {{ $visits->total() }}
                             </span>
-                            visits
+                            patients
                         </p>
 
 
@@ -970,7 +970,7 @@
                             <span class="font-medium text-gray-700">
                                 {{ $visits->total() }}
                             </span>
-                            {{ Str::plural('visit', $visits->total()) }}
+                            {{ Str::plural('patient', $visits->total()) }}
                         </p>
 
                     </div>
