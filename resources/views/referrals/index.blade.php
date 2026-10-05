@@ -81,38 +81,65 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8">
 
         {{-- Search & Filter Bar --}}
-        <div class="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 sm:items-center">
-            <div class="relative flex-1">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+<div class="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-col lg:flex-row gap-3 lg:items-center">
+
+    {{-- Search Form --}}
+    <form id="referral-search"
+          method="GET"
+          action="{{ route('referrals.index') }}"
+          class="w-full lg:flex-1">
+
+        {{-- Preserve status filter when searching --}}
+        @if(request('status'))
+            <input type="hidden" name="status" value="{{ request('status') }}">
+        @endif
+
+        <div class="relative">
+            <input
+                type="text"
+                name="search"
+                value="{{ request('search') }}"
+                placeholder="Search by patient name..."
+                class="w-full px-4 py-2 pr-10 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+
+            <button
+                type="submit"
+                class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-[#55B85A] focus:outline-none"
+                aria-label="Search">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                 </svg>
-                <form method="GET" action="{{ route('referrals.index') }}">
-                    <input type="text" name="search" placeholder="Search by patient name..."
-                        value="{{ request('search') }}"
-                        class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
-                </form>
-            </div>
-
-            <div class="flex items-center gap-2 sm:gap-3">
-                <form method="GET" action="{{ route('referrals.index') }}" class="w-full sm:w-auto">
-                    <select name="status" onchange="this.form.submit()"
-                        class="w-full sm:w-auto px-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
-                        <option value="all" {{ request('status') === 'all' || !request('status') ? 'selected' : '' }}>All Status</option>
-                        <option value="Pending" {{ request('status') === 'Pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="Completed" {{ request('status') === 'Completed' ? 'selected' : '' }}>Completed</option>
-                        <option value="Refused" {{ request('status') === 'Refused' ? 'selected' : '' }}>Refused</option>
-                        <option value="Cancelled" {{ request('status') === 'Cancelled' ? 'selected' : '' }}>Cancelled</option>
-                    </select>
-                </form>
-                @if(request('search') || request('status'))
-                    <a href="{{ route('referrals.index') }}"
-                        class="px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition whitespace-nowrap">
-                        Clear
-                    </a>
-                @endif
-            </div>
+            </button>
         </div>
+    </form>
 
+    {{-- Status Filter + Clear --}}
+    <div class="flex items-center gap-2 sm:gap-3 w-full lg:w-auto">
+        <form method="GET" action="{{ route('referrals.index') }}" class="flex-1 lg:flex-none">
+            {{-- Preserve search term when changing status --}}
+            @if(request('search'))
+                <input type="hidden" name="search" value="{{ request('search') }}">
+            @endif
+
+            <select name="status" onchange="this.form.submit()"
+                class="w-full lg:w-auto px-4 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+                <option value="all" {{ request('status') === 'all' || !request('status') ? 'selected' : '' }}>All Status</option>
+                <option value="Pending" {{ request('status') === 'Pending' ? 'selected' : '' }}>Pending</option>
+                <option value="Completed" {{ request('status') === 'Completed' ? 'selected' : '' }}>Completed</option>
+                <option value="Refused" {{ request('status') === 'Refused' ? 'selected' : '' }}>Refused</option>
+                <option value="Cancelled" {{ request('status') === 'Cancelled' ? 'selected' : '' }}>Cancelled</option>
+            </select>
+        </form>
+
+        @if(request('search') || request('status'))
+            <a href="{{ route('referrals.index') }}"
+                class="px-3 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition whitespace-nowrap">
+                Clear
+            </a>
+        @endif
+    </div>
+</div>
         {{-- Mobile Cards --}}
         <div class="lg:hidden divide-y divide-gray-100">
             @forelse($referrals as $patient)
@@ -1311,6 +1338,31 @@ document.addEventListener('DOMContentLoaded', function () {
             closeArchiveReferralModal();
         }
     });
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('referral-search');
+    const searchInput = form?.querySelector('input[name="search"]');
+
+    if (!form || !searchInput) return;
+
+    let searchTimer;
+    let lastSubmittedValue = searchInput.value.trim();
+
+    searchInput.addEventListener('input', function () {
+        clearTimeout(searchTimer);
+
+        searchTimer = setTimeout(function () {
+            const currentValue = searchInput.value.trim();
+
+            if (currentValue === lastSubmittedValue) return;
+
+            lastSubmittedValue = currentValue;
+            form.submit();
+        }, 350);
+    });
+});
 </script>
 
 </x-app-layout>
