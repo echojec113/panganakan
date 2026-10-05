@@ -103,6 +103,41 @@
                                 ($patient->middle_name ? $patient->middle_name . ' ' : '') .
                                 $patient->last_name
                             );
+
+                            // Stored HIGH-risk reasons for THIS same latest
+                            // assessment: same normalization used by the
+                            // Patient Profile risk panel (rule reasons +
+                            // risk reasons, BP-URG label first). Read-only
+                            // - never re-runs or infers any assessment.
+                            $highRiskReasons = [];
+                            $highRiskBpLabel = '';
+
+                            if ($latestAssessment
+                                && $latestAssessment->risk_level === 'HIGH') {
+
+                                $bpReason = is_array($latestAssessment->bp_assessment)
+                                    ? $latestAssessment->bp_assessment
+                                    : [];
+
+                                $highRiskReasons = array_values(array_unique(array_merge(
+                                    \App\Support\ListNormalizer::normalize(
+                                        $latestAssessment->rule_reasons
+                                    ),
+                                    \App\Support\ListNormalizer::normalize(
+                                        $latestAssessment->risk_reasons
+                                    )
+                                )));
+
+                                if (($bpReason['reason_code'] ?? null) === 'BP-URG'
+                                    && !empty($bpReason['label'])) {
+
+                                    $highRiskBpLabel = (string) $bpReason['label'];
+
+                                    if (!in_array($highRiskBpLabel, $highRiskReasons, true)) {
+                                        array_unshift($highRiskReasons, $highRiskBpLabel);
+                                    }
+                                }
+                            }
                         @endphp
 
 
@@ -166,6 +201,9 @@
                                 data-birthdate="{{ $patient->birthdate?->format('M d, Y') ?? 'Not recorded' }}"
                                 data-edd="{{ $patient->edd?->format('M d, Y') ?? 'Not recorded' }}"
                                 data-assessment="{{ $latestAssessment?->visit_date?->format('M d, Y') ?? 'Not recorded' }}"
+                                data-risk-level="{{ $latestAssessment?->risk_level ?? '' }}"
+                                data-risk-reasons="{{ json_encode($highRiskReasons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) }}"
+                                data-risk-bp="{{ $highRiskBpLabel }}"
                                 data-url="{{ route('referrals.create', $referralParameters) }}"
                             >
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -383,6 +421,33 @@
                         </dd>
                     </div>
 
+
+                    {{-- HIGH Risk Reason: stored reasons of the SAME
+                         latest assessment shown above --}}
+                    <div id="modal-risk-reason-section" class="hidden">
+
+                        <dt class="text-xs font-medium uppercase tracking-wide text-gray-500">
+                            HIGH RISK REASON
+                        </dt>
+
+                        <dd class="mt-1">
+
+                            <ul
+                                id="modal-risk-reason-list"
+                                class="flex flex-wrap gap-2"
+                            ></ul>
+
+                            <p
+                                id="modal-risk-reason-empty"
+                                class="hidden text-sm text-gray-600"
+                            >
+                                No specific risk reason recorded.
+                            </p>
+
+                        </dd>
+
+                    </div>
+
                 </dl>
 
 
@@ -434,11 +499,70 @@
                 const edd = document.getElementById('modal-edd');
                 const assessment = document.getElementById('modal-assessment');
 
+                const riskSection =
+                    document.getElementById('modal-risk-reason-section');
+                const riskList =
+                    document.getElementById('modal-risk-reason-list');
+                const riskEmpty =
+                    document.getElementById('modal-risk-reason-empty');
+
                 const confirmButton = document.getElementById('confirm-referral');
                 const cancelButton = document.getElementById('cancel-referral');
 
                 const referralButtons =
                     document.querySelectorAll('.open-referral-modal');
+
+
+                function clearRiskReasons() {
+                    riskList.innerHTML = '';
+                    riskEmpty.classList.add('hidden');
+                    riskSection.classList.add('hidden');
+                }
+
+
+                function renderRiskReasons(button) {
+
+                    if (button.dataset.riskLevel !== 'HIGH') {
+                        clearRiskReasons();
+                        return;
+                    }
+
+                    let reasons = [];
+
+                    try {
+                        const parsed =
+                            JSON.parse(button.dataset.riskReasons || '[]');
+
+                        if (Array.isArray(parsed)) {
+                            reasons = parsed.filter(function (reason) {
+                                return typeof reason === 'string'
+                                    && reason.trim() !== '';
+                            });
+                        }
+                    } catch (error) {
+                        reasons = [];
+                    }
+
+                    const bpLabel = button.dataset.riskBp || '';
+
+                    riskList.innerHTML = '';
+
+                    reasons.forEach(function (reason) {
+
+                        const item = document.createElement('li');
+
+                        item.className = reason === bpLabel
+                            ? 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800'
+                            : 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800';
+
+                        item.textContent = reason;
+
+                        riskList.appendChild(item);
+                    });
+
+                    riskEmpty.classList.toggle('hidden', reasons.length > 0);
+                    riskSection.classList.remove('hidden');
+                }
 
 
                 function openModal(button) {
@@ -454,6 +578,8 @@
 
                     assessment.textContent =
                         button.dataset.assessment;
+
+                    renderRiskReasons(button);
 
                     confirmButton.href =
                         button.dataset.url;
@@ -473,6 +599,8 @@
                     modal.classList.remove('flex');
 
                     document.body.classList.remove('overflow-hidden');
+
+                    clearRiskReasons();
 
                     confirmButton.href = '#';
                 }
