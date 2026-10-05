@@ -18,6 +18,32 @@
         .manage-staff-theme .staff-muted { color: var(--staff-muted); }
         .staff-modal .staff-delete { background: #dc2626; }
         .staff-modal .staff-delete:hover { background: #b91c1c; }
+        .manage-staff-theme { container-type: inline-size; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+        .manage-staff-theme *, .staff-modal { box-sizing: border-box; }
+        .manage-staff-theme .flex > * { min-width: 0; }
+        .manage-staff-theme table { table-layout: fixed; }
+        .manage-staff-theme td { overflow-wrap: anywhere; }
+        .manage-staff-theme td:last-child > .flex { flex-wrap: wrap; }
+        #archiveStaffModal, #resetStaffModal { overflow-y: auto; }
+        #archiveStaffModal .staff-modal, #resetStaffModal .staff-modal { margin-inline: 0; min-width: 0; max-height: calc(100dvh - 3rem); overflow-y: auto; overflow-wrap: anywhere; }
+        .staff-modal .flex > * { min-width: 0; }
+        .staff-modal button { min-height: 44px; white-space: normal; }
+        @container (max-width: 700px) {
+            .manage-staff-theme table, .manage-staff-theme tbody, .manage-staff-theme tr, .manage-staff-theme td { display: block; width: 100%; }
+            .manage-staff-theme thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+            .manage-staff-theme .staff-row { padding: 12px 16px; }
+            .manage-staff-theme .staff-row td { padding: 8px 0; }
+            .manage-staff-theme .staff-row td::before { content: attr(data-label); display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600; color: var(--staff-muted); }
+            .manage-staff-theme td:last-child > .flex { justify-content: flex-start; }
+            .manage-staff-theme td a, .manage-staff-theme td button { width: 44px; height: 44px; flex-shrink: 0; }
+            .manage-staff-theme .app-page-header-actions { justify-content: flex-start; }
+            .manage-staff-theme .app-page-header-actions a { min-height: 44px; }
+        }
+        @media (max-width: 639px) {
+            .staff-modal { padding: 20px; }
+            .staff-modal > .flex:last-child { flex-direction: column; }
+            .staff-modal > .flex:last-child > *, .staff-modal form button { width: 100%; }
+        }
     </style>
 
     <div class="manage-staff-theme min-h-screen bg-[#FCFBF8]">
@@ -31,7 +57,7 @@
                     <x-slot name="subtitle">Create and manage clinic staff accounts</x-slot>
                     <x-slot name="actions">
                         <a href="{{ route('staff.create') }}" class="inline-flex items-center gap-2 rounded-xl bg-[#55B85A] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2">+ Add Staff</a>
-                        <a href="{{ route('staff.archived') }}" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2">Archived</a>
+                        <a href="{{ route('staff.archived') }}" class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2">Deactivated Staff</a>
                     </x-slot>
                 </x-app-header>
             </div>
@@ -46,7 +72,8 @@
                 <div class="staff-card overflow-hidden rounded-2xl border bg-white shadow-sm">
 
                     <div class="staff-card-header border-b px-6 py-4">
-                        <h2 class="text-lg font-semibold text-gray-800">Staff List</h2>
+                        <h2 class="text-lg font-semibold text-gray-800">Active Staff Accounts</h2>
+                        <p class="mt-1 text-sm text-gray-500">Active accounts can sign in.</p>
                     </div>
 
                     {{-- TABLE --}}
@@ -72,17 +99,17 @@
                                     <tr class="staff-row transition">
 
                                         {{-- NAME --}}
-                                        <td class="staff-name px-6 py-4 font-medium align-middle">
+                                        <td data-label="Name" class="staff-name px-6 py-4 font-medium align-middle">
                                             {{ $staff->name }}
                                         </td>
 
                                         {{-- EMAIL --}}
-                                        <td class="staff-muted px-6 py-4 align-middle">
+                                        <td data-label="Email" class="staff-muted px-6 py-4 align-middle">
                                             {{ $staff->email }}
                                         </td>
 
                                         {{-- ACTIONS --}}
-                                        <td class="px-6 py-4 align-middle">
+                                        <td data-label="Actions" class="px-6 py-4 align-middle">
                                             <div class="flex justify-end gap-1">
                                                 <x-action-buttons 
                                                     :editRoute="route('staff.edit', $staff)" />
@@ -99,10 +126,10 @@
                                                 <button type="button" onclick="confirmArchiveStaff(this)"
                                                     data-archive-url="{{ route('staff.destroy', $staff) }}"
                                                     class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-700 transition-all duration-150 hover:bg-red-50 hover:text-red-900"
-                                                    title="Archive" aria-label="Archive staff account">
+                                                    title="Deactivate Account" aria-label="Deactivate account for {{ $staff->name }}">
                                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                            d="M18.36 5.64A9 9 0 015.64 18.36M18.36 5.64L5.64 18.36M18.36 5.64A9 9 0 005.64 18.36"/>
                                                     </svg>
                                                 </button>
                                             </div>
@@ -127,18 +154,18 @@
         </div>
     </div>
 
-    <div id="archiveStaffModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm">
+    <div id="archiveStaffModal" role="dialog" aria-modal="true" aria-labelledby="deactivateStaffTitle" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 px-4 py-6 backdrop-blur-sm">
         <div class="staff-modal mx-4 w-full max-w-md rounded-xl border bg-white p-6 shadow-xl">
             <div class="flex items-start gap-4">
                 <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.36 5.64A9 9 0 015.64 18.36M18.36 5.64L5.64 18.36M18.36 5.64A9 9 0 005.64 18.36" />
                     </svg>
                 </div>
                 <div>
-                    <h2 class="staff-modal-title text-base font-semibold">Archive Staff?</h2>
+                    <h2 class="staff-modal-title text-base font-semibold" id="deactivateStaffTitle">Deactivate Staff Account</h2>
                     <p class="staff-muted mt-1 text-sm leading-6">
-                        Are you sure you want to archive this staff account? The staff member will no longer be able to log in and will be moved to Archived Staff. You can restore the account later.
+                        Are you sure you want to deactivate this Staff account? The Staff member will no longer be able to sign in. Their existing records and history will be preserved, and the account can be reactivated later.
                     </p>
                 </div>
             </div>
@@ -150,7 +177,7 @@
                     @csrf
                     @method('DELETE')
                     <button type="submit" id="confirmArchiveStaffButton" disabled class="staff-delete inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60">
-                        Archive
+                        Deactivate Account
                     </button>
                 </form>
             </div>

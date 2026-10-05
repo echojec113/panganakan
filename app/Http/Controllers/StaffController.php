@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\StaffCredentialMail;
 use App\Models\User;
-use Illuminate\Http\Request;
+use App\Http\Requests\StaffProfileRequest;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -51,24 +51,18 @@ class StaffController extends Controller
 }
 
     // 💾 Store new staff
-    public function store(Request $request)
+    public function store(StaffProfileRequest $request)
 {
     $this->checkAdmin();
 
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required|min:6',
-    ]);
+    $profile = $request->safe()->except('password');
 
     $plainTextPassword = $request->input('password');
 
-    $staff = User::create([
-    'name' => $request->name,
-    'email' => $request->email,
+    $staff = User::create(array_merge($profile, [
     'password' => Hash::make($plainTextPassword),
     'role' => 'staff',
-]);
+]));
 
 // ✅ AUDIT LOG
 $this->logAction(
@@ -104,24 +98,18 @@ try {
 public function edit(User $staff)
 {
     $this->checkAdmin();
+    abort_unless($staff->role === 'staff', 403);
 
     return view('staff.edit', compact('staff'));
 }
 
 // 💾 Update staff
-public function update(Request $request, User $staff)
+public function update(StaffProfileRequest $request, User $staff)
 {
     $this->checkAdmin();
+    abort_unless($staff->role === 'staff', 403);
 
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|email|unique:users,email,' . $staff->id,
-    ]);
-
-    $staff->update([
-        'name' => $request->name,
-        'email' => $request->email,
-    ]);
+    $staff->update($request->validated());
 
     // ✅ AUDIT LOG
     $this->logAction(
@@ -144,10 +132,10 @@ public function destroy(User $staff)
     $this->logAction(
         'ARCHIVE',
         'STAFF',
-        'Archived staff: ' . $name
+        'Staff account deactivated: ' . $name
     );
 
-    return redirect()->route('staff.index')->with('success', 'Staff archived successfully.');
+    return redirect()->route('staff.index')->with('success', 'Staff account deactivated successfully.');
 }
 
 public function resetAccount(User $staff)
@@ -193,9 +181,9 @@ public function restore($id)
     $this->logAction(
         'RESTORE',
         'STAFF',
-        'Restored staff: ' . $name
+        'Staff account reactivated: ' . $name
     );
 
-    return redirect()->route('staff.index')->with('success', 'Staff restored successfully.');
+    return redirect()->route('staff.index')->with('success', 'Staff account reactivated successfully.');
 }
 }

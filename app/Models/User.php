@@ -20,6 +20,12 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'address',
+        'contact_number',
+        'birthday',
         'email',
         'password',
         'role',
@@ -45,6 +51,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'birthday' => 'date',
             'password' => 'hashed',
         ];
     }
@@ -58,4 +65,3 @@ class User extends Authenticatable
         return $this->hasMany(Patient::class, 'assigned_staff_id');
     }
 }
-

@@ -69,26 +69,12 @@
                <form id="staffForm" action="{{ route('staff.store') }}" method="POST" class="space-y-5 p-6">
                    @csrf
 
-                   <div>
-                       <label class="staff-label block text-sm font-medium">Name</label>
-                       <input
-    type="text"
-    name="name"
-    maxlength="24"
-    class="staff-input mt-1 block h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]"
->
-                   </div>
+                   @include('staff._profile-fields')
 
                    <div>
-                       <label class="staff-label block text-sm font-medium">Email</label>
-                       <input type="email" name="email" class="staff-input mt-1 block h-10 w-full rounded-lg border border-gray-300 px-3 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
-                   </div>
-
-
-                   <div>
-                       <label for="staff-password" class="staff-label block text-sm font-medium">Password</label>
+                       <label for="staff-password" class="staff-label block text-sm font-medium">Password <span class="text-red-500">*</span></label>
                        <div class="relative mt-1">
-                           <input id="staff-password" type="password" name="password" class="staff-input block h-10 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
+                           <input id="staff-password" type="password" name="password" required minlength="8" autocomplete="new-password" class="staff-input block h-10 w-full rounded-lg border border-gray-300 py-2 pl-3 pr-10 text-sm text-gray-700 transition focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
                            <button
                                type="button"
                                data-password-toggle="staff-password"
@@ -110,6 +96,14 @@
                        </div>
                    </div>
 
+                   <x-input-error :messages="$errors->get('password')" class="mt-2" />
+                   <p class="text-sm text-gray-500">Use at least 8 characters, following the same password policy as password recovery.</p>
+                   <div>
+                       <label for="password_confirmation" class="staff-label block text-sm font-medium">Confirm Password <span class="text-red-500">*</span></label>
+                       <input id="password_confirmation" type="password" name="password_confirmation" required autocomplete="new-password" class="staff-input mt-1 block w-full min-w-0 rounded-lg border-gray-300 text-sm">
+                       <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+                   </div>
+
                    <div class="flex justify-end border-t border-gray-100 pt-5">
                        <button type="submit" class="btn staff-save">
                            Save
@@ -121,8 +115,8 @@
    </div>
 
     <!-- Modal -->
-    <div id="popupModal" class="fixed inset-0 backdrop-blur-md bg-black/10 flex items-center justify-center hidden z-50">
-        <div class="staff-modal w-80 rounded-2xl bg-white p-6 text-center shadow-xl">
+    <div id="popupModal" class="fixed inset-0 backdrop-blur-md bg-black/10 flex items-center justify-center hidden z-50" style="padding: 16px; overflow-y: auto;">
+        <div class="staff-modal w-80 rounded-2xl bg-white p-6 text-center shadow-xl" style="max-width: 100%; max-height: calc(100dvh - 32px); overflow-y: auto; overflow-wrap: anywhere;">
             <h2 id="modalTitle" class="staff-modal-title mb-2 text-lg font-bold"></h2>
             <p id="modalMessage" class="staff-modal-message mb-4 text-sm"></p>
 
@@ -178,12 +172,13 @@
         form.addEventListener('submit', function(e) {
             e.preventDefault();
 
-            let name = form.name.value.trim();
+            let firstName = form.first_name.value.trim();
+            let lastName = form.last_name.value.trim();
             let email = form.email.value.trim();
             let password = form.password.value.trim();
 
             // VALIDATION
-            if (!name || !email || !password) {
+            if (!firstName || !lastName || !email || !password) {
                 showModal(
                     "Validation Error",
                     "Please fill out all required staff details.",

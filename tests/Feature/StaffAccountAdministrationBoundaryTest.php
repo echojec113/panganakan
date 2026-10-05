@@ -15,6 +15,34 @@ use Illuminate\Support\Facades\Mail;
 | to administer accounts, change roles, or self-delete through /profile.
 */
 
+beforeEach(function () {
+    // Only the isolated SQLite test schema lacks the manually added production columns.
+    \Illuminate\Support\Facades\Schema::table('users', function (\Illuminate\Database\Schema\Blueprint $table) {
+        foreach (['first_name', 'middle_name', 'last_name'] as $field) {
+            $table->string($field, 100)->nullable();
+        }
+        $table->text('address')->nullable();
+        $table->string('contact_number', 30)->nullable();
+        $table->date('birthday')->nullable();
+    });
+});
+
+function staffProfilePayload(array $overrides): array
+{
+    // Explicit fixture components preserve the existing tests' expected full names.
+    $parts = explode(' ', $overrides['name']);
+    $last = array_pop($parts);
+    return array_merge([
+        'first_name' => implode(' ', $parts),
+        'middle_name' => null,
+        'last_name' => $last,
+        'address' => 'Test clinic address',
+        'contact_number' => '09171234567',
+        'birthday' => '1990-05-12',
+        'password_confirmation' => $overrides['password'],
+    ], $overrides);
+}
+
 test('admin can open manage staff', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     $staff = User::factory()->create(['role' => 'staff']);
@@ -26,9 +54,9 @@ test('admin can open manage staff', function () {
         ->assertSee('data-archive-url="'.route('staff.destroy', $staff).'"', false)
         ->assertSee('data-archive-url="'.route('staff.destroy', $otherStaff).'"', false)
         ->assertSee(route('staff.archived'), false)
-        ->assertSee('Archive Staff?')
-        ->assertSee('You can restore the account later.')
-        ->assertSee('title="Archive"', false)
+        ->assertSee('Deactivate Staff Account')
+        ->assertSee('the account can be reactivated later.')
+        ->assertSee('title="Deactivate Account"', false)
         ->assertSee('onclick="confirmArchiveStaff(this)"', false)
         ->assertSee('type="submit" id="confirmArchiveStaffButton"', false)
         ->assertSee('.staff-modal .staff-delete { background: #dc2626; }', false)
@@ -46,11 +74,11 @@ test('staff receives 403 when opening manage staff', function () {
 test('admin can create a staff account', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
-    $this->actingAs($admin)->post(route('staff.store'), [
+    $this->actingAs($admin)->post(route('staff.store'), staffProfilePayload([
         'name' => 'New Staff',
         'email' => 'newstaff@example.com',
         'password' => 'secret123',
-    ])->assertRedirect(route('staff.index'));
+    ]))->assertRedirect(route('staff.index'));
 
     $created = User::where('email', 'newstaff@example.com')->first();
     expect($created)->not->toBeNull()
@@ -65,11 +93,11 @@ test('creating a staff account emails the entered credentials without persisting
     $email = 'credentials@example.com';
     $plainTextPassword = 'secret123';
 
-    $this->actingAs($admin)->post(route('staff.store'), [
+    $this->actingAs($admin)->post(route('staff.store'), staffProfilePayload([
         'name' => 'Credential Staff',
         'email' => $email,
         'password' => $plainTextPassword,
-    ])->assertRedirect(route('staff.index'));
+    ]))->assertRedirect(route('staff.index'));
 
     $created = User::where('email', $email)->first();
 
@@ -90,12 +118,12 @@ test('creating a staff account emails the entered credentials without persisting
 test('submitted role=admin during staff creation cannot create an admin', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
-    $this->actingAs($admin)->post(route('staff.store'), [
+    $this->actingAs($admin)->post(route('staff.store'), staffProfilePayload([
         'name' => 'Malicious Staff',
         'email' => 'malicious@example.com',
         'password' => 'secret123',
         'role' => 'admin',
-    ])->assertRedirect(route('staff.index'));
+    ]))->assertRedirect(route('staff.index'));
 
     $created = User::where('email', 'malicious@example.com')->first();
 
@@ -106,11 +134,11 @@ test('submitted role=admin during staff creation cannot create an admin', functi
 test('created staff password is hashed', function () {
     $admin = User::factory()->create(['role' => 'admin']);
 
-    $this->actingAs($admin)->post(route('staff.store'), [
+    $this->actingAs($admin)->post(route('staff.store'), staffProfilePayload([
         'name' => 'Hashed Staff',
         'email' => 'hashed@example.com',
         'password' => 'secret123',
-    ]);
+    ]));
 
     $created = User::where('email', 'hashed@example.com')->first();
 
@@ -122,11 +150,11 @@ test('duplicate email is rejected during staff creation', function () {
     $admin = User::factory()->create(['role' => 'admin']);
     User::factory()->create(['role' => 'staff', 'email' => 'taken@example.com']);
 
-    $response = $this->actingAs($admin)->post(route('staff.store'), [
+    $response = $this->actingAs($admin)->post(route('staff.store'), staffProfilePayload([
         'name' => 'Dup Staff',
         'email' => 'taken@example.com',
         'password' => 'secret123',
-    ]);
+    ]));
 
     $response->assertSessionHasErrors('email');
     expect(User::where('email', 'taken@example.com')->count())->toBe(1);
@@ -141,11 +169,11 @@ test('staff cannot access the staff-create route', function () {
 test('staff cannot call the staff-store route', function () {
     $staff = User::factory()->create(['role' => 'staff']);
 
-    $this->actingAs($staff)->post(route('staff.store'), [
+    $this->actingAs($staff)->post(route('staff.store'), staffProfilePayload([
         'name' => 'Should Not Exist',
         'email' => 'shouldnot@example.com',
         'password' => 'secret123',
-    ])->assertForbidden();
+    ]))->assertForbidden();
 
     expect(User::where('email', 'shouldnot@example.com')->count())->toBe(0);
 });
@@ -189,7 +217,7 @@ test('admin can archive a staff account through manage staff', function () {
 
     $this->actingAs($admin)->delete(route('staff.destroy', $target))
         ->assertRedirect(route('staff.index'))
-        ->assertSessionHas('success', 'Staff archived successfully.');
+        ->assertSessionHas('success', 'Staff account deactivated successfully.');
 
     $this->assertSoftDeleted('users', ['id' => $target->id]);
     $this->assertDatabaseHas('users', [
@@ -199,7 +227,7 @@ test('admin can archive a staff account through manage staff', function () {
 
     expect(AuditLog::where('action', 'ARCHIVE')
         ->where('module', 'STAFF')
-        ->where('description', 'Archived staff: '.$target->name)
+        ->where('description', 'Staff account deactivated: '.$target->name)
         ->exists())->toBeTrue();
 
     $this->get(route('staff.index'))
@@ -219,7 +247,7 @@ test('archived staff page shows only soft-deleted staff accounts', function () {
     $this->actingAs($admin)
         ->get(route('staff.archived'))
         ->assertOk()
-        ->assertSeeText('Archived Staff')
+        ->assertSeeText('Deactivated Staff')
         ->assertSeeText('Archived Staff Member')
         ->assertSeeText($archivedStaff->email)
         ->assertSeeText('Staff')
@@ -236,7 +264,7 @@ test('admin can restore an archived staff account and audit the restoration', fu
     $this->actingAs($admin)
         ->post(route('staff.restore', $staff->id))
         ->assertRedirect(route('staff.index'))
-        ->assertSessionHas('success', 'Staff restored successfully.');
+        ->assertSessionHas('success', 'Staff account reactivated successfully.');
 
     $this->assertDatabaseHas('users', [
         'id' => $staff->id,
@@ -246,7 +274,7 @@ test('admin can restore an archived staff account and audit the restoration', fu
 
     expect(AuditLog::where('action', 'RESTORE')
         ->where('module', 'STAFF')
-        ->where('description', 'Restored staff: Restored Staff Member')
+        ->where('description', 'Staff account reactivated: Restored Staff Member')
         ->exists())->toBeTrue();
 
     $this->get(route('staff.index'))

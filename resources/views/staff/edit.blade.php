@@ -1,5 +1,5 @@
 <x-app-layout>
-    <div class="p-8 max-w-xl mx-auto">
+    <div class="px-4 py-8 sm:px-6 max-w-xl mx-auto">
         <a href="{{ route('staff.index') }}" 
    class="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-4">
     <span>←</span>
@@ -12,15 +12,10 @@
                 @csrf
                 @method('PUT')
 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Name</label>
-                    <input type="text" name="name" value="{{ $staff->name }}" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Email</label>
-                    <input type="email" name="email" value="{{ $staff->email }}" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                </div>
+                @if (!$staff->first_name && !$staff->last_name)
+                    <p class="rounded-lg bg-amber-50 p-3 text-sm text-gray-700 break-words">Existing name: <strong>{{ $staff->name }}</strong>. Enter the first, middle (optional), and last names manually to save structured information.</p>
+                @endif
+                @include('staff._profile-fields', ['staff' => $staff])
 
                 <button type="submit" class="btn btn-primary">
                     Update
@@ -31,8 +26,8 @@
     </div>
 
     <!-- Modal -->
-    <div id="popupModal" class="fixed inset-0 backdrop-blur-md bg-black/20 hidden flex items-center justify-center z-50">
-        <div class="bg-white rounded-2xl shadow-lg p-6 w-80 text-center">
+    <div id="popupModal" class="fixed inset-0 backdrop-blur-md bg-black/20 hidden flex items-center justify-center z-50" style="padding: 16px; overflow-y: auto;">
+        <div class="bg-white rounded-2xl shadow-lg p-6 w-80 text-center" style="max-width: 100%; max-height: calc(100dvh - 32px); overflow-y: auto; overflow-wrap: anywhere;">
             <h2 id="modalTitle" class="text-lg font-bold mb-2"></h2>
             <p id="modalMessage" class="text-sm text-gray-600 mb-4"></p>
 
@@ -72,11 +67,12 @@
         form.addEventListener('submit', function(e) {
             e.preventDefault();
 
-            let name = form.name.value.trim();
+            let firstName = form.first_name.value.trim();
+            let lastName = form.last_name.value.trim();
             let email = form.email.value.trim();
 
             // VALIDATION
-            if (!name || !email) {
+            if (!firstName || !lastName || !email) {
                 showModal(
                     "Validation Error",
                     "Please fill out all required staff details.",

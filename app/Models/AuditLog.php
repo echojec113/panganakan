@@ -15,6 +15,7 @@ class AuditLog extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        // Retain historical actor attribution when an account is deactivated.
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }
