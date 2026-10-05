@@ -39,7 +39,7 @@
                     </svg>
                     Archived
                 </a>
-                <a href="{{ route('referrals.select-patient') }}" class="btn btn-primary">
+                <a href="{{ route('referrals.select-patient') }}" class="btn bg-[#55B85A] text-white transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A]/30">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
