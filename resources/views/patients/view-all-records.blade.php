@@ -164,6 +164,14 @@
                                 Patient
                             </th>
 
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
+                                Gravida
+                            </th>
+
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">
+                                Para
+                            </th>
+
                             <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                                 Status
                             </th>
@@ -213,6 +221,18 @@
                                         Patient ID:
                                         PT-{{ str_pad((string) $patient->id, 4, '0', STR_PAD_LEFT) }}
                                     </div>
+                                </td>
+
+
+                                {{-- Gravida --}}
+                                <td role="cell" class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                                    {{ $patient->gravida ?? '—' }}
+                                </td>
+
+
+                                {{-- Para --}}
+                                <td role="cell" class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                                    {{ $patient->para ?? '—' }}
                                 </td>
 
 
@@ -281,7 +301,7 @@
 
                             <tr role="row">
                                 <td role="cell"
-                                    colspan="4"
+                                    colspan="6"
                                     class="px-6 py-12 text-center"
                                 >
                                     <p class="text-sm font-medium text-gray-700">
@@ -349,6 +369,19 @@
                                 @endif
                             </div>
 
+                        </div>
+
+
+                        <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500">Gravida</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">{{ $patient->gravida ?? '—' }}</p>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-medium text-gray-500">Para</p>
+                                <p class="mt-1 text-sm font-semibold text-gray-900">{{ $patient->para ?? '—' }}</p>
+                            </div>
                         </div>
 
 

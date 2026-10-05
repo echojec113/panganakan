@@ -439,3 +439,66 @@ it('uses recent activity across statuses with pending referrals and safe fallbac
         ->toBe(['2026-09-20', '2026-09-15', '2026-09-10', '2026-01-01']);
     $response->assertSeeText('Sep 20, 2026');
 });
+
+it('shows stored gravida and para on desktop and mobile with zero preserved and null as an em dash', function () {
+    recordsPatient(['first_name' => 'GravidaThree', 'gravida' => 3, 'para' => 2]);
+    recordsPatient(['first_name' => 'GravidaZero', 'gravida' => 0, 'para' => 0]);
+    recordsPatient(['first_name' => 'GravidaUnknown', 'gravida' => null, 'para' => null]);
+
+    $response = $this->actingAs(recordsAdmin())->get(route('view-all-records.index'));
+    $response->assertOk();
+
+    // Desktop columns stay in the requested order.
+    $response->assertSeeInOrder(['Patient', 'Gravida', 'Para', 'Status', 'Latest Activity', 'Action']);
+
+    $content = $response->getContent();
+
+    $desktopRow = function (string $name) use ($content): string {
+        preg_match(
+            '/<tr role="row"(?:(?!<\/tr>).)*?' . preg_quote($name, '/') . '(?:(?!<\/tr>).)*?<\/tr>/s',
+            $content,
+            $matches
+        );
+
+        return $matches[0] ?? '';
+    };
+
+    $stored = $desktopRow('GravidaThree');
+    expect($stored)->toMatch('/whitespace-nowrap">\s*3\s*<\/td>/')
+        ->toMatch('/whitespace-nowrap">\s*2\s*<\/td>/');
+
+    // A real stored zero must never be flattened into a missing value.
+    $zero = $desktopRow('GravidaZero');
+    expect(preg_match_all('/whitespace-nowrap">\s*0\s*<\/td>/', $zero))->toBe(2);
+
+    // NULL means not recorded: neutral fallback, never a clinical zero.
+    $unknown = $desktopRow('GravidaUnknown');
+    expect(preg_match_all('/whitespace-nowrap">\s*—\s*<\/td>/', $unknown))->toBe(2)
+        ->and($unknown)->not->toMatch('/whitespace-nowrap">\s*0\s*<\/td>/');
+
+    // Mobile cards expose the same stored values.
+    $mobileStart = strpos($content, 'divide-y divide-gray-100 md:hidden');
+    expect($mobileStart)->not->toBeFalse();
+
+    $mobile = substr($content, $mobileStart);
+
+    $mobileCard = function (string $name) use ($mobile): string {
+        $start = strpos($mobile, $name);
+        expect($start)->not->toBeFalse();
+
+        $nextCard = strpos($mobile, '<p class="truncate text-sm font-semibold text-gray-900">', $start + strlen($name));
+
+        return substr($mobile, $start, ($nextCard === false ? strlen($mobile) : $nextCard) - $start);
+    };
+
+    foreach ([
+        'GravidaThree' => ['3', '2'],
+        'GravidaZero' => ['0', '0'],
+        'GravidaUnknown' => ['—', '—'],
+    ] as $name => [$gravida, $para]) {
+        $card = $mobileCard($name);
+
+        expect($card)->toMatch('/Gravida<\/p>\s*<p class="mt-1 text-sm font-semibold text-gray-900">\s*' . preg_quote($gravida, '/') . '\s*<\/p>/')
+            ->toMatch('/Para<\/p>\s*<p class="mt-1 text-sm font-semibold text-gray-900">\s*' . preg_quote($para, '/') . '\s*<\/p>/');
+    }
+});
