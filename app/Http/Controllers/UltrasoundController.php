@@ -55,7 +55,7 @@ class UltrasoundController extends Controller
     // Fetal Assessment
     'fetal_heartbeat' => 'required|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
     'fetal_movement' => 'required|in:Active,Normal,Decreased,Absent',
-    'presentation' => 'required|in:Cephalic,Breech,Transverse,Oblique',
+    'presentation' => 'nullable|in:Cephalic,Breech,Transverse,Oblique',
 
     // Amniotic Fluid & Placenta
     'amniotic_fluid' => 'required|in:Normal,Low,High,Moderate',
@@ -88,7 +88,7 @@ class UltrasoundController extends Controller
 
 'fetal_heartbeat.required' => 'Fetal heartbeat is required.',
 'fetal_movement.required' => 'Fetal movement is required.',
-'presentation.required' => 'Presentation is required.',
+
 
 'amniotic_fluid.required' => 'Amniotic fluid is required.',
 'placenta_position.required' => 'Placenta position is required.',
@@ -272,7 +272,7 @@ class UltrasoundController extends Controller
 
     'fetal_heartbeat' => 'required|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
     'fetal_movement' => 'required|in:Active,Normal,Decreased,Absent',
-    'presentation' => 'required|in:Cephalic,Breech,Transverse,Oblique',
+    'presentation' => 'nullable|in:Cephalic,Breech,Transverse,Oblique',
 
     'amniotic_fluid' => 'required|in:Normal,Low,High,Moderate',
     'placenta_position' => 'required|in:Anterior,Posterior,Fundal,Lateral,Low-lying,Placenta Previa',
@@ -299,7 +299,7 @@ class UltrasoundController extends Controller
             'scan_date.required' => 'Scan date is required.',
             'fetal_heartbeat.required' => 'Fetal heartbeat is required.',
             'fetal_movement.required' => 'Fetal movement is required.',
-            'presentation.required' => 'Presentation is required.',
+            
             'amniotic_fluid.required' => 'Amniotic fluid is required.',
             'placenta_position.required' => 'Placenta position is required.',
             'gestational_age_scan.required' => 'Gestational age is required.',

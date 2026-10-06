@@ -145,7 +145,7 @@
                         
                         <div>
     <label class="block text-sm font-medium text-gray-700 mb-2">
-        Presentation <span class="text-red-500">*</span>
+        Presentation <span class="text-red-500"></span>
     </label>
 
     <select name="presentation"
