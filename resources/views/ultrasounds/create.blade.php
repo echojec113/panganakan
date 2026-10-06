@@ -154,6 +154,9 @@
             class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
         <option value="">Select Presentation</option>
 
+        <option value="Not visible yet" {{ old('presentation') == 'Not visible yet' ? 'selected' : '' }}> Not visible yet </option>
+        
+
         <option value="Cephalic"
             {{ old('presentation') == 'Cephalic' ? 'selected' : '' }}>
             Cephalic (Head down)
