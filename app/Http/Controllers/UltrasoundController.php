@@ -55,7 +55,7 @@ class UltrasoundController extends Controller
     // Fetal Assessment
     'fetal_heartbeat' => 'required|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
     'fetal_movement' => 'required|in:Active,Normal,Decreased,Absent',
-    'presentation' => 'nullable|in:Cephalic,Breech,Transverse,Oblique',
+    'presentation' => 'nullable|in:Not visible yet,Cephalic,Breech,Transverse,Oblique',
 
     // Amniotic Fluid & Placenta
     'amniotic_fluid' => 'required|in:Normal,Low,High,Moderate',
@@ -272,7 +272,7 @@ class UltrasoundController extends Controller
 
     'fetal_heartbeat' => 'required|in:Normal 120-160,Tachycardia >160,Bradycardia <120,Weak,Absent',
     'fetal_movement' => 'required|in:Active,Normal,Decreased,Absent',
-    'presentation' => 'nullable|in:Cephalic,Breech,Transverse,Oblique',
+    'presentation' => 'nullable|in:Not visible yet,Cephalic,Breech,Transverse,Oblique',
 
     'amniotic_fluid' => 'required|in:Normal,Low,High,Moderate',
     'placenta_position' => 'required|in:Anterior,Posterior,Fundal,Lateral,Low-lying,Placenta Previa',

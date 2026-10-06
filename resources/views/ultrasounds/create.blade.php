@@ -177,9 +177,7 @@
             Oblique (Slant)
         </option>
     </select>
-                            @error('presentation')
-                                <p class="text-sm text-red-600 mt-1 break-words">{{ $message }}</p>
-                            @enderror
+                            
 </div>
                     </div>
                 </div>

@@ -72,23 +72,26 @@ class MachineLearningService
 
     private function resolvePython(): string
     {
-        $configuredPath = trim(env('PYTHON_PATH', ''));
+        $configuredPath = trim((string) config('services.python_path', ''));
 
         if ($configuredPath !== '' && file_exists($configuredPath)) {
             return escapeshellarg($configuredPath);
         }
 
-        $projectVenv = base_path('maternal-risk-ml/venv/Scripts/python.exe');
+        $venvExecutable = PHP_OS_FAMILY === 'Windows'
+            ? 'Scripts/python.exe'
+            : 'bin/python';
+        $projectVenv = base_path('maternal-risk-ml/venv/' . $venvExecutable);
         if (file_exists($projectVenv)) {
             return escapeshellarg($projectVenv);
         }
 
         if ($configuredPath !== '') {
-            Log::warning('Configured PYTHON_PATH does not exist, falling back to python on PATH: ' . $configuredPath);
+            Log::warning('Configured PYTHON_PATH does not exist, falling back to a Python executable on PATH: ' . $configuredPath);
         } else {
-            Log::warning('No ML Python executable found; falling back to python on PATH.');
+            Log::warning('No ML Python executable found; falling back to Python on PATH.');
         }
 
-        return 'python';
+        return PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3';
     }
 }

@@ -35,10 +35,10 @@
 
 ## 2. Environment & Preconditions
 
-1. PHP ≥ 8.3 with required extensions, MySQL, Composer, and a working `python` (or `PYTHON_PATH` env pointing to a python binary) for the ML step.
-2. `cp .env.example .env`, configure DB (MySQL) and `PYTHON_PATH`; `php artisan key:generate`.
+1. PHP ≥ 8.3 with required extensions, MySQL, Composer, and a working Python interpreter with `maternal-risk-ml/requirements.txt` installed for the ML step.
+2. `cp .env.example .env`, configure DB (MySQL) and set `PYTHON_PATH` to the absolute path of that interpreter; `php artisan key:generate`.
 3. `composer install`, `npm install && npm run build` (Tailwind/assets).
-4. `php artisan migrate --seed` (or fresh). Verify `python maternal-risk-ml/predict.py ...` runs and prints `HIGH`/`LOW`.
+4. `php artisan migrate --seed` (or fresh). Verify the configured Python interpreter can run `maternal-risk-ml/predict.py` with 12 numeric features and prints `HIGH` or `LOW`.
 5. For email tests: local mail driver (e.g., `MAIL_MAILER=log`) — assert via `storage/logs/laravel.log`.
 6. Create test users: one admin, one staff (below).
 

@@ -2,6 +2,8 @@
 
 return [
 
+    'python_path' => env('PYTHON_PATH', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
