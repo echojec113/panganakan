@@ -30,16 +30,30 @@ class AuthenticatedSessionController extends Controller
 
         $user = Auth::user();
 
-if ($user->role === 'admin') {
-    return redirect()->route('dashboard');
-}
+        // Role-aware post-login destination (Phase 1 security hardening).
+        // Patient and unknown roles must NEVER fall through to the clinic
+        // dashboard: patients get the neutral portal holding page, and
+        // unknown roles are denied with 403 after their session is cleared.
+        return match ($user->role) {
+            'admin', 'staff' => redirect()->route('dashboard'),
+            'patient' => redirect()->route('patient.portal.coming-soon'),
+            default => $this->denyUnknownRole($request),
+        };
+    }
 
-if ($user->role === 'staff') {
-    return redirect()->route('dashboard');
-}
+    /**
+     * End the session of an authenticated user whose role is not recognized
+     * and answer with access denied. Unknown roles are never implicitly
+     * treated as Patient or Staff.
+     */
+    private function denyUnknownRole(Request $request): never
+    {
+        Auth::guard('web')->logout();
 
-// fallback (just in case)
-return redirect('/');
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        abort(403);
     }
 
     /**

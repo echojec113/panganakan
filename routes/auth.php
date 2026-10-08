@@ -7,15 +7,18 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
-        ->name('register');
-
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    // Public self-registration is CLOSED (Phase 1 security hardening).
+    // Both endpoints answer 404 so no account can be created by unauthenticated
+    // visitors. Admin-managed staff creation via StaffController is a separate,
+    // Admin-only workflow and remains fully functional. The 'register' route
+    // name is retained so any existing route('register') references still
+    // resolve; the registration view itself is never rendered.
+    Route::get('register', fn () => abort(404))->name('register');
+    Route::post('register', fn () => abort(404));
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

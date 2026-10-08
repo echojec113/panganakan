@@ -21,12 +21,21 @@ class DashboardController extends Controller
 
     public function index(Request $request)
     {
-        // Check user role and return appropriate dashboard
-        if (auth()->user()->role === 'admin') {
-        return $this->adminDashboard($request);
-        }else {
+        // Explicit role branches: only 'admin' or 'staff' may reach the
+        // dashboards (the 'clinic' middleware already rejects everyone
+        // else with 403). Unknown roles must never fall through to the
+        // staff dashboard — abort instead of guessing.
+        $role = auth()->user()->role;
+
+        if ($role === 'admin') {
+            return $this->adminDashboard($request);
+        }
+
+        if ($role === 'staff') {
             return $this->staffDashboard($request);
         }
+
+        abort(403);
     }
 
     private function latestVisitSubquery(): \Illuminate\Database\Query\Builder

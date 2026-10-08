@@ -697,6 +697,11 @@
     </div>
 
     {{-- Navigation --}}
+    {{-- Clinic navigation is rendered ONLY for explicit admin/staff roles
+         (Phase 1 security hardening). Patient and unknown roles never see
+         clinic navigation, and the old `role !== 'admin'` shorthand — which
+         wrongly treated every non-admin role as Staff — is gone. --}}
+    @if(auth()->user()->role === 'admin' || auth()->user()->role === 'staff')
     <nav class="sidebar-nav">
 
         <div class="nav-label">Main Menu</div>
@@ -707,7 +712,7 @@
             Dashboard
         </a>
 
-        @if(auth()->user()->role !== 'admin')
+        @if(auth()->user()->role === 'staff')
         <a href="{{ route('patients.index') }}"
            class="nav-item {{ request()->routeIs('patients.*') && !request()->routeIs('patients.delivered') ? 'active' : '' }}">
             <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
@@ -715,7 +720,7 @@
         </a>
         @endif
 
-        @if(auth()->user()->role !== 'admin')
+        @if(auth()->user()->role === 'staff')
         <a href="{{ route('prenatal-visits.index') }}"
            class="nav-item {{ request()->routeIs('prenatal-visits.*') ? 'active' : '' }}">
             <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c6.627 0 12 1.34 12 3v7c0 1.66-5.373 3-12 3S0 13.66 0 12V5c0-1.66 5.373-3 12-3z"></path><path d="M12 23v-9"></path><path d="M0 12c0 1.66 5.373 3 12 3s12-1.34 12-3"></path></svg></span>
@@ -767,6 +772,7 @@
         @endif
 
     </nav>
+    @endif
 
    
 </aside>

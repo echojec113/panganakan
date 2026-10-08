@@ -26,6 +26,11 @@ class UserFactory extends Factory
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            // Mirror the users.role schema default ('staff'). Without this the
+            // freshly created in-memory model carries role = null even though
+            // the database column defaults to 'staff', which misrepresents the
+            // user during actingAs() requests under role-based middleware.
+            'role' => 'staff',
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),

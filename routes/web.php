@@ -26,10 +26,42 @@ use App\Http\Controllers\LocationSearchController;
 
 Route::get('/', function () {
     if (auth()->check()) {
-        return redirect()->route('dashboard');
+        // Role-aware landing redirect: clinic staff keep the existing
+        // dashboard destination; patient users reach only the neutral
+        // holding page; unknown roles are denied outright. No authenticated
+        // role can fall through to the clinic dashboard any more.
+        return match (auth()->user()->role) {
+            'admin', 'staff' => redirect()->route('dashboard'),
+            'patient' => redirect()->route('patient.portal.coming-soon'),
+            default => abort(403),
+        };
     }
+
     return view('landing');
 });
+
+/*
+|--------------------------------------------------------------------------
+| Patient Portal (temporary holding page — no portal functionality yet)
+|--------------------------------------------------------------------------
+| Reachable only by authenticated patient-role users; clinic staff are
+| bounced to their dashboard and unknown roles are denied. It renders a
+| standalone guest page with no clinic navigation or data.
+*/
+
+Route::get('/patient-portal', function () {
+    $role = auth()->user()->role;
+
+    if ($role === 'patient') {
+        return view('patient-portal.coming-soon');
+    }
+
+    if (in_array($role, ['admin', 'staff'], true)) {
+        return redirect()->route('dashboard');
+    }
+
+    abort(403);
+})->middleware(['auth', 'no-store'])->name('patient.portal.coming-soon');
 
 /*
 |--------------------------------------------------------------------------
@@ -38,7 +70,7 @@ Route::get('/', function () {
 */
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
-    ->middleware(['auth', 'no-store'])
+    ->middleware(['auth', 'clinic', 'no-store'])
     ->name('dashboard');
 
 /*
@@ -47,7 +79,10 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(['auth', 'no-store'])->group(function () {
+// 'clinic' is the outer deny-by-default boundary: only role 'admin' or
+// 'staff' may enter. Existing Admin-only / Staff-only rules further inside
+// (middleware and in-controller checks) are unchanged and still apply.
+Route::middleware(['auth', 'clinic', 'no-store'])->group(function () {
 
     /*
     |--------------------------------------------------------------------------
