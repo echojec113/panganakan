@@ -266,9 +266,13 @@ Each case uses: **ID** / **Preconditions** / **Test Steps** / **Expected Result*
 - **Steps:** Enter gestational_age_scan differing from LMP-derived weeks by >3.
 - **Expected:** Error "Gestational age doesn't match LMP date. Based on LMP (...), expected GA is about X weeks (±3 weeks allowed)."
 
-### US-003 — EFW vs GA sanity check
-- **Steps:** Enter EFW outside band `200+(GA-4)*80` … `200+(GA-4)*150` (e.g., GA=20 → ~1480–2600g).
-- **Expected:** Error "Weight seems low/high for X weeks (expected around ...g)."
+### US-003 — EFW vs GA display assessment (blocking band removed)
+- **Steps:** Enter EFW that the removed linear band used to reject (e.g., GA=32.7 → 1800 g; GA=22.5 → 500 g; GA=24 → 3500 g).
+- **Expected:** Record saves with the exact staff-entered weight (basic `min:200|max:5000` still applies). The Fetal Weight Assessment panel below the field classifies Below/Within/Above Expected against the WHO Table 11 P10–P90 range (full precision, display rounding only), shows the recommendation, a precision note whenever rounding could look inconsistent, and a clickable WHO source. The old "Weight seems low/high for X weeks" error no longer exists.
+
+### US-003a — Fetal assessment panels (Add/Edit/History)
+- **Steps:** On Add/Edit, change EFW, gestational age (including date-driven auto-fill) and the heartbeat category; then expand a record in Ultrasound History on the patient profile.
+- **Expected:** Both panels render directly below their fields and update live; history shows the same read-only panels. FHR shows "Within Applicable Reference"/"Needs Clinical Review" only inside 14+0–27+6 weeks (ISUOG second-trimester context, labelled on-panel); outside that window or with missing values it shows "Unable to Assess Reliably" while retaining safety guidance for Tachycardia/Bradycardia/Weak/Absent and prominent prompt-assessment wording for Absent (never a demise diagnosis). Both panels cite clickable sources and mark recommendation text as pending review by the clinic's qualified healthcare professional.
 
 ### US-004 — File handling
 - **Steps:** (a) upload >5MB file; (b) upload .txt; (c) upload valid PDF; then update with a new file; then delete the ultrasound.

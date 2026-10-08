@@ -2252,6 +2252,20 @@
                                 </div>
 
                                 <div class="mt-5 border-t border-gray-200 pt-4">
+                                    <h4 class="text-sm font-semibold text-gray-700">Fetal Assessments (Display Only)</h4>
+                                    <div class="mt-3 grid grid-cols-1 gap-4">
+                                        @include('ultrasounds.partials.fetal-weight-assessment', [
+                                            'fwaWeight' => $u->estimated_fetal_weight,
+                                            'fwaGa' => $u->gestational_age_scan,
+                                        ])
+                                        @include('ultrasounds.partials.fetal-heart-rate-assessment', [
+                                            'fhrCategory' => $u->fetal_heartbeat,
+                                            'fhrGa' => $u->gestational_age_scan,
+                                        ])
+                                    </div>
+                                </div>
+
+                                <div class="mt-5 border-t border-gray-200 pt-4">
                                     <h4 class="text-sm font-semibold text-gray-700">Remarks</h4>
                                     <p class="mt-2 whitespace-pre-line break-words text-sm text-gray-700">{{ filled($u->remarks) ? $u->remarks : 'No remarks recorded.' }}</p>
                                 </div>
