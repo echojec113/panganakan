@@ -145,7 +145,7 @@
                         
                         <div>
     <label class="block text-sm font-medium text-gray-700 mb-2">
-        Presentation <span class="text-red-500">*</span>
+        Presentation <span class="text-red-500"></span>
     </label>
 
     <select name="presentation"
@@ -153,6 +153,9 @@
             required
             class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
         <option value="">Select Presentation</option>
+
+        <option value="Not visible yet" {{ old('presentation') == 'Not visible yet' ? 'selected' : '' }}> Not visible yet </option>
+        
 
         <option value="Cephalic"
             {{ old('presentation') == 'Cephalic' ? 'selected' : '' }}>
@@ -174,9 +177,7 @@
             Oblique (Slant)
         </option>
     </select>
-                            @error('presentation')
-                                <p class="text-sm text-red-600 mt-1 break-words">{{ $message }}</p>
-                            @enderror
+                            
 </div>
                     </div>
                 </div>

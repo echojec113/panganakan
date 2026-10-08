@@ -1965,6 +1965,16 @@ Status: UI change complete; automated UI verification blocked by test bootstrap.
 - Verification: focused reset, Staff Account Administration, and existing password-reset suites passed (33 tests, 163 assertions); PHP syntax checks, reset-route registration, and `git diff --check` passed. Tests use `Notification::fake()` and PHPUnit's in-memory SQLite configuration; no real email or development/production database was involved.
 - Defense notes: resolve the target by route-bound User and derive the destination email from that persisted model, preventing client-supplied email/role values from changing the reset recipient or privilege. The reset request only issues a link and does not mutate staff or assigned patient data.
 
+## ML Runtime Configuration Repair (2026-10-06)
+
+- Root cause: the local `PYTHON_PATH` pointed to another developer's machine. Its fallback resolved Windows' Microsoft Store `python.exe` alias, so ML prediction returned "Python was not found" and complete assessments remained `ASSESSMENT INCOMPLETE`.
+- Recreated the ignored `maternal-risk-ml/venv` with Python 3.12 and installed the exact package versions in `maternal-risk-ml/requirements.txt`. Python 3.12 is used because the pinned pandas 2.2.3 package has no compatible wheel for this machine's Python 3.14, and no compiler is configured.
+- Pointed this checkout's ignored `.env` at its local virtualenv interpreter. Cleared the developer-specific path from `.env.example`; leaving it blank lets the existing service resolve the project virtualenv.
+- Made Python resolution hosting-safe: read `PYTHON_PATH` through Laravel config (so it works with cached config), recognize both Windows and Linux virtualenv executable paths, and use `python3` as the Unix PATH fallback. Hosting setup must install the pinned requirements on the server and set `PYTHON_PATH` to that server's absolute interpreter path.
+- Clinical thresholds, feature order, model artifact, and assessment rules are unchanged. Once a prediction succeeds, the existing recalculation updates saved incomplete assessments; HIGH and LOW records remain protected from automatic rewrites.
+- Verification: `predict.py` returned LOW and HIGH with representative inputs. After the hosting-aware config changes, the focused MachineLearningService and PatientAssessmentRecalculationService suites passed (20 tests, 62 assertions) under the guarded SQLite `:memory:` configuration, with no config cache present; both changed PHP files pass syntax checks.
+- Defense notes: keep the environment-specific absolute path local and ignored; use the existing project virtualenv resolution for other checkouts rather than committing a machine-specific path or changing pinned model dependencies. Read the variable from config/services.php so Laravel config caching does not discard it.
+
 ## Prenatal Visit Trimester-Based Field Visibility (2026-10-04)
 
 - Added one shared Blade component, `resources/views/components/trimester-visibility.blade.php`, that reads the existing `gestational_age` input and toggles a single CSS class on marked wrappers. It is included in both `prenatal_visits/create.blade.php` and `prenatal_visits/edit.blade.php` directly after the existing GA autofill include.
