@@ -127,28 +127,6 @@ class UltrasoundController extends Controller
             }
         }
         
-        // Validate fetal weight is reasonable for gestational age
-        if ($request->gestational_age_scan && $request->estimated_fetal_weight) {
-            $ga = $request->gestational_age_scan;
-            $weight = $request->estimated_fetal_weight;
-            
-            // Simple percentile check (adjustable based on clinical guidelines)
-            $expectedWeightMin = 200 + (($ga - 4) * 80); // Rough estimate
-            $expectedWeightMax = 200 + (($ga - 4) * 150);
-            
-            if ($weight < $expectedWeightMin) {
-                return back()->withErrors([
-                    'estimated_fetal_weight' => "Weight seems low for {$ga} weeks (expected around {$expectedWeightMin}-{$expectedWeightMax}g). Please verify measurements."
-                ])->withInput();
-            }
-            
-            if ($weight > $expectedWeightMax) {
-                return back()->withErrors([
-                    'estimated_fetal_weight' => "Weight seems high for {$ga} weeks (expected around {$expectedWeightMin}-{$expectedWeightMax}g). Please verify measurements."
-                ])->withInput();
-            }
-        }
-
         // ======================
         // FILE HANDLING
         // ======================
@@ -327,27 +305,6 @@ class UltrasoundController extends Controller
             if (abs($expectedWeeks - (float) $request->gestational_age_scan) > 3) {
                 return back()->withErrors([
                     'gestational_age_scan' => "Gestational age doesn't match LMP date. Based on LMP ({$patient->lmp}), expected GA is about {$expectedWeeks} weeks."
-                ])->withInput();
-            }
-        }
-        
-        // Validate fetal weight for gestational age
-        if ($request->gestational_age_scan && $request->estimated_fetal_weight) {
-            $ga = $request->gestational_age_scan;
-            $weight = $request->estimated_fetal_weight;
-            
-            $expectedWeightMin = 200 + (($ga - 4) * 80);
-            $expectedWeightMax = 200 + (($ga - 4) * 150);
-            
-            if ($weight < $expectedWeightMin) {
-                return back()->withErrors([
-                    'estimated_fetal_weight' => "Weight seems low for {$ga} weeks (expected around {$expectedWeightMin}-{$expectedWeightMax}g)."
-                ])->withInput();
-            }
-            
-            if ($weight > $expectedWeightMax) {
-                return back()->withErrors([
-                    'estimated_fetal_weight' => "Weight seems high for {$ga} weeks (expected around {$expectedWeightMin}-{$expectedWeightMax}g)."
                 ])->withInput();
             }
         }

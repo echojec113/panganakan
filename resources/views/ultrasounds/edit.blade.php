@@ -99,6 +99,13 @@
                             @enderror
                             <p class="text-xs text-gray-500 mt-1">Range: 200 - 5000 grams</p>
                         </div>
+
+                        <div class="sm:col-span-2">
+                            @include('ultrasounds.partials.fetal-weight-assessment', [
+                                'fwaWeight' => old('estimated_fetal_weight', $ultrasound->estimated_fetal_weight),
+                                'fwaGa' => old('gestational_age_scan', $ultrasound->gestational_age_scan),
+                            ])
+                        </div>
                     </div>
                 </div>
 
@@ -158,6 +165,13 @@
                             @error('presentation')
                                 <p class="text-sm text-red-600 mt-1 break-words">{{ $message }}</p>
                             @enderror
+                        </div>
+
+                        <div class="sm:col-span-2">
+                            @include('ultrasounds.partials.fetal-heart-rate-assessment', [
+                                'fhrCategory' => old('fetal_heartbeat', $ultrasound->fetal_heartbeat),
+                                'fhrGa' => old('gestational_age_scan', $ultrasound->gestational_age_scan),
+                            ])
                         </div>
                     </div>
                 </div>
@@ -578,5 +592,7 @@
             }
         });
     </script>
+
+    @include('ultrasounds.partials.fetal-assessment-live')
     </div>
 </x-app-layout>
