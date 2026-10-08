@@ -1,0 +1,101 @@
+{
+    "schemaVersion": "1.0.0",
+    "datasetFile": "psgc.json",
+    "sourceUrl": "https://psa.gov.ph/classification/psgc/",
+    "originator": "Philippine Statistics Authority (PSA)",
+    "release": {
+        "psgcRelease": "PSGC as of 2026-06-30",
+        "publicationDateVerbatim": "30 June 2026",
+        "publicationDate": "2026-06-30",
+        "releaseQuarter": "Second Quarter 2026"
+    },
+    "sources": [
+        {
+            "file": "source/PSGC-2Q-2026-Publication-Datafile.xlsx",
+            "bytes": 3250889,
+            "sha256": "31892bc2bdde3ea0682562d9412b5bab4d45a0be5e5a5b4f6c9d7714b94bca5d",
+            "modifiedInFile": "2026-07-13T10:57:39Z"
+        },
+        {
+            "file": "source/PSGC-2Q-2026-National-and-Provincial-Summary.xlsx",
+            "bytes": 87973,
+            "sha256": "bae183861f0b17799852d94d8ccc9e66f3abad7d979516c0ac1f7ce720c42c84",
+            "modifiedInFile": "2026-07-13T10:56:46Z"
+        }
+    ],
+    "generatedAt": "2026-10-08T07:36:58+00:00",
+    "generator": {
+        "command": "php artisan psgc:convert",
+        "phpVersion": "8.2.12",
+        "schemaVersion": "1.0.0"
+    },
+    "dataset": {
+        "sha256": "66fcd40fe10249f57efe604c09f77c56173ea7d1fc80b446b5bcca914b31a2b3",
+        "bytes": 3368430,
+        "recordCount": 43768
+    },
+    "counts": {
+        "total": 43768,
+        "byLevel": {
+            "": 2,
+            "Bgy": 42010,
+            "City": 149,
+            "Mun": 1493,
+            "Prov": 82,
+            "Reg": 18,
+            "SubMun": 14
+        }
+    },
+    "schema": {
+        "format": "JSON object with a \"nodes\" array; nodes sorted ascending by PSGC code",
+        "node": {
+            "code": "10-digit PSGC code, string, leading zeros significant",
+            "name": "official geographic name, UTF-8, surrounding whitespace trimmed",
+            "level": "Reg | Prov | City | Mun | SubMun | Bgy, or \"\" for the two structural rows",
+            "parent": "parent node code (string) or null for regions"
+        },
+        "levels": {
+            "Reg": "region (root level)",
+            "Prov": "province",
+            "City": "city (including highly urbanized, independent component and component cities)",
+            "Mun": "municipality",
+            "SubMun": "sub-municipality / municipal district of the City of Manila (not an official LGU)",
+            "Bgy": "barangay",
+            "\"\"": "structural container rows: City of Isabela (Not a Province) and Special Geographic Area"
+        }
+    },
+    "hierarchy": {
+        "derivation": "PSGC coding structure RR-PPP-MM-BBB: barangay parent = first 7 digits + \"000\"; province parent = region (first 2 digits); city/municipality/sub-municipality parent = first 5 digits + \"00000\" when that container exists, otherwise the region (highly urbanized cities, Pateros, NCR).",
+        "crossValidatedAgainst": [
+            "PSGC-2Q-2026 National and Provincial Summary sheet (provinces, independent cities, per-container barangay counts)",
+            "PSGC-2Q-2026 National Summary sheet inside the Publication Datafile (per-region counts)"
+        ],
+        "maxDepth": 4
+    },
+    "validation": {
+        "duplicateCodes": 0,
+        "invalidCodes": 0,
+        "missingParents": 0,
+        "summaryCrossChecks": "passed",
+        "officialTotals": "passed"
+    },
+    "transformations": {
+        "trimmedSurroundingWhitespaceFromNames": 2855,
+        "preservedOfficialNamesAndCodes": true,
+        "auxiliaryColumnsNotCarried": [
+            "correspondence code (9-digit)",
+            "old names",
+            "city class",
+            "income classification",
+            "urban/rural",
+            "2024 population",
+            "status (Capital/Pob.)",
+            "footnotes"
+        ]
+    },
+    "notes": [
+        "Dataset and manifest are generated together by php artisan psgc:convert; psgc.json is byte-deterministic for the same source files.",
+        "Source xlsx files live next to this manifest under source/ and are required to regenerate.",
+        "No patient data, database schema or application configuration is touched by the conversion."
+    ]
+}

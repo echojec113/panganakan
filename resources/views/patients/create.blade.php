@@ -106,8 +106,8 @@
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Barangay <span class="text-red-500">*</span></label>
-                                <input type="text" name="barangay"
+                                <label for="barangay" class="block text-sm font-medium text-gray-700 mb-1">Barangay <span class="text-red-500">*</span></label>
+                                <input type="text" id="barangay" name="barangay"
                                     value="{{ old('barangay') }}"
                                     class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('barangay') border-red-500 @enderror"
                                     placeholder="Barangay name">
@@ -115,8 +115,8 @@
                                 @error('barangay')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">City / Municipality <span class="text-red-500">*</span></label>
-                                <input type="text" name="city_municipality"
+                                <label for="city_municipality" class="block text-sm font-medium text-gray-700 mb-1">City / Municipality <span class="text-red-500">*</span></label>
+                                <input type="text" id="city_municipality" name="city_municipality"
                                     value="{{ old('city_municipality') }}"
                                     class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('city_municipality') border-red-500 @enderror"
                                     placeholder="City or Municipality">
@@ -207,8 +207,8 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Gravida <span class="text-red-500">*</span></label>
                                 <input type="number" id="gravida" name="gravida"
-                                    value="{{ old('gravida', 1) }}"
-                                    min="1"
+                                    value="{{ old('gravida', 0) }}"
+                                    min="0"
                                     class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('gravida') border-red-500 @enderror"
                                     placeholder="Number of pregnancies">
                                 <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
@@ -229,10 +229,12 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Previous CS <span class="text-red-500">*</span></label>
-                                <select name="previous_cs" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('previous_cs') border-red-500 @enderror">
+                                <select name="previous_cs" id="previous_cs" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('previous_cs') border-red-500 @enderror">
                                     <option value="0" {{ old('previous_cs') == '0' ? 'selected' : '' }}>No</option>
                                     <option value="1" {{ old('previous_cs') == '1' ? 'selected' : '' }}>Yes</option>
                                 </select>
+                                <p class="text-xs text-gray-500 mt-1">Automatically set to No and disabled when Para is 0</p>
+                                @error('previous_cs')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                             </div>
                         </div>
 
@@ -259,10 +261,11 @@
 
                         <div class="mt-4">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Miscarriage History <span class="text-red-500">*</span></label>
-                            <select name="miscarriage" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('miscarriage') border-red-500 @enderror">
+                            <select name="miscarriage" id="miscarriage" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition @error('miscarriage') border-red-500 @enderror">
                                 <option value="0" {{ old('miscarriage') == '0' ? 'selected' : '' }}>No</option>
                                 <option value="1" {{ old('miscarriage') == '1' ? 'selected' : '' }}>Yes</option>
                             </select>
+                            <p class="text-xs text-gray-500 mt-1">Automatically set to No and disabled when Gravida is below 2</p>
                             <span class="error-message text-red-500 text-xs mt-1 hidden"></span>
                             @error('miscarriage')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                         </div>
@@ -484,6 +487,65 @@
     paraInput.addEventListener("input", validateGravidaPara);
     gravidaInput.addEventListener("input", validateGravidaPara);
 
+    // PREVIOUS CS conditional on PARA (Para = 0 => Previous CS = No and disabled)
+    const previousCsSelect = document.getElementById("previous_cs");
+
+    function syncPreviousCsToPara() {
+        if (!previousCsSelect) return;
+        const para = parseInt(paraInput.value || 0);
+        if (!isNaN(para) && para >= 1) {
+            previousCsSelect.disabled = false;
+            previousCsSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        } else {
+            previousCsSelect.value = '0';
+            previousCsSelect.disabled = true;
+            previousCsSelect.classList.add('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    // Disabled controls are omitted from the POST, so re-enable the select
+    // (already forced to No) at the moment the form is really submitted.
+    function preparePreviousCsForSubmit() {
+        if (previousCsSelect && previousCsSelect.disabled) {
+            previousCsSelect.disabled = false;
+            previousCsSelect.value = '0';
+            previousCsSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    paraInput.addEventListener("input", syncPreviousCsToPara);
+    paraInput.addEventListener("change", syncPreviousCsToPara);
+    syncPreviousCsToPara();
+
+    // MISCARRIAGE conditional on GRAVIDA. New patient records are ONGOING
+    // (status column default), so Gravida 0 and Gravida 1 both force No.
+    const miscarriageSelect = document.getElementById("miscarriage");
+
+    function syncMiscarriageToGravida() {
+        if (!miscarriageSelect) return;
+        const gravida = parseInt(gravidaInput.value || 0);
+        if (!isNaN(gravida) && gravida >= 2) {
+            miscarriageSelect.disabled = false;
+            miscarriageSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        } else {
+            miscarriageSelect.value = '0';
+            miscarriageSelect.disabled = true;
+            miscarriageSelect.classList.add('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    function prepareMiscarriageForSubmit() {
+        if (miscarriageSelect && miscarriageSelect.disabled) {
+            miscarriageSelect.disabled = false;
+            miscarriageSelect.value = '0';
+            miscarriageSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    gravidaInput.addEventListener("input", syncMiscarriageToGravida);
+    gravidaInput.addEventListener("change", syncMiscarriageToGravida);
+    syncMiscarriageToGravida();
+
     // PHILHEALTH TOGGLE
     const philhealthMember = document.getElementById("philhealth_member");
     const philhealthNumber = document.getElementById("philhealth_number");
@@ -577,6 +639,8 @@
     patientForm.addEventListener('submit', function(e) {
         if (confirmedSave) {
             confirmedSave = false;
+            preparePreviousCsForSubmit();
+            prepareMiscarriageForSubmit();
             return;
         }
 
@@ -643,10 +707,11 @@
             isValid = false;
         }
         
-        // Validate gravida
+        // Validate gravida: required, whole number, 0 or greater (no decimals, no negatives)
         const gravida = document.getElementById("gravida");
-        if (gravida.value === '' || parseInt(gravida.value) < 0) {
-            showError(gravida, 'Gravida is required and must be 0 or greater');
+        const gravidaRaw = gravida.value.trim();
+        if (gravidaRaw === '' || !/^-?\d+$/.test(gravidaRaw) || parseInt(gravidaRaw, 10) < 0) {
+            showError(gravida, 'Gravida is required and must be a whole number of 0 or greater');
             isValid = false;
         }
         
@@ -692,6 +757,8 @@
     document.getElementById('confirmSaveBtn').addEventListener('click', function() {
         closeConfirmModal();
         confirmedSave = true;
+        preparePreviousCsForSubmit();
+        prepareMiscarriageForSubmit();
         patientForm.submit();
     });
 
@@ -704,4 +771,5 @@
         </script>
     @endif
     </div>
+    @include('patients.partials.address-autocomplete')
 </x-app-layout>

@@ -16,6 +16,7 @@ use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\PregnancyOutcomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientViewController;
+use App\Http\Controllers\LocationSearchController;
 
 /*
 |--------------------------------------------------------------------------
@@ -79,6 +80,15 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])
         ->middleware('auth')
         ->name('notifications.read');
+
+    /*
+    |--------------------------------------------------------------------------
+    | PSGC Location Search (Admin & Staff) — read-only address autocomplete data
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get('/locations/search', [LocationSearchController::class, 'search'])
+        ->name('locations.search');
 
     /*
     |--------------------------------------------------------------------------

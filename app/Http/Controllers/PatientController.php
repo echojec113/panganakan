@@ -232,8 +232,21 @@ class PatientController extends Controller
         return back()->withErrors(['para' => 'Para cannot exceed Gravida'])->withInput();
     }
 
+    if ((int) $request->gravida === 0 && (int) $request->miscarriage === 1) {
+        return back()->withErrors(['miscarriage' => 'Miscarriage cannot be Yes when Gravida is 0.'])->withInput();
+    }
+
+    // New patient records are ONGOING by default (status column default).
+    if ((int) $request->gravida === 1 && (int) $request->miscarriage === 1) {
+        return back()->withErrors(['miscarriage' => 'Miscarriage cannot be Yes when Gravida is 1 for an ongoing pregnancy.'])->withInput();
+    }
+
     if ($request->miscarriage > $request->gravida) {
         return back()->withErrors(['miscarriage' => 'Miscarriage cannot exceed Gravida'])->withInput();
+    }
+
+    if ((int) $request->para === 0 && (int) $request->previous_cs === 1) {
+        return back()->withErrors(['previous_cs' => 'Previous CS cannot be Yes when Para is 0.'])->withInput();
     }
 
     $data = $validated;
@@ -1339,9 +1352,29 @@ if ($request->para > $request->gravida) {
     ])->withInput();
 }
 
+if ((int) $request->gravida === 0 && (int) $request->miscarriage === 1) {
+    return back()->withErrors([
+        'miscarriage' => 'Miscarriage cannot be Yes when Gravida is 0.'
+    ])->withInput();
+}
+
+if ($patient->status === 'ONGOING'
+    && (int) $request->gravida === 1
+    && (int) $request->miscarriage === 1) {
+    return back()->withErrors([
+        'miscarriage' => 'Miscarriage cannot be Yes when Gravida is 1 for an ongoing pregnancy.'
+    ])->withInput();
+}
+
 if ($request->miscarriage > $request->gravida) {
     return back()->withErrors([
         'miscarriage' => 'Miscarriage cannot exceed Gravida.'
+    ])->withInput();
+}
+
+if ((int) $request->para === 0 && (int) $request->previous_cs === 1) {
+    return back()->withErrors([
+        'previous_cs' => 'Previous CS cannot be Yes when Para is 0.'
     ])->withInput();
 }
 

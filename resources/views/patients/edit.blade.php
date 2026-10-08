@@ -184,8 +184,8 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Barangay</label>
-                            <input type="text" name="barangay"
+                            <label for="barangay" class="block text-sm font-medium text-gray-700 mb-1">Barangay</label>
+                            <input type="text" id="barangay" name="barangay"
                                 value="{{ old('barangay', $patient->barangay) }}"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('barangay') border-red-500 @enderror"
                                 placeholder="Barangay name">
@@ -193,8 +193,8 @@
                             @error('barangay')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">City / Municipality</label>
-                            <input type="text" name="city_municipality"
+                            <label for="city_municipality" class="block text-sm font-medium text-gray-700 mb-1">City / Municipality</label>
+                            <input type="text" id="city_municipality" name="city_municipality"
                                 value="{{ old('city_municipality', $patient->city_municipality) }}"
                                 class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('city_municipality') border-red-500 @enderror"
                                 placeholder="City or Municipality">
@@ -313,10 +313,12 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Previous CS <span class="text-red-500">*</span></label>
-                            <select name="previous_cs" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                            <select name="previous_cs" id="previous_cs" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('previous_cs') border-red-500 @enderror">
                                 <option value="0" {{ old('previous_cs', $patient->previous_cs) == '0' ? 'selected' : '' }}>No</option>
                                 <option value="1" {{ old('previous_cs', $patient->previous_cs) == '1' ? 'selected' : '' }}>Yes</option>
                             </select>
+                            <p class="text-xs text-gray-500 mt-1">Automatically set to No and disabled when Para is 0</p>
+                            @error('previous_cs')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                         </div>
                     </div>
 
@@ -342,10 +344,12 @@
 
                     <div class="mt-4">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Miscarriage History <span class="text-red-500">*</span></label>
-                        <select name="miscarriage" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                        <select name="miscarriage" id="miscarriage" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition @error('miscarriage') border-red-500 @enderror">
                             <option value="0" {{ old('miscarriage', $patient->miscarriage) == '0' ? 'selected' : '' }}>No</option>
                             <option value="1" {{ old('miscarriage', $patient->miscarriage) == '1' ? 'selected' : '' }}>Yes</option>
                         </select>
+                        <p class="text-xs text-gray-500 mt-1">Automatically set to No and disabled for Gravida 0, or Gravida 1 of an ongoing pregnancy</p>
+                        @error('miscarriage')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                     </div>
                 </div>
 
@@ -448,6 +452,71 @@
     paraInput.addEventListener("input", validateGravidaPara);
     gravidaInput.addEventListener("input", validateGravidaPara);
 
+    // PREVIOUS CS conditional on PARA (Para = 0 => Previous CS = No and disabled)
+    const previousCsSelect = document.getElementById("previous_cs");
+
+    function syncPreviousCsToPara() {
+        if (!previousCsSelect) return;
+        const para = parseInt(paraInput.value || 0);
+        if (!isNaN(para) && para >= 1) {
+            previousCsSelect.disabled = false;
+            previousCsSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        } else {
+            previousCsSelect.value = '0';
+            previousCsSelect.disabled = true;
+            previousCsSelect.classList.add('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    // Disabled controls are omitted from the POST, so re-enable the select
+    // (already forced to No) at the moment the form is really submitted.
+    function preparePreviousCsForSubmit() {
+        if (previousCsSelect && previousCsSelect.disabled) {
+            previousCsSelect.disabled = false;
+            previousCsSelect.value = '0';
+            previousCsSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    paraInput.addEventListener("input", syncPreviousCsToPara);
+    paraInput.addEventListener("change", syncPreviousCsToPara);
+    syncPreviousCsToPara();
+
+    // MISCARRIAGE conditional on GRAVIDA and pregnancy status:
+    // - Gravida 0: always No, disabled.
+    // - Gravida 1 with an ONGOING first pregnancy: No, disabled.
+    // - Gravida 1 on historical records (DELIVERED/REFERRED): stays enabled.
+    // - Gravida >= 2: enabled.
+    const patientStatus = @json($patient->status);
+    const miscarriageSelect = document.getElementById("miscarriage");
+
+    function syncMiscarriageToGravida() {
+        if (!miscarriageSelect) return;
+        const gravida = parseInt(gravidaInput.value || 0);
+        const ongoingFirstPregnancy = patientStatus === 'ONGOING' && gravida === 1;
+        const enabled = !isNaN(gravida) && gravida >= 1 && !ongoingFirstPregnancy;
+        if (enabled) {
+            miscarriageSelect.disabled = false;
+            miscarriageSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        } else {
+            miscarriageSelect.value = '0';
+            miscarriageSelect.disabled = true;
+            miscarriageSelect.classList.add('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    function prepareMiscarriageForSubmit() {
+        if (miscarriageSelect && miscarriageSelect.disabled) {
+            miscarriageSelect.disabled = false;
+            miscarriageSelect.value = '0';
+            miscarriageSelect.classList.remove('bg-gray-100', 'cursor-not-allowed');
+        }
+    }
+
+    gravidaInput.addEventListener("input", syncMiscarriageToGravida);
+    gravidaInput.addEventListener("change", syncMiscarriageToGravida);
+    syncMiscarriageToGravida();
+
     // PHILHEALTH TOGGLE
     const philhealthMember = document.getElementById("philhealth_member");
     const philhealthNumber = document.getElementById("philhealth_number");
@@ -517,7 +586,11 @@
         }
         if (!/^09\d{9}$/.test(contactInput.value)) { showError(contactInput, 'Must start with 09 and be exactly 11 digits'); isValid = false; }
         const gravida = document.getElementById("gravida");
-        if (gravida.value === '' || parseInt(gravida.value) < 0) { showError(gravida, 'Gravida is required and must be 0 or greater'); isValid = false; }
+        const gravidaRaw = gravida.value.trim();
+        if (gravidaRaw === '' || !/^-?\d+$/.test(gravidaRaw) || parseInt(gravidaRaw, 10) < 0) {
+            showError(gravida, 'Gravida is required and must be a whole number of 0 or greater');
+            isValid = false;
+        }
         if (!validateGravidaPara()) isValid = false;
         const lmp = document.getElementById("lmp");
         if (!lmp.value) { showError(lmp, 'LMP is required'); isValid = false; }
@@ -528,8 +601,12 @@
             e.preventDefault();
             const firstError = document.querySelector('.border-red-500');
             if (firstError) firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            preparePreviousCsForSubmit();
+            prepareMiscarriageForSubmit();
         }
     });
     </script>
     </div>
+    @include('patients.partials.address-autocomplete')
 </x-app-layout>
