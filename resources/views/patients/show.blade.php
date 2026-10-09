@@ -651,6 +651,350 @@
 @endif
 
 
+        {{-- =========================================================
+     DEPLA Phase 2D: Patient Login Account (Admin & Staff only)
+     Read-only account state plus the single Create Patient Account
+     entry point. The form POSTs to the existing Phase 2B endpoint
+     (patients.account.store); the backend stays authoritative for
+     validation, authorization and uniqueness. The password itself is
+     never rendered, and there is no reset/restore/replace action.
+========================================================= --}}
+        @if(in_array(auth()->user()->role, ['admin', 'staff'], true))
+            @php
+                $portalLoginAccount = $patient->loginAccount;
+                $portalAccountExists = $portalLoginAccount !== null;
+                $portalAccountIsArchived = $portalAccountExists && $portalLoginAccount->trashed();
+                $portalAccountIsActive = $portalAccountExists && ! $portalLoginAccount->trashed();
+
+                // Reopen the modal only when the account form itself was
+                // rejected (email/password rules on patients.account.store).
+                // Other profile flows flash their own error keys and must
+                // never pop this modal open.
+                $reopenAccountModal = $errors->hasAny(['email', 'password', 'password_confirmation']);
+            @endphp
+
+            <section id="patient-account" class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                {{-- Section Header --}}
+                <div class="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-base font-semibold text-gray-900">
+                            Patient Login Account
+                        </h2>
+
+                        <p class="mt-1 text-sm text-gray-500">
+                            Portal login credentials for this patient record.
+                        </p>
+                    </div>
+
+                    @if(! $portalAccountExists)
+                        <x-status-badge variant="neutral">No Account</x-status-badge>
+                    @elseif($portalAccountIsArchived)
+                        <x-status-badge variant="warning">Archived Account</x-status-badge>
+                    @else
+                        <x-status-badge variant="success">Active Account</x-status-badge>
+                    @endif
+                </div>
+
+                {{-- Account State --}}
+                <div class="px-5 py-4">
+                    @if(! $portalAccountExists)
+                        {{-- No account yet: the only action this phase adds. --}}
+                        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div class="min-w-0">
+                                <p class="text-sm leading-6 text-gray-600">
+                                    This patient does not yet have portal login credentials.
+                                    Create an account to let this patient sign in to the patient portal.
+                                </p>
+                                <p class="mt-1 text-xs text-gray-500">
+                                    The patient will be required to change the initial password after their first login.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                id="openCreateAccountModal"
+                                onclick="openCreateAccountModal()"
+                                class="btn btn-primary w-full shrink-0 justify-center sm:w-auto"
+                            >
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Create Patient Account
+                            </button>
+                        </div>
+
+                    @elseif($portalAccountIsActive)
+                        {{-- Linked, active account: status only - never the password. --}}
+                        <div class="space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-sm font-medium text-gray-500">Login Email</span>
+                                <span class="min-w-0 break-all text-sm font-semibold text-gray-900">{{ $portalLoginAccount->email }}</span>
+                            </div>
+
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-sm font-medium text-gray-500">First-Login Password</span>
+
+                                @if($portalLoginAccount->must_change_password)
+                                    <x-status-badge variant="warning">Password Change Required</x-status-badge>
+                                @else
+                                    <x-status-badge variant="success">Password Updated</x-status-badge>
+                                @endif
+                            </div>
+
+                            <p class="text-xs leading-5 text-gray-500">
+                                The patient signs in with these credentials and must change the
+                                initial password on first sign-in. The password itself is never shown here.
+                            </p>
+                        </div>
+
+                    @else
+                        {{-- Linked but soft-deleted (archived) account: read-only. --}}
+                        <div class="space-y-3">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-sm font-medium text-gray-500">Login Email</span>
+                                <span class="min-w-0 break-all text-sm font-semibold text-gray-900">{{ $portalLoginAccount->email }}</span>
+                            </div>
+
+                            <p class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+                                This account is archived and cannot currently sign in to the patient portal.
+                                Contact the clinic to resolve access.
+                            </p>
+                        </div>
+                    @endif
+                </div>
+            </section>
+
+            {{-- =========================================================
+         Create Patient Account modal — only rendered while the patient
+         has no account. Opens automatically (data-open) after a server
+         validation failure so staff can correct the fields.
+        ========================================================== --}}
+            @if(! $portalAccountExists)
+                <div
+                    id="createAccountModal"
+                    data-open="{{ $reopenAccountModal ? 'true' : 'false' }}"
+                    class="patient-dialog fixed inset-0 z-50 items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-6 sm:px-6 {{ $reopenAccountModal ? '' : 'hidden' }}"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="createAccountModalTitle"
+                >
+                    <div class="w-full max-w-lg rounded-xl bg-white shadow-xl">
+                        <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-6 py-4">
+                            <div class="min-w-0">
+                                <h3 id="createAccountModalTitle" class="text-lg font-bold text-gray-900">Create Patient Account</h3>
+                                <p class="mt-1 text-sm text-gray-500">
+                                    Create login credentials for this patient. The patient will be
+                                    required to change the initial password after their first login.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onclick="closeCreateAccountModal()"
+                                aria-label="Close the create patient account dialog"
+                                class="shrink-0 rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+                            >
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        {{-- Posts to the existing Phase 2B endpoint. No client-side
+                             account creation: the backend validates and authorizes. --}}
+                        <form method="POST" action="{{ route('patients.account.store', $patient->id) }}" id="createAccountForm">
+                            @csrf
+
+                            <div class="space-y-4 px-6 py-5">
+                                {{-- Login Email (prefilled from the clinical record, editable) --}}
+                                <div>
+                                    <label for="createAccountEmail" class="mb-1 block text-sm font-medium text-gray-700">
+                                        Login Email <span class="text-red-500" aria-hidden="true">*</span>
+                                    </label>
+                                    <input
+                                        id="createAccountEmail"
+                                        type="email"
+                                        name="email"
+                                        autocomplete="email"
+                                        maxlength="255"
+                                        required
+                                        value="{{ old('email', $patient->email) }}"
+                                        aria-describedby="createAccountEmailHelp"
+                                        class="block w-full rounded-lg border-gray-300 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]"
+                                    />
+                                    <p id="createAccountEmailHelp" class="mt-1 text-xs text-gray-500">
+                                        The email the patient will use to sign in to the patient portal.
+                                    </p>
+                                    <x-input-error :messages="$errors->get('email')" class="mt-1 text-xs text-red-500" />
+                                </div>
+
+                                {{-- Initial Password --}}
+                                <div>
+                                    <label for="createAccountPassword" class="mb-1 block text-sm font-medium text-gray-700">
+                                        Initial Password <span class="text-red-500" aria-hidden="true">*</span>
+                                    </label>
+                                    <div class="relative">
+                                        <input
+                                            id="createAccountPassword"
+                                            type="password"
+                                            name="password"
+                                            autocomplete="new-password"
+                                            required
+                                            class="block w-full rounded-lg border-gray-300 pr-10 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]"
+                                        />
+                                        <button
+                                            type="button"
+                                            aria-label="Show or hide the initial password"
+                                            onclick="toggleAccountPassword('createAccountPassword', 'accountPasswordEye')"
+                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                                        >
+                                            <svg id="accountPasswordEye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                        </button>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-500">Minimum of 8 characters.</p>
+                                    <x-input-error :messages="$errors->get('password')" class="mt-1 text-xs text-red-500" />
+                                </div>
+
+                                {{-- Confirm Initial Password --}}
+                                <div>
+                                    <label for="createAccountPasswordConfirmation" class="mb-1 block text-sm font-medium text-gray-700">
+                                        Confirm Initial Password <span class="text-red-500" aria-hidden="true">*</span>
+                                    </label>
+                                    <div class="relative">
+                                        <input
+                                            id="createAccountPasswordConfirmation"
+                                            type="password"
+                                            name="password_confirmation"
+                                            autocomplete="new-password"
+                                            required
+                                            class="block w-full rounded-lg border-gray-300 pr-10 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]"
+                                        />
+                                        <button
+                                            type="button"
+                                            aria-label="Show or hide the password confirmation"
+                                            onclick="toggleAccountPassword('createAccountPasswordConfirmation', 'accountConfirmEye')"
+                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+                                        >
+                                            <svg id="accountConfirmEye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                        </button>
+                                    </div>
+                                    <x-input-error :messages="$errors->get('password_confirmation')" class="mt-1 text-xs text-red-500" />
+                                </div>
+                            </div>
+
+                            <div class="flex flex-col-reverse gap-3 border-t border-gray-100 px-6 py-4 sm:flex-row sm:justify-end">
+                                <button type="button" onclick="closeCreateAccountModal()" class="btn btn-secondary justify-center">
+                                    Cancel
+                                </button>
+                                <button type="submit" class="btn btn-primary justify-center">
+                                    Create Account
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <script>
+                    // DEPLA Phase 2D — vanilla modal behavior, consistent with the
+                    // other modals on this page: explicit open/close functions,
+                    // focus management, focus trap, Escape at the document level.
+                    const createAccountModal = document.getElementById('createAccountModal');
+                    let createAccountReturnFocus = null;
+
+                    function getCreateAccountFocusables() {
+                        if (!createAccountModal) return [];
+                        return Array.from(createAccountModal.querySelectorAll(
+                            'a[href], button:not([disabled]), input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])'
+                        ));
+                    }
+
+                    function openCreateAccountModal() {
+                        if (!createAccountModal) return;
+                        createAccountReturnFocus = document.activeElement;
+                        createAccountModal.classList.remove('hidden');
+                        document.body.style.overflow = 'hidden';
+                        const emailField = document.getElementById('createAccountEmail');
+                        if (emailField) emailField.focus();
+                    }
+
+                    function closeCreateAccountModal() {
+                        if (!createAccountModal || createAccountModal.classList.contains('hidden')) return;
+                        createAccountModal.classList.add('hidden');
+                        document.body.style.overflow = '';
+                        if (createAccountReturnFocus && typeof createAccountReturnFocus.focus === 'function') {
+                            createAccountReturnFocus.focus();
+                        }
+                        createAccountReturnFocus = null;
+                    }
+
+                    if (createAccountModal) {
+                        // Keep Tab cycling inside the dialog while it is open.
+                        createAccountModal.addEventListener('keydown', function (event) {
+                            if (event.key !== 'Tab' || createAccountModal.classList.contains('hidden')) return;
+
+                            const focusables = getCreateAccountFocusables();
+                            if (focusables.length === 0) {
+                                event.preventDefault();
+                                return;
+                            }
+
+                            const first = focusables[0];
+                            const last = focusables[focusables.length - 1];
+
+                            if (!createAccountModal.contains(document.activeElement)) {
+                                event.preventDefault();
+                                first.focus();
+                            } else if (event.shiftKey && document.activeElement === first) {
+                                event.preventDefault();
+                                last.focus();
+                            } else if (!event.shiftKey && document.activeElement === last) {
+                                event.preventDefault();
+                                first.focus();
+                            }
+                        });
+
+                        // Click on the backdrop (the dialog container itself) closes.
+                        createAccountModal.addEventListener('click', function (event) {
+                            if (event.target === createAccountModal) {
+                                closeCreateAccountModal();
+                            }
+                        });
+
+                        // Reopened after a server-side validation failure.
+                        if (createAccountModal.dataset.open === 'true') {
+                            document.body.style.overflow = 'hidden';
+                            const emailField = document.getElementById('createAccountEmail');
+                            if (emailField) emailField.focus();
+                        }
+                    }
+
+                    // Escape handling, matching the existing document-level listeners.
+                    document.addEventListener('keydown', function (event) {
+                        if (event.key === 'Escape' && createAccountModal && !createAccountModal.classList.contains('hidden')) {
+                            closeCreateAccountModal();
+                        }
+                    });
+
+                    // Show/hide toggles, same pattern as the password-change form.
+                    function toggleAccountPassword(inputId, iconId) {
+                        const field = document.getElementById(inputId);
+                        const icon = document.getElementById(iconId);
+
+                        if (!field || !icon) return;
+
+                        if (field.type === 'password') {
+                            field.type = 'text';
+                            icon.innerHTML = '<g><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></g>';
+                        } else {
+                            field.type = 'password';
+                            icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
+                        }
+                    }
+                </script>
+            @endif
+        @endif
+
+
         {{-- Priority strip: Current Pregnancy + Basic Information --}}
         <div
     id="overview"

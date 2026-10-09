@@ -17,6 +17,9 @@ use App\Http\Controllers\PregnancyOutcomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientViewController;
 use App\Http\Controllers\LocationSearchController;
+use App\Http\Controllers\PatientAccountController;
+use App\Http\Controllers\PatientInitialPasswordController;
+use App\Http\Controllers\PatientPortalController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,26 +45,53 @@ Route::get('/', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Patient Portal (temporary holding page — no portal functionality yet)
+| Patient Portal (Phase 3A — dashboard + read-only My Profile)
 |--------------------------------------------------------------------------
 | Reachable only by authenticated patient-role users; clinic staff are
-| bounced to their dashboard and unknown roles are denied. It renders a
-| standalone guest page with no clinic navigation or data.
+| bounced to their dashboard and unknown roles are denied. The route NAME
+| (patient.portal.coming-soon) and URL (/patient-portal) are intentionally
+| unchanged because Phase 2B/2C login redirects, the guest-middleware
+| destination and existing tests all reference them; only the content
+| behind the route moved from the holding page to the new dashboard.
+|
+| Phase 2C boundaries run before the controller: 'patient-portal-account'
+| refuses a patient login that is not linked to a live patients row
+| (unlinked or archived), then 'must-change-password' sends a flagged
+| patient to the mandatory password-change form instead of the portal.
+| 'no-store' keeps authenticated portal responses out of any cache.
+|
+| The new My Profile page carries the exact same chain: identical
+| ordering (auth -> eligibility -> workflow -> headers), patient-only
+| data, strictly read-only, and no patient ID in the URL.
 */
 
-Route::get('/patient-portal', function () {
-    $role = auth()->user()->role;
+Route::get('/patient-portal', [PatientPortalController::class, 'dashboard'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.portal.coming-soon');
 
-    if ($role === 'patient') {
-        return view('patient-portal.coming-soon');
-    }
+Route::get('/patient/profile', [PatientPortalController::class, 'profile'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.profile.show');
 
-    if (in_array($role, ['admin', 'staff'], true)) {
-        return redirect()->route('dashboard');
-    }
+/*
+|--------------------------------------------------------------------------
+| Mandatory first-login password change (Phase 2C)
+|--------------------------------------------------------------------------
+| GET renders the form, POST applies it. Only 'auth' + 'no-store' sit on
+| these routes: the flag itself is enforced by the controller and by
+| ChangeInitialPasswordRequest::authorize(), because the 'must-change-password'
+| middleware must not redirect the very route it protects. Staff/admin
+| requests are refused with 403 (patient-only endpoint), and a patient whose
+| flag is already cleared is forwarded to the portal without any change.
+*/
 
-    abort(403);
-})->middleware(['auth', 'no-store'])->name('patient.portal.coming-soon');
+Route::middleware(['auth', 'no-store'])->group(function () {
+    Route::get('/patient/change-initial-password', [PatientInitialPasswordController::class, 'edit'])
+        ->name('patient.change-initial-password.edit');
+
+    Route::post('/patient/change-initial-password', [PatientInitialPasswordController::class, 'update'])
+        ->name('patient.change-initial-password.update');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -246,6 +276,24 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
         ->name('staff.reset-account');
 
     Route::resource('staff', StaffController::class)->except(['show']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Patient Login Account Provisioning (Admin & Staff) — DEPLA Phase 2B
+    |--------------------------------------------------------------------------
+    | Scoped to 'auth' + 'clinic' only: BOTH clinic roles (admin and staff)
+    | may provision a portal login for an existing patient record, exactly as
+    | Phase 2B specifies. It is deliberately kept OUTSIDE the staff-only
+    | clinical write group below, which excludes Admin.
+    |
+    | The endpoint creates one users row, sets patients.user_id and writes one
+    | audit entry - it never creates a patient and never touches clinical
+    | data, so the staff-only restriction that guards clinical writes does not
+    | apply to it. No GET variant exists: there is no account-creation page.
+    */
+
+    Route::post('/patients/{patient}/account', [PatientAccountController::class, 'store'])
+        ->name('patients.account.store');
 
     /*
     |--------------------------------------------------------------------------

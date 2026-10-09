@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Patient;
 use App\Models\User;
 
 /*
@@ -11,6 +12,34 @@ use App\Models\User;
 | dashboard destination; patients reach only the neutral holding page;
 | unknown roles are denied with 403 and no session.
 */
+
+/**
+ * A patient-role login linked to a live patients row.
+ *
+ * Phase 2C adds the portal-eligibility rule (a patient login must be linked
+ * to a non-archived patient record), so fixture patients that are expected to
+ * SEE the holding page must carry that link. The link is test setup only -
+ * no assertion here depends on it.
+ */
+function loginSafetyPortalUser(): User
+{
+    $user = User::factory()->create(['role' => 'patient']);
+
+    $patient = Patient::create([
+        'first_name' => 'Portal',
+        'last_name' => 'Patient',
+        'age' => 25,
+        'address' => 'Login safety test address',
+        'contact_number' => '09171234567',
+        'gravida' => 1,
+        'para' => 0,
+        'status' => 'ONGOING',
+    ]);
+    $patient->user_id = $user->id;
+    $patient->save();
+
+    return $user;
+}
 
 test('admin login lands on the clinic dashboard', function () {
     $admin = User::factory()->create(['role' => 'admin']);
@@ -31,7 +60,7 @@ test('staff login lands on the clinic dashboard', function () {
 });
 
 test('patient login lands on the neutral portal holding page', function () {
-    $patientUser = User::factory()->create(['role' => 'patient']);
+    $patientUser = loginSafetyPortalUser();
 
     $this->post('/login', [
         'email' => $patientUser->email,
@@ -93,7 +122,7 @@ test('patient cannot reach the clinic dashboard through redirects', function () 
 });
 
 test('holding page renders no clinic navigation or clinic data', function () {
-    $patientUser = User::factory()->create(['role' => 'patient']);
+    $patientUser = loginSafetyPortalUser();
 
     $this->actingAs($patientUser)
         ->get(route('patient.portal.coming-soon'))

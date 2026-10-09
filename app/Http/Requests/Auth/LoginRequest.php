@@ -12,6 +12,27 @@ use Illuminate\Validation\ValidationException;
 class LoginRequest extends FormRequest
 {
     /**
+     * Normalize the email before validation and authentication.
+     *
+     * Phase 2B stores patient emails trimmed and lower-cased, so login must
+     * accept the same shape (leading spaces, trailing newlines from copy/paste
+     * and case variants such as " Mary.Doe@X.com "). This is a no-op on MySQL's
+     * default case-insensitive collation, and it keeps Auth::attempt() working
+     * if the application is ever pointed at a case-sensitive collation or at
+     * SQLite. The password is never touched here.
+     */
+    protected function prepareForValidation(): void
+    {
+        $email = $this->input('email');
+
+        if (is_string($email)) {
+            $this->merge([
+                'email' => Str::lower(trim($email)),
+            ]);
+        }
+    }
+
+    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool

@@ -8,6 +8,7 @@ class AuditLog extends Model
 {
     protected $fillable = [
         'user_id',
+        'patient_id',
         'action',
         'module',
         'description',

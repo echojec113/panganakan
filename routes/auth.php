@@ -38,7 +38,12 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
-Route::middleware('auth')->group(function () {
+// Phase 2C: 'must-change-password' sits on every authenticated auth route so a
+// flagged patient cannot change their password through PUT /password (or any
+// other side door) instead of the audited change-initial-password endpoint.
+// It only acts on role 'patient', and the middleware exempts 'logout' by name
+// so a patient who cannot supply the current password can still sign out.
+Route::middleware(['auth', 'must-change-password'])->group(function () {
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 

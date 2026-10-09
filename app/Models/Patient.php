@@ -161,6 +161,19 @@ public function latestReferral(): HasOne
         return $this->belongsTo(User::class, 'assigned_staff_id');
     }
 
+    /**
+     * The user account this patient signs in with (DEPLA Phase 2A).
+     *
+     * Deliberately separate from assignedStaff(): that relation is the
+     * clinical assignment, this one is the login. withTrashed() is used so
+     * an archived (soft-deleted) account still resolves for audit and
+     * unlinking flows instead of silently reading as "no account".
+     */
+    public function loginAccount(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id')->withTrashed();
+    }
+
 public function canStartNewPregnancy(): bool
 {
     return $this->isDelivered();

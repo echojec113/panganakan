@@ -274,7 +274,10 @@ class PatientController extends Controller
      */
     public function show(Request $request, string $id)
     {
-        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals','pregnancyOutcome.followUpRecordedBy','pregnancyOutcome.confirmedBy'])->findOrFail($id);
+        // DEPLA Phase 2D: 'loginAccount' is eager-loaded (withTrashed by the
+        // relation definition) so the Patient Login Account section renders
+        // with zero extra queries. Nothing else about this load changed.
+        $patient = Patient::with(['prenatalVisits','medicalHistory','ultrasounds','birthPlan','babies','referrals','pregnancyOutcome.followUpRecordedBy','pregnancyOutcome.confirmedBy','loginAccount'])->findOrFail($id);
 
         // Derived outcome-monitoring state for the profile card. Pure read:
         // no lifecycle or outcome values are written here.

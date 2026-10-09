@@ -503,6 +503,10 @@
                                  @elseif (request()->routeIs('password.reset'))
                                      <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Reset Password</h2>
                                      <p class="text-xs text-[#657083]">Choose a new password for your account</p>
+                                 @elseif (request()->routeIs('patient.change-initial-password.*'))
+                                     {{-- Phase 2C: mandatory first-login password change. --}}
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Change Your Password</h2>
+                                     <p class="text-xs text-[#657083]">Required before you can continue</p>
                                  @else
                                      <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Welcome</h2>
                                      <p class="text-xs text-[#657083]">Depla Family Care Portal</p>

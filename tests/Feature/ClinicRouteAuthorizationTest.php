@@ -144,6 +144,11 @@ test('unknown role write attempts are denied and change no records', function ()
 test('patient role can only reach the holding page and logout', function () {
     $user = User::factory()->create(['role' => 'patient']);
 
+    // Phase 2C: the holding page now requires the login account to be linked
+    // to a live patients row, so link this fixture before asserting access.
+    $this->clinicPatient->user_id = $user->id;
+    $this->clinicPatient->save();
+
     $this->actingAs($user)
         ->get(route('patient.portal.coming-soon'))
         ->assertOk()

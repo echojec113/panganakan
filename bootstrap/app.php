@@ -20,6 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'staff' => \App\Http\Middleware\StaffMiddleware::class,
             'clinic' => \App\Http\Middleware\EnsureClinicStaff::class,
             'no-store' => \App\Http\Middleware\SetNoStoreHeaders::class,
+            // Phase 2C: patient-only boundaries. Both aliases are scoped to
+            // role 'patient' inside the middleware, so attaching them to
+            // shared 'auth' groups leaves Admin/Staff behaviour unchanged.
+            'must-change-password' => \App\Http\Middleware\EnsureInitialPasswordChanged::class,
+            'patient-portal-account' => \App\Http\Middleware\EnsurePatientPortalAccount::class,
         ]);
 
         // Where the "guest" middleware sends already-authenticated users

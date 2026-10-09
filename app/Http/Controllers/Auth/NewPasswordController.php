@@ -26,7 +26,11 @@ class NewPasswordController extends Controller
     public function create(Request $request): View|RedirectResponse
     {
         $token = $request->route('token');
-        $email = $request->query('email');
+        // Phase 2C: normalize the emailed address the same way the request
+        // endpoints do, so a hand-edited casing in the link still resolves
+        // the account on a case-sensitive collation.
+        $rawEmail = $request->query('email');
+        $email = is_string($rawEmail) ? Str::lower(trim($rawEmail)) : null;
         $broker = Password::broker();
 
         $user = filled($email) ? $broker->getUser(['email' => $email]) : null;
@@ -53,6 +57,12 @@ class NewPasswordController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Phase 2C: trim + lower-case before validation, mirroring
+        // PasswordResetLinkController::store and the login form.
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+        ]);
+
         $request->validate([
             'token' => ['required'],
             'email' => ['required', 'email'],
