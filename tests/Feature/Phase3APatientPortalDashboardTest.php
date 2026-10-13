@@ -112,14 +112,16 @@ it('links the My Profile card to the read-only profile route', function () {
         ->assertSee('View your personal information.');
 });
 
-it('shows Appointments as a coming-soon placeholder with no route or form', function () {
+it('links the Appointments card to the My Appointments page (Phase 3B.3 replaced the placeholder)', function () {
     [$user] = phase3aEligible();
 
     $html = $this->actingAs($user)->get(route('patient.portal.coming-soon'))
         ->assertOk()
-        ->assertSee('Appointments')
-        ->assertSee('Appointment services will be available soon.')
-        ->assertSee('Coming Soon')
+        ->assertSee('href="' . route('patient.appointments.index') . '"', false)
+        ->assertSee('My Appointments')
+        ->assertSee('Request a checkup, counseling, or delivery appointment online')
+        // The dashboard card itself never hosts a form (requests live on
+        // the dedicated create page); the only form here is still logout.
         ->assertDontSee('appointment-form')
         ->assertDontSee('action="' . url('/appointments') . '"')
         ->getContent();

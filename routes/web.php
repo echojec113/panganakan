@@ -20,6 +20,11 @@ use App\Http\Controllers\LocationSearchController;
 use App\Http\Controllers\PatientAccountController;
 use App\Http\Controllers\PatientInitialPasswordController;
 use App\Http\Controllers\PatientPortalController;
+use App\Http\Controllers\PatientAppointmentController;
+use App\Http\Controllers\PatientNotificationController;
+use App\Http\Controllers\AppointmentCalendarController;
+use App\Http\Controllers\AppointmentChangeRequestController;
+use App\Http\Controllers\AppointmentManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -72,6 +77,85 @@ Route::get('/patient-portal', [PatientPortalController::class, 'dashboard'])
 Route::get('/patient/profile', [PatientPortalController::class, 'profile'])
     ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
     ->name('patient.profile.show');
+
+/*
+|--------------------------------------------------------------------------
+| Patient Portal — Online Appointment Requests (Phase 3B.3)
+|--------------------------------------------------------------------------
+| Same middleware chain and ordering as dashboard/My Profile (auth ->
+| eligibility -> workflow -> headers). Patient-only: the controller 403s
+| clinic roles (which the portal middleware deliberately passes through)
+| and unlinked/archived accounts are already refused upstream. No ID in
+| any URL — the patient is always the authenticated account's own
+| patientAccount link. Rescheduling and review (confirm/decline/cancel
+| by staff/complete) remain Admin/Staff-only. Phase 3D.2B adds the two
+| PATIENT cancellation paths below: a DIRECT cancel for pending online
+| appointments and an approval-gated cancellation request for confirmed
+| online appointments. Both resolve the appointment through the OWN
+| patient's relation (foreign id = 404) and the service re-asserts
+| ownership, online source, status and the scheduled-start cutoff
+| inside its lockForUpdate transaction.
+|
+| Phase 3D.4B (P1) - WRITE THROTTLING: the four POST routes below share
+| one named rate limiter, 'patient-appointment-writes', registered in
+| AppServiceProvider. Policy: 10 write requests per minute keyed per
+| AUTHENTICATED USER (never by IP alone), so two patients behind one
+| NAT address cannot exhaust each other's budget, and a single shared
+| budget bounds the patient's TOTAL write rate across all four
+| endpoints. Only the POST routes carry the limiter: the GET list and
+| form pages, the Admin/Staff appointment management routes and the
+| notification read actions are deliberately untouched. Laravel's
+| middleware priority puts StartSession and 'auth' before 'throttle',
+| so the limiter always resolves the signed-in user from the session
+| and guests are refused by 'auth' before any attempt is counted.
+*/
+
+Route::get('/patient/appointments', [PatientAppointmentController::class, 'index'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.appointments.index');
+
+Route::get('/patient/appointments/create', [PatientAppointmentController::class, 'create'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.appointments.create');
+
+Route::post('/patient/appointments', [PatientAppointmentController::class, 'store'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store', 'throttle:patient-appointment-writes'])
+    ->name('patient.appointments.store');
+
+Route::post('/patient/appointments/{appointmentId}/cancel', [PatientAppointmentController::class, 'cancel'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store', 'throttle:patient-appointment-writes'])
+    ->name('patient.appointments.cancel');
+
+Route::post('/patient/appointments/{appointmentId}/cancellation-requests', [PatientAppointmentController::class, 'cancellationRequest'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store', 'throttle:patient-appointment-writes'])
+    ->name('patient.appointments.cancellationRequest');
+
+Route::post('/patient/appointments/{appointmentId}/reschedule-requests', [PatientAppointmentController::class, 'rescheduleRequest'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store', 'throttle:patient-appointment-writes'])
+    ->name('patient.appointments.rescheduleRequest');
+
+/*
+|--------------------------------------------------------------------------
+| Patient Portal Notifications (Phase 3B.4)
+|--------------------------------------------------------------------------
+| Same middleware chain as the rest of the patient portal. The patient
+| identity is never read from the URL — every query is scoped through the
+| authenticated user's own notifications() relation, so another patient's
+| notification id resolves to 404. Clinic-role users are refused by the
+| in-controller role check (403) and keep the existing clinic tray.
+*/
+
+Route::get('/patient/notifications', [PatientNotificationController::class, 'index'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.notifications.index');
+
+Route::post('/patient/notifications/{id}/read', [PatientNotificationController::class, 'markAsRead'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.notifications.read');
+
+Route::post('/patient/notifications/mark-all-read', [PatientNotificationController::class, 'markAllAsRead'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.notifications.markAllRead');
 
 /*
 |--------------------------------------------------------------------------
@@ -238,6 +322,67 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
 
     Route::get('/pregnancy-outcomes', [PregnancyOutcomeController::class, 'index'])
         ->name('pregnancy-outcomes.index');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Appointments Calendar (Admin & Staff) - READ-ONLY, Phase 3B.2A
+    |--------------------------------------------------------------------------
+    | Display-only calendar over the appointments table (Phase 3B.1).
+    | Inside the 'clinic' boundary, so Patient accounts are denied (403)
+    | and guests follow the normal auth redirect. No write route exists:
+    | confirm/decline/cancel/walk-in creation belong to future phases.
+    */
+
+    Route::get('/appointments', [AppointmentCalendarController::class, 'index'])
+        ->name('appointments.index');
+
+    /*
+    |----------------------------------------------------------------------
+    | Appointment Management (Admin & Staff) - Phase 3B.2B
+    |----------------------------------------------------------------------
+    | Confirm / Decline / Cancel / Complete transitions plus walk-in
+    | creation, all POST/PATCH (no mutation via GET). Inside the 'clinic'
+    | boundary: patient accounts 403, guests redirected. Transition
+    | legality is enforced server-side in AppointmentManagementService,
+    | never by button visibility.
+    */
+
+    Route::get('/appointments/patient-search', [AppointmentManagementController::class, 'patientSearch'])
+        ->name('appointments.patient-search');
+
+    Route::patch('/appointments/{appointment}/confirm', [AppointmentManagementController::class, 'confirm'])
+        ->name('appointments.confirm');
+
+    Route::patch('/appointments/{appointment}/decline', [AppointmentManagementController::class, 'decline'])
+        ->name('appointments.decline');
+
+    Route::patch('/appointments/{appointment}/cancel', [AppointmentManagementController::class, 'cancel'])
+        ->name('appointments.cancel');
+
+    Route::patch('/appointments/{appointment}/complete', [AppointmentManagementController::class, 'complete'])
+        ->name('appointments.complete');
+
+    Route::post('/appointments/walk-in', [AppointmentManagementController::class, 'walkInStore'])
+        ->name('appointments.walk-in.store');
+
+    /*
+    |----------------------------------------------------------------------
+    | Appointment Change Request Review (Admin & Staff) - Phase 3D.2C
+    |----------------------------------------------------------------------
+    | Approve / Decline a patient-submitted cancellation request against a
+    | CONFIRMED online appointment. PATCH only (no mutation via GET),
+    | inside the same clinic boundary as the calendar: patient accounts
+    | 403, guests redirected. Legality (request still pending, appointment
+    | still confirmed/online, cutoff, lock-first ordering) is enforced
+    | server-side in AppointmentManagementService, never by button
+    | visibility. Invalid/missing ids resolve to 404 via implicit binding.
+    */
+
+    Route::patch('/appointment-change-requests/{changeRequest}/approve', [AppointmentChangeRequestController::class, 'approve'])
+        ->name('appointment-change-requests.approve');
+
+    Route::patch('/appointment-change-requests/{changeRequest}/decline', [AppointmentChangeRequestController::class, 'decline'])
+        ->name('appointment-change-requests.decline');
 
     Route::get('/audit-logs', [AuditLogController::class, 'index'])
         ->name('audit-logs.index');

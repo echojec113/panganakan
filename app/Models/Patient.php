@@ -15,6 +15,7 @@ use App\Models\Ultrasound;
 use App\Models\Baby;
 use App\Models\Referral;
 use App\Models\PregnancyOutcome;
+use App\Models\Appointment;
 
 class Patient extends Model
 {
@@ -154,6 +155,21 @@ public function latestReferral(): HasOne
     public function pregnancyOutcome(): HasOne
     {
         return $this->hasOne(PregnancyOutcome::class);
+    }
+
+    /**
+     * Appointment requests owned by this patient (DEPLA Phase 3B.1).
+     *
+     * Deliberately NOT wired into the boot() delete/restore cascade above:
+     * appointment history is an operational request log, not clinical data,
+     * and Phase 3B.1 introduces no archive behavior. Soft-deleting a
+     * patient therefore leaves its appointment rows intact (the FK is
+     * RESTRICT only against hard deletion). Whether future phases cascade
+     * archive/restore onto appointments is a separate approved decision.
+     */
+    public function appointments(): HasMany
+    {
+        return $this->hasMany(Appointment::class);
     }
 
     public function assignedStaff(): BelongsTo

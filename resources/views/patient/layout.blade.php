@@ -87,6 +87,49 @@
                     Dashboard
                 </a>
 
+                {{-- My Appointments — Phase 3B.3 functional online request
+                     module. Active state covers the list, the request form
+                     and the POST target's redirect landing. --}}
+                <a href="{{ route('patient.appointments.index') }}"
+                   @class([
+                       'inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
+                       request()->routeIs('patient.appointments.*')
+                           ? 'text-white'
+                           : 'text-[#19355F] hover:bg-[#EDF5EC]',
+                   ])
+                   @if(request()->routeIs('patient.appointments.*')) style="background: var(--depla-green);" @endif>
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    My Appointments
+                </a>
+
+                {{-- Notifications — Phase 3B.4 portal notification tray.
+                     The composer (PatientNotificationComposer, bound to
+                     patient.layout) supplies the latest 5 + unread count
+                     for the authenticated PATIENT account only. --}}
+                <a href="{{ route('patient.notifications.index') }}"
+                   @class([
+                       'relative inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
+                       request()->routeIs('patient.notifications.*')
+                           ? 'text-white'
+                           : 'text-[#19355F] hover:bg-[#EDF5EC]',
+                   ])
+                   @if(request()->routeIs('patient.notifications.*')) style="background: var(--depla-green);" @endif>
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                    </svg>
+                    Notifications
+                    @if (($patientUnreadNotificationCount ?? 0) > 0)
+                        <span class="inline-flex min-w-[1.15rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold leading-5"
+                              style="background: var(--depla-dark-green); color: #fff;"
+                              aria-label="{{ $patientUnreadNotificationCount }} unread notifications">
+                            {{ $patientUnreadNotificationCount > 99 ? '99+' : $patientUnreadNotificationCount }}
+                        </span>
+                    @endif
+                </a>
+
                 <a href="{{ route('patient.profile.show') }}"
                    @class([
                        'rounded-xl px-4 py-2 text-sm font-semibold transition-colors',
