@@ -1,10 +1,10 @@
-{{-- DEPLA Phase 3A — Patient Dashboard (updated Phase 3B.3).
+{{-- DEPLA Phase 3A — Patient Dashboard (updated Phase 3B.3, Phase 3E.2).
      Four cards: My Profile (functional), My Appointments (functional —
-     Phase 3B.3 online request module), Medical Records (Coming Soon
-     placeholder), Account Security (informational). No clinical data, no
-     risk/pregnancy/visit information, no clinic navigation. The patient
-     identity comes from the controller's own `patientAccount` link —
-     nothing here accepts an ID. --}}
+     Phase 3B.3 online request module), My Medical Records (functional —
+     Phase 3E.2 read-only records page), Account Security (informational).
+     No clinical data, no risk/pregnancy/visit information, no clinic
+     navigation. The patient identity comes from the controller's own
+     `patientAccount` link — nothing here accepts an ID. --}}
 @extends('patient.layout')
 
 @section('content')
@@ -20,7 +20,7 @@
         </p>
         <p class="mt-3 inline-block rounded-full px-4 py-1.5 text-xs font-medium sm:text-sm"
            style="background: #EDF5EC; color: var(--depla-dark-green);">
-            Some services are not available yet &mdash; medical records are coming soon.
+            Some services are not available yet. Your appointments, notifications and medical records are ready to use.
         </p>
     </section>
 
@@ -70,26 +70,26 @@
                 </span>
             </a>
 
-            {{-- 3. Medical Records — placeholder only, no clinical data --}}
-            <article class="flex flex-col rounded-2xl border bg-white p-6"
-                     style="border-color: var(--light-border);">
-                <div class="mb-4 flex items-start justify-between gap-2">
-                    <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl"
-                          style="background: #EDF5EC;">
-                        <svg class="h-5 w-5" style="color: var(--depla-dark-green);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                        </svg>
-                    </span>
-                    <span class="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide"
-                          style="background: #F6F4EE; color: #657083;">
-                        Coming Soon
-                    </span>
-                </div>
+            {{-- 3. Medical Records — functional (Phase 3E.2): read-only
+                 records for the pregnancy linked to this login. --}}
+            <a href="{{ route('patient.medical-records.index') }}"
+               class="group flex flex-col rounded-2xl border bg-white p-6 transition hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+               style="border-color: var(--light-border); outline-color: var(--depla-green);"
+               aria-label="My Medical Records: view your pregnancy records">
+                <span class="mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl"
+                      style="background: linear-gradient(135deg, #367E4B, #58D68D);">
+                    <svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </span>
                 <span class="text-base font-bold" style="color: var(--depla-navy);">Medical Records</span>
                 <span class="mt-1.5 text-sm leading-6" style="color: var(--body-text);">
-                    Medical record access will be available soon.
+                    View the records the clinic keeps for your current pregnancy.
                 </span>
-            </article>
+                <span class="mt-4 text-sm font-semibold" style="color: var(--depla-dark-green);">
+                    Open My Medical Records &rarr;
+                </span>
+            </a>
 
             {{-- 4. Account Security — informational only, no metadata --}}
             <article class="flex flex-col rounded-2xl border bg-white p-6"

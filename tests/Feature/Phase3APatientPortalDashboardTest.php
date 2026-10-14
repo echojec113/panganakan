@@ -130,14 +130,19 @@ it('links the Appointments card to the My Appointments page (Phase 3B.3 replaced
     expect(substr_count($html, '<form'))->toBe(1);
 });
 
-it('shows Medical Records as a coming-soon placeholder with no clinical content', function () {
+it('links Medical Records to the Phase 3E.2 read-only records page', function () {
     [$user] = phase3aEligible();
 
     $this->actingAs($user)->get(route('patient.portal.coming-soon'))
         ->assertOk()
+        ->assertSee('href="' . route('patient.medical-records.index') . '"', false)
         ->assertSee('Medical Records')
-        ->assertSee('Medical record access will be available soon.')
-        ->assertSee('Coming Soon');
+        ->assertSee('View the records the clinic keeps for your current pregnancy.')
+        ->assertSee('Open My Medical Records')
+        // Phase 3E.2 replaced the placeholder: no coming-soon copy remains.
+        ->assertDontSee('Medical record access will be available soon.')
+        ->assertDontSee('Coming Soon')
+        ->assertDontSee('medical records are coming soon');
 });
 
 it('shows Account Security as informational only with no authentication metadata', function () {

@@ -20,6 +20,7 @@ use App\Http\Controllers\LocationSearchController;
 use App\Http\Controllers\PatientAccountController;
 use App\Http\Controllers\PatientInitialPasswordController;
 use App\Http\Controllers\PatientPortalController;
+use App\Http\Controllers\PatientMedicalRecordsController;
 use App\Http\Controllers\PatientAppointmentController;
 use App\Http\Controllers\PatientNotificationController;
 use App\Http\Controllers\AppointmentCalendarController;
@@ -77,6 +78,30 @@ Route::get('/patient-portal', [PatientPortalController::class, 'dashboard'])
 Route::get('/patient/profile', [PatientPortalController::class, 'profile'])
     ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
     ->name('patient.profile.show');
+
+/*
+|--------------------------------------------------------------------------
+| Patient Portal — My Medical Records (Phase 3E.2, expanded by Phase 3E.3)
+|--------------------------------------------------------------------------
+| Same middleware chain and ordering as dashboard/My Profile. Patient-only,
+| strictly read-only, ONE GET route and no medical-record POST/PUT/PATCH/
+| DELETE route exists anywhere. No patient ID is accepted from the URL or
+| from any request parameter: the record is always the authenticated
+| account's own `patientAccount` link, so another patient's row is
+| unreachable by construction.
+|
+| Scope is the CURRENTLY LINKED pregnancy row only. Phase 3E.3 extends the
+| same page with Ultrasound Records, Birth Plan, Delivery Records and Baby
+| Information for that linked row — still ONE route, still no writes, and
+| still no new file-serving endpoint (ultrasound reports, storage paths and
+| staff remarks are never selected). Historical pregnancy grouping,
+| postpartum, referrals and all risk/ML/assessment data remain out of
+| scope.
+*/
+
+Route::get('/patient/medical-records', [PatientMedicalRecordsController::class, 'index'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.medical-records.index');
 
 /*
 |--------------------------------------------------------------------------
