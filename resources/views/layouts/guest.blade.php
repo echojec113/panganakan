@@ -507,6 +507,10 @@
                                      {{-- Phase 2C: mandatory first-login password change. --}}
                                      <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Change Your Password</h2>
                                      <p class="text-xs text-[#657083]">Required before you can continue</p>
+                                 @elseif (request()->routeIs('patient.setup.show'))
+                                     {{-- Phase 1.5: first-time Patient Portal password setup. --}}
+                                     <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Set Up Your Password</h2>
+                                     <p class="text-xs text-[#657083]">Create your patient portal password</p>
                                  @else
                                      <h2 class="text-xl font-bold text-[#19355F]" style="font-family:'DM Serif Display',serif;font-weight:400;font-size:1.4rem;">Welcome</h2>
                                      <p class="text-xs text-[#657083]">Depla Family Care Portal</p>

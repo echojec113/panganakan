@@ -773,6 +773,16 @@
                 Manage Staff
             </a>
 
+            {{-- Patient Account Management (Phase 2 Sprint 1) - Admin only.
+                 Rendered inside the role-gated Administration block above,
+                 so Staff and Patient sessions never see it; the route
+                 itself is additionally guarded by AdminMiddleware. --}}
+            <a href="{{ route('patient-accounts.index') }}"
+               class="nav-item {{ request()->routeIs('patient-accounts.*') ? 'active' : '' }}">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+                Patient Accounts
+            </a>
+
             <a href="{{ route('audit-logs.index') }}"
                class="nav-item {{ request()->routeIs('audit-logs.*') ? 'active' : '' }}">
                 <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg></span>

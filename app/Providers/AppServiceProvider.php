@@ -2,10 +2,13 @@
 
 namespace App\Providers;
 
+use App\Listeners\SetPatientSessionAuthMarker;
 use App\Mail\Transport\BrevoTransport;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
@@ -30,6 +33,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
     $this->abortWhenTestingWithCachedConfig();
+
+    // Phase 2: stamp the patient session with the authentication timestamp so
+    // EnsurePatientSessionNotRevoked can reject sessions that predate a
+    // deactivation/reactivation. Registered explicitly (not via event
+    // discovery) so the single Login -> patient marker path is visible here.
+    Event::listen(Login::class, SetPatientSessionAuthMarker::class);
 
     Mail::extend('brevo', function () {
         return new BrevoTransport();

@@ -444,8 +444,6 @@ it('keeps Phase 2B account creation working', function () {
 
     $this->actingAs($staff)->post(route('patients.account.store', $patient->id), [
         'email' => 'phase3a.newaccount@phase3a.test',
-        'password' => 'Initial-Passw0rd!',
-        'password_confirmation' => 'Initial-Passw0rd!',
     ])->assertRedirect(route('patients.show', $patient->id));
 
     $created = User::where('email', 'phase3a.newaccount@phase3a.test')->first();

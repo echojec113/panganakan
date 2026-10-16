@@ -468,7 +468,7 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
         ])->withInput();
     }
 
-    $request->validate([
+    $validated = $request->validate([
         'lmp' => 'required|date|before_or_equal:today|after_or_equal:' . now()->subWeeks(42)->toDateString(),
         'edd' => 'required|date|after:lmp',
         'address' => 'required|string|max:255',
@@ -490,37 +490,20 @@ private function latestPrenatalVisit(Patient $patient): ?PrenatalVisit
         ])->withInput();
     }
 
-    $newPatient = Patient::create([
-        'first_name' => $oldPatient->first_name,
-        'middle_name' => $oldPatient->middle_name,
-        'last_name' => $oldPatient->last_name,
-        'birthdate' => $oldPatient->birthdate,
-        'age' => Carbon::parse($oldPatient->birthdate)->age,
-
-        'address' => $request->address,
-        'contact_number' => $request->contact_number,
-
-        'email' => $oldPatient->email,
-        'civil_status' => $oldPatient->civil_status,
-        'philhealth_member' => $oldPatient->philhealth_member,
-        'philhealth_number' => $oldPatient->philhealth_number,
-
-        'gravida' => $oldPatient->gravida + 1,
-        'para' => $oldPatient->para,
-        'previous_cs' => $oldPatient->previous_cs,
-        'miscarriage' => $oldPatient->miscarriage,
-
-        'lmp' => $request->lmp,
-        'edd' => $request->edd,
-        'status' => 'ONGOING',
-        'delivery_date' => null,
-    ]);
-
-    $this->logAction(
-        'CREATE',
-        'PATIENT',
-        'Started new pregnancy record for: ' . $oldPatient->first_name . ' ' . $oldPatient->last_name
-    );
+    // DEPLA Phase 3H.3 - the entire continuation (row lock, eligibility
+    // rechecks, episode creation, verified history links, patients.user_id
+    // pointer transfer and structured audit) commits atomically inside
+    // PregnancyContinuationService. The pre-checks above stay for UX only;
+    // the service re-verifies everything under the lock and is the sole
+    // writer. Business refusals surface with the same 'status' error key.
+    try {
+        $newPatient = app(\App\Services\PregnancyContinuationService::class)
+            ->continueFromDelivered($oldPatient, $request->user(), $validated);
+    } catch (DomainException $exception) {
+        return back()->withErrors([
+            'status' => $exception->getMessage()
+        ])->withInput();
+    }
 
     return redirect()->route('patients.show', $newPatient->id)
         ->with('success', 'New pregnancy record created successfully.');

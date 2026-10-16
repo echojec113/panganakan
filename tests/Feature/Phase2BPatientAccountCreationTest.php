@@ -15,10 +15,12 @@ use Illuminate\Support\Facades\Schema;
  * DEPLA Phase 2B — secure backend provisioning of a Patient Portal login
  * account for an EXISTING patient record.
  *
- * Backend only: there is no Blade form, no Patient Portal page, no invitation
- * email and no mandatory password-change flow yet (Phase 2C). These tests
- * cover validation, authorization, transactional integrity, audit safety and
- * the new must_change_password column - all against isolated SQLite :memory:.
+ * Backend only: there is no Blade form, no Patient Portal page, no
+ * password entry any more (Phase 1.5 replaced the staff-chosen initial
+ * password with the emailed single-use setup link) and no mandatory
+ * password-change flow yet (Phase 2C). These tests cover validation,
+ * authorization, transactional integrity, audit safety and the
+ * must_change_password column - all against isolated SQLite :memory:.
  */
 beforeEach(function () {
     $this->withoutVite();
@@ -46,10 +48,9 @@ function phase2bActor(string $role = 'staff'): User
 
 function phase2bPayload(array $overrides = []): array
 {
+    // Phase 1.5: the login email is the ONLY credential input.
     return array_merge([
         'email' => 'patient.login@phase2b.test',
-        'password' => 'Initial-Passw0rd!',
-        'password_confirmation' => 'Initial-Passw0rd!',
     ], $overrides);
 }
 
@@ -223,18 +224,26 @@ it('leaves the new account unverified', function () {
     expect($user->email_verified_at)->toBeNull();
 });
 
-it('stores only a hash of the initial password', function () {
+it('generates a random initial password that ignores any posted password fields', function () {
     $staff = phase2bActor('staff');
     $patient = phase2bPatient();
 
+    // A stale or crafted form may still post password fields: they are
+    // ignored entirely and never become the account password (Phase 1.5).
     $this->actingAs($staff)
-        ->post(route('patients.account.store', $patient->id), phase2bPayload());
+        ->post(route('patients.account.store', $patient->id), phase2bPayload([
+            'password' => 'Initial-Passw0rd!',
+            'password_confirmation' => 'Initial-Passw0rd!',
+        ]))
+        ->assertRedirect(route('patients.show', $patient->id))
+        ->assertSessionHasNoErrors();
 
     $user = User::where('email', 'patient.login@phase2b.test')->first();
 
     expect($user->password)->not->toBe('Initial-Passw0rd!');
     expect(Hash::isHashed($user->password))->toBeTrue();
-    expect(Hash::check('Initial-Passw0rd!', $user->password))->toBeTrue();
+    expect(Hash::check('Initial-Passw0rd!', $user->password))->toBeFalse();
+    expect(Hash::check('password', $user->password))->toBeFalse();
 });
 
 it('leaves assigned_staff_id unchanged', function () {
@@ -289,42 +298,41 @@ it('leaves the patient clinical record unchanged', function () {
 |--------------------------------------------------------------------------
 */
 
-it('requires a password confirmation', function () {
+it('creates the account when no password fields are posted at all', function () {
     $staff = phase2bActor('staff');
     $patient = phase2bPatient();
 
     $this->actingAs($staff)
         ->post(route('patients.account.store', $patient->id), [
             'email' => 'patient.login@phase2b.test',
-            'password' => 'Initial-Passw0rd!',
         ])
-        ->assertSessionHasErrors(['password', 'password_confirmation']);
+        ->assertRedirect(route('patients.show', $patient->id))
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
 
-    expect(User::where('email', 'patient.login@phase2b.test')->count())->toBe(0);
-    expect($patient->fresh()->user_id)->toBeNull();
+    expect(User::where('email', 'patient.login@phase2b.test')->count())->toBe(1);
+    expect($patient->fresh()->user_id)->not->toBeNull();
 });
 
-it('rejects weak or mismatched passwords', function () {
+it('ignores weak or mismatched posted password fields without rejecting the request', function () {
     $staff = phase2bActor('staff');
     $patient = phase2bPatient();
 
-    // Too short for the project's Password::defaults() policy (min 8).
+    // Neither a weak password nor a mismatched confirmation can fail the
+    // request any more: the fields are no longer validated or read.
     $this->actingAs($staff)
         ->post(route('patients.account.store', $patient->id), phase2bPayload([
             'password' => 'short',
-            'password_confirmation' => 'short',
+            'password_confirmation' => 'Different-Confirm!',
         ]))
-        ->assertSessionHasErrors('password');
+        ->assertRedirect(route('patients.show', $patient->id))
+        ->assertSessionHasNoErrors();
 
-    // Confirmation that does not match.
-    $this->actingAs($staff)
-        ->post(route('patients.account.store', $patient->id), phase2bPayload([
-            'password_confirmation' => 'Different-Passw0rd!',
-        ]))
-        ->assertSessionHasErrors('password');
+    $user = User::where('email', 'patient.login@phase2b.test')->first();
 
-    expect(User::where('email', 'patient.login@phase2b.test')->count())->toBe(0);
-    expect($patient->fresh()->user_id)->toBeNull();
+    expect($user)->not->toBeNull();
+    expect(Hash::check('short', $user->password))->toBeFalse();
+    expect($patient->fresh()->user_id)->toBe($user->id);
 });
 
 it('rejects an invalid email address', function () {
@@ -412,7 +420,7 @@ it('returns 404 for a missing patient', function () {
     expect(User::where('email', 'patient.login@phase2b.test')->count())->toBe(0);
 });
 
-it('re-validates the credentials at the service boundary', function () {
+it('re-validates the email at the service boundary', function () {
     $staff = phase2bActor('staff');
     $patient = phase2bPatient();
     $service = app(PatientAccountCreationService::class);
@@ -420,24 +428,13 @@ it('re-validates the credentials at the service boundary', function () {
     $refused = null;
 
     try {
-        $service->createForPatient($patient, $staff, 'not-an-email', 'Initial-Passw0rd!');
+        $service->createForPatient($patient, $staff, 'not-an-email');
     } catch (DomainException $exception) {
         $refused = $exception->getMessage();
     }
 
     expect($refused)->not->toBeNull();
     expect(User::where('role', 'patient')->count())->toBe(0);
-
-    $refused = null;
-
-    try {
-        $service->createForPatient($patient, $staff, 'valid.login@phase2b.test', 'short');
-    } catch (DomainException $exception) {
-        $refused = $exception->getMessage();
-    }
-
-    expect($refused)->not->toBeNull();
-    expect(User::count())->toBe(1);
     expect($patient->fresh()->user_id)->toBeNull();
 });
 
@@ -463,8 +460,7 @@ it('leaves no partial user, link or audit row when creation fails after the user
         app(PatientAccountCreationService::class)->createForPatient(
             $patient,
             $ghostActor,
-            'partial.failure@phase2b.test',
-            'Initial-Passw0rd!'
+            'partial.failure@phase2b.test'
         );
     } catch (Throwable) {
         $refused = true;
@@ -555,31 +551,38 @@ it('never records the password or its hash in the audit log', function () {
     expect($dump)->not->toContain('$2y$');
 });
 
-it('never exposes the initial password in the response or the session', function () {
+it('never stores or flashes a posted password in the response or the session', function () {
     $staff = phase2bActor('staff');
     $patient = phase2bPatient();
 
     $response = $this->actingAs($staff)
-        ->post(route('patients.account.store', $patient->id), phase2bPayload());
+        ->post(route('patients.account.store', $patient->id), phase2bPayload([
+            'password' => 'Posted-Staff-Password!',
+            'password_confirmation' => 'Posted-Staff-Password!',
+        ]));
 
     $response
         ->assertRedirect(route('patients.show', $patient->id))
-        ->assertDontSee('Initial-Passw0rd!', false);
+        ->assertDontSee('Posted-Staff-Password!', false);
 
-    expect(session('success'))->not->toContain('Initial-Passw0rd!');
+    $user = User::where('email', 'patient.login@phase2b.test')->first();
+
+    // The posted password is never the account password (Phase 1.5).
+    expect(Hash::check('Posted-Staff-Password!', $user->password))->toBeFalse();
+    expect(session('success'))->not->toContain('Posted-Staff-Password!');
     expect(session()->getOldInput('password'))->toBeNull();
     expect(session()->getOldInput('password_confirmation'))->toBeNull();
 
-    // A validation failure must not flash the submitted password either -
-    // Laravel excludes password fields via the Handler's dontFlash list.
-    $this->actingAs($staff)
-        ->post(route('patients.account.store', $patient->id), phase2bPayload([
-            'password_confirmation' => 'Mismatched-Passw0rd!',
-        ]))
-        ->assertSessionHasErrors('password');
+    // The internally generated random password never leaks either.
+    $dump = json_encode($response->getSession()->all());
+    expect($dump)->not->toContain('$2y$');
 
-    expect(session()->getOldInput('password'))->toBeNull();
-    expect(session()->getOldInput('password_confirmation'))->toBeNull();
+    $auditDump = AuditLog::query()->get()
+        ->map(fn (AuditLog $log): string => json_encode($log->getAttributes()))
+        ->implode("\n");
+
+    expect($auditDump)->not->toContain('Posted-Staff-Password!');
+    expect($auditDump)->not->toContain('$2y$');
 });
 
 /*

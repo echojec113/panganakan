@@ -40,6 +40,15 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return route('dashboard');
         });
+
+        // Phase 2: reject a patient session that predates the most recent
+        // deactivation/reactivation revocation. Appended to the web group so
+        // it runs after StartSession on every web request; it is a no-op for
+        // guests and for every non-patient role, so Admin/Staff sessions are
+        // never touched by patient lifecycle actions.
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsurePatientSessionNotRevoked::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Expired-session logout recovery (narrowly scoped).

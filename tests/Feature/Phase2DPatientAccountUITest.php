@@ -52,10 +52,9 @@ function phase2dLink(Patient $patient, User $user): void
 
 function phase2dPayload(array $overrides = []): array
 {
+    // Phase 1.5: the login email is the ONLY credential input.
     return array_merge([
         'email' => 'portal.login@phase2d.test',
-        'password' => 'Initial-Passw0rd!',
-        'password_confirmation' => 'Initial-Passw0rd!',
     ], $overrides);
 }
 
@@ -230,7 +229,7 @@ it('includes CSRF protection in the modal form', function () {
     $response->assertSee('name="_token"', false);
 });
 
-it('renders every required modal field, prefills the clinical email and starts closed', function () {
+it('renders the email-only modal, prefills the clinical email and starts closed', function () {
     $staff = phase2dActor('staff');
     $patient = phase2dPatient();
 
@@ -239,14 +238,18 @@ it('renders every required modal field, prefills the clinical email and starts c
     $response->assertOk();
     $response->assertSee('name="email"', false);
     $response->assertSee('type="email"', false);
-    $response->assertSee('name="password"', false);
-    $response->assertSee('name="password_confirmation"', false);
     $response->assertSee('autocomplete="email"', false);
-    $response->assertSee('autocomplete="new-password"', false);
     $response->assertSee('Login Email');
-    $response->assertSee('Initial Password');
-    $response->assertSee('Confirm Initial Password');
-    $response->assertSee('Minimum of 8 characters.');
+
+    // Phase 1.5: no password inputs exist in the modal any more.
+    $response->assertDontSee('name="password"', false);
+    $response->assertDontSee('name="password_confirmation"', false);
+    $response->assertDontSee('Initial Password');
+    $response->assertDontSee('Confirm Initial Password');
+
+    // The mandated setup-email explanation is visible to staff.
+    $response->assertSee("An account setup email will be sent to the patient's email address.", false);
+    $response->assertSee('valid for 24 hours');
 
     // Prefill from the clinical record (editable, never written back).
     $response->assertSee('value="clinical.record@phase2d.test"', false);
@@ -263,16 +266,10 @@ it('displays validation errors safely and reopens the modal', function () {
         ->from(route('patients.show', $patient->id))
         ->post(route('patients.account.store', $patient->id), phase2dPayload([
             'email' => 'not-an-email-address',
-            'password' => 'short',
-            'password_confirmation' => 'short',
         ]));
 
     $post->assertRedirect(route('patients.show', $patient->id));
-    $post->assertSessionHasErrors(['email', 'password']);
-
-    // Passwords never enter the flashed session input.
-    expect(session()->getOldInput('password'))->toBeNull();
-    expect(session()->getOldInput('password_confirmation'))->toBeNull();
+    $post->assertSessionHasErrors('email');
 
     $profile = $this->get(route('patients.show', $patient->id));
 
@@ -288,34 +285,35 @@ it('displays validation errors safely and reopens the modal', function () {
     expect(User::where('role', 'patient')->count())->toBe(0);
 });
 
-it('never repopulates the password fields after a validation failure', function () {
+it('never renders or stores password inputs, and ignores posted password fields', function () {
     $staff = phase2dActor('staff');
     $patient = phase2dPatient();
 
+    // A crafted POST with password fields still succeeds; the values are
+    // never validated, stored or flashed (Phase 1.5).
     $this->actingAs($staff)
         ->from(route('patients.show', $patient->id))
         ->post(route('patients.account.store', $patient->id), phase2dPayload([
             'password' => 'Temporary-Phase2D!',
             'password_confirmation' => 'Different-Phase2D!',
         ]))
-        ->assertSessionHasErrors('password');
+        ->assertRedirect(route('patients.show', $patient->id))
+        ->assertSessionHasNoErrors();
 
-    // Not flashed anywhere in the session.
     expect(session()->getOldInput('password'))->toBeNull();
     expect(session()->getOldInput('password_confirmation'))->toBeNull();
+
+    $created = User::where('email', 'portal.login@phase2d.test')->first();
+
+    expect($created)->not->toBeNull();
+    expect(Hash::check('Temporary-Phase2D!', $created->password))->toBeFalse();
 
     $profile = $this->get(route('patients.show', $patient->id));
 
     $profile->assertOk();
     $profile->assertDontSee('Temporary-Phase2D!', false);
-
-    // Structural guarantee: neither password input carries a value attribute.
-    preg_match_all('/<input[^>]*name="password(?:_confirmation)?"[^>]*>/', $profile->getContent(), $matches);
-
-    expect($matches[0])->toHaveCount(2);
-    foreach ($matches[0] as $tag) {
-        expect($tag)->not->toContain('value=');
-    }
+    $profile->assertDontSee('name="password"', false);
+    $profile->assertDontSee('name="password_confirmation"', false);
 });
 
 it('redirects a successful creation back to the Patient Profile without exposing the password', function () {

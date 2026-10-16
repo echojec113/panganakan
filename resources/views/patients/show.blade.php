@@ -120,6 +120,10 @@
             <x-flash type="error" :message="session('error')" class="mb-6" />
         @endif
 
+        @if(session('warning'))
+            <x-flash type="warning" :message="session('warning')" class="mb-6" />
+        @endif
+
         <x-error-summary :errors="$errors" title="Please review the highlighted issues." class="mb-6" />
 
         {{-- =========================================================
@@ -667,10 +671,11 @@
                 $portalAccountIsActive = $portalAccountExists && ! $portalLoginAccount->trashed();
 
                 // Reopen the modal only when the account form itself was
-                // rejected (email/password rules on patients.account.store).
+                // rejected (the email rule on patients.account.store).
                 // Other profile flows flash their own error keys and must
-                // never pop this modal open.
-                $reopenAccountModal = $errors->hasAny(['email', 'password', 'password_confirmation']);
+                // never pop this modal open. Phase 1.5: no password fields
+                // exist any more, so 'email' is the only form error key.
+                $reopenAccountModal = $errors->has('email');
             @endphp
 
             <section id="patient-account" class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -706,7 +711,8 @@
                                     Create an account to let this patient sign in to the patient portal.
                                 </p>
                                 <p class="mt-1 text-xs text-gray-500">
-                                    The patient will be required to change the initial password after their first login.
+                                    An account setup email will be sent to the patient. The patient
+                                    will create their own password using a secure link valid for 24 hours.
                                 </p>
                             </div>
 
@@ -741,10 +747,26 @@
                                 @endif
                             </div>
 
-                            <p class="text-xs leading-5 text-gray-500">
-                                The patient signs in with these credentials and must change the
-                                initial password on first sign-in. The password itself is never shown here.
-                            </p>
+                            @if($portalLoginAccount->must_change_password)
+                                {{-- Phase 1.5: setup still pending - offer the authorized resend. --}}
+                                <p class="text-xs leading-5 text-gray-500">
+                                    The patient has not yet completed the emailed password setup.
+                                    They will choose their own password using the secure link
+                                    (valid for 24 hours, single use).
+                                </p>
+
+                                <form method="POST" action="{{ route('patients.account.resend-setup-email', $patient->id) }}" class="inline-block">
+                                    @csrf
+                                    <button type="submit" class="btn btn-secondary justify-center text-sm">
+                                        Resend Setup Email
+                                    </button>
+                                </form>
+                            @else
+                                <p class="text-xs leading-5 text-gray-500">
+                                    The patient has completed the emailed setup and signed in with
+                                    their own password. The password itself is never shown here.
+                                </p>
+                            @endif
                         </div>
 
                     @else
@@ -783,8 +805,8 @@
                             <div class="min-w-0">
                                 <h3 id="createAccountModalTitle" class="text-lg font-bold text-gray-900">Create Patient Account</h3>
                                 <p class="mt-1 text-sm text-gray-500">
-                                    Create login credentials for this patient. The patient will be
-                                    required to change the initial password after their first login.
+                                    Create a portal login for this patient. The patient will
+                                    receive a secure email to choose their own password.
                                 </p>
                             </div>
 
@@ -828,58 +850,14 @@
                                     <x-input-error :messages="$errors->get('email')" class="mt-1 text-xs text-red-500" />
                                 </div>
 
-                                {{-- Initial Password --}}
-                                <div>
-                                    <label for="createAccountPassword" class="mb-1 block text-sm font-medium text-gray-700">
-                                        Initial Password <span class="text-red-500" aria-hidden="true">*</span>
-                                    </label>
-                                    <div class="relative">
-                                        <input
-                                            id="createAccountPassword"
-                                            type="password"
-                                            name="password"
-                                            autocomplete="new-password"
-                                            required
-                                            class="block w-full rounded-lg border-gray-300 pr-10 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]"
-                                        />
-                                        <button
-                                            type="button"
-                                            aria-label="Show or hide the initial password"
-                                            onclick="toggleAccountPassword('createAccountPassword', 'accountPasswordEye')"
-                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
-                                        >
-                                            <svg id="accountPasswordEye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                        </button>
-                                    </div>
-                                    <p class="mt-1 text-xs text-gray-500">Minimum of 8 characters.</p>
-                                    <x-input-error :messages="$errors->get('password')" class="mt-1 text-xs text-red-500" />
-                                </div>
-
-                                {{-- Confirm Initial Password --}}
-                                <div>
-                                    <label for="createAccountPasswordConfirmation" class="mb-1 block text-sm font-medium text-gray-700">
-                                        Confirm Initial Password <span class="text-red-500" aria-hidden="true">*</span>
-                                    </label>
-                                    <div class="relative">
-                                        <input
-                                            id="createAccountPasswordConfirmation"
-                                            type="password"
-                                            name="password_confirmation"
-                                            autocomplete="new-password"
-                                            required
-                                            class="block w-full rounded-lg border-gray-300 pr-10 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]"
-                                        />
-                                        <button
-                                            type="button"
-                                            aria-label="Show or hide the password confirmation"
-                                            onclick="toggleAccountPassword('createAccountPasswordConfirmation', 'accountConfirmEye')"
-                                            class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
-                                        >
-                                            <svg id="accountConfirmEye" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                                        </button>
-                                    </div>
-                                    <x-input-error :messages="$errors->get('password_confirmation')" class="mt-1 text-xs text-red-500" />
-                                </div>
+                                {{-- Phase 1.5: email-only provisioning explanation. No password
+                                     is collected here - the patient chooses their own password
+                                     through the single-use setup link below. --}}
+                                <p class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-5 text-gray-600">
+                                    An account setup email will be sent to the patient's email address.
+                                    The patient will create their own password using a secure link valid
+                                    for 24 hours. The link can only be used once.
+                                </p>
                             </div>
 
                             <div class="flex flex-col-reverse gap-3 border-t border-gray-100 px-6 py-4 sm:flex-row sm:justify-end">
@@ -974,22 +952,6 @@
                             closeCreateAccountModal();
                         }
                     });
-
-                    // Show/hide toggles, same pattern as the password-change form.
-                    function toggleAccountPassword(inputId, iconId) {
-                        const field = document.getElementById(inputId);
-                        const icon = document.getElementById(iconId);
-
-                        if (!field || !icon) return;
-
-                        if (field.type === 'password') {
-                            field.type = 'text';
-                            icon.innerHTML = '<g><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></g>';
-                        } else {
-                            field.type = 'password';
-                            icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>';
-                        }
-                    }
                 </script>
             @endif
         @endif

@@ -21,11 +21,13 @@ use App\Http\Controllers\PatientAccountController;
 use App\Http\Controllers\PatientInitialPasswordController;
 use App\Http\Controllers\PatientPortalController;
 use App\Http\Controllers\PatientMedicalRecordsController;
+use App\Http\Controllers\PatientPregnancyHistoryController;
 use App\Http\Controllers\PatientAppointmentController;
 use App\Http\Controllers\PatientNotificationController;
 use App\Http\Controllers\AppointmentCalendarController;
 use App\Http\Controllers\AppointmentChangeRequestController;
 use App\Http\Controllers\AppointmentManagementController;
+use App\Http\Controllers\Admin\PatientAccountManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -102,6 +104,34 @@ Route::get('/patient/profile', [PatientPortalController::class, 'profile'])
 Route::get('/patient/medical-records', [PatientMedicalRecordsController::class, 'index'])
     ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
     ->name('patient.medical-records.index');
+
+/*
+|--------------------------------------------------------------------------
+| Patient Portal — Pregnancy History (Phase 3H.4)
+|--------------------------------------------------------------------------
+| Same middleware chain and ordering as My Medical Records. Read-only:
+| ONE listing route and ONE episode route, both GET only. No POST/PUT/
+| PATCH/DELETE, no switching, linking, editing or uploading endpoint
+| exists anywhere for pregnancy history.
+ *
+| Ownership is STRICT verified-link membership: a historical episode is
+| viewable only when user_pregnancy_links holds a row for the
+| authenticated user AND the requested episode. The current pointer
+| (patients.user_id) never substitutes for that evidence, so a URL ID
+| cannot be guessed or swapped into another patient's, an unlinked or an
+| archived episode (all resolve to 404). Demographic similarity is never
+| consulted. The listing's Current Pregnancy card resolves through the
+| same pointer as /patient/medical-records and links back to that page,
+| which remains the single current-pregnancy records view.
+*/
+
+Route::get('/patient/pregnancies', [PatientPregnancyHistoryController::class, 'index'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.pregnancies.index');
+
+Route::get('/patient/pregnancies/{episodeId}', [PatientPregnancyHistoryController::class, 'show'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.pregnancies.show');
 
 /*
 |--------------------------------------------------------------------------
@@ -464,6 +494,70 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
 
     Route::post('/patients/{patient}/account', [PatientAccountController::class, 'store'])
         ->name('patients.account.store');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Resend Patient Setup Email (Admin & Staff) — DEPLA Phase 1.5
+    |--------------------------------------------------------------------------
+    | Same boundary as patients.account.store (auth + clinic, both roles).
+    | Regenerates the single-use setup token for a still-pending account and
+    | resends the setup email; refused server-side once setup is complete,
+    | for archived accounts or for non-patient accounts, regardless of what
+    | a manually entered URL claims.
+    */
+
+    Route::post('/patients/{patient}/account/setup-email', [PatientAccountController::class, 'resendSetupEmail'])
+        ->name('patients.account.resend-setup-email');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Patient Account Management (Admin-only) — DEPLA Phase 2 Sprint 1 + Sprint 2
+    |--------------------------------------------------------------------------
+    | The centralized Admin → Patient Accounts module. It sits inside the
+    | existing 'auth' + 'clinic' group (so Patient and unknown roles are
+    | already denied by the outer boundary) AND behind AdminMiddleware, so
+    | Staff receives 403 here by two independent layers on top of the
+    | in-controller re-check and the FormRequest authorize() rule. Hiding
+    | the sidebar link is cosmetic only.
+    |
+    | GET  is a read-only listing (search, status filter, summary counts,
+    |      10-per-page server-side pagination).
+    |
+    | The former POST reset-link route ("Send Password Reset Link") was
+    | removed as redundant: patients already reset their own passwords
+    | through the patient-facing Forgot Password flow on the login page,
+    | which is untouched. No Admin-triggered reset endpoint remains here.
+    |
+    | Resend Setup Email is deliberately NOT re-implemented here: Pending
+    | Setup accounts reuse the existing Phase 1.5 endpoint
+    | (patients.account.resend-setup-email), so there is exactly one setup
+    | token system (24-hour, single-use, 60-second throttle intact).
+    |
+    | Deactivate/Reactivate (Sprint 2): SoftDeletes lifecycle only - no
+    | permanent deletion exists. {account} is ->withTrashed() on both routes
+    | so a deactivated account resolves and a repeated submission gets a
+    | predictable error flash in-controller (instead of a confusing 404),
+    | and so a Staff/Admin id pasted into the URL is refused as 404 by the
+    | role check. Deactivation stamps deleted_at + one audit row in a
+    | transaction AND actively revokes the patient's live credentials
+    | (remember token rotated, sessions rows deleted, password_reset_tokens
+    | purged, cache revocation marker written) so a fresh login is required
+    | even after reactivation. Login, the broker and the setup-token
+    | recheck still refuse the account through the SoftDeletingScope.
+    */
+
+    Route::middleware(\App\Http\Middleware\AdminMiddleware::class)->group(function () {
+        Route::get('/patient-accounts', [PatientAccountManagementController::class, 'index'])
+            ->name('patient-accounts.index');
+
+        Route::post('/patient-accounts/{account}/deactivate', [PatientAccountManagementController::class, 'deactivate'])
+            ->withTrashed()
+            ->name('patient-accounts.deactivate');
+
+        Route::post('/patient-accounts/{account}/reactivate', [PatientAccountManagementController::class, 'reactivate'])
+            ->withTrashed()
+            ->name('patient-accounts.reactivate');
+    });
 
     /*
     |--------------------------------------------------------------------------

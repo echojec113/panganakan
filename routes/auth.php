@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\PatientSetupLinkController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -36,6 +37,19 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    // DEPLA Phase 1.5 — first-time Patient Portal password setup.
+    // Strictly single-use, 24-hour, purpose-namespaced token (see
+    // PatientSetupTokenService); deliberately separate from the ordinary
+    // Forgot Password routes above, which keep their 60-minute lifetime.
+    // 'no-store' keeps a token-bearing page out of every cache.
+    Route::get('patient-setup/{token}', [PatientSetupLinkController::class, 'show'])
+        ->middleware('no-store')
+        ->name('patient.setup.show');
+
+    Route::post('patient-setup/{token}', [PatientSetupLinkController::class, 'store'])
+        ->middleware('no-store')
+        ->name('patient.setup.store');
 });
 
 // Phase 2C: 'must-change-password' sits on every authenticated auth route so a

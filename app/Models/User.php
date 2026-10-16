@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
@@ -83,5 +84,21 @@ class User extends Authenticatable
     public function patientAccount(): HasOne
     {
         return $this->hasOne(Patient::class, 'user_id');
+    }
+
+    /**
+     * Verified pregnancy pairings ever recorded for this account
+     * (DEPLA Phase 3H.2, read-only here).
+     *
+     * Added for the Phase 2 Sprint 1 Admin Patient Account Management
+     * listing: it is only ever counted (withCount) or displayed as a
+     * number. This model never creates, updates or deletes a link row -
+     * ownership evidence is written exclusively by
+     * PatientAccountCreationService inside its provisioning transaction,
+     * and account management must never reassign pregnancy ownership.
+     */
+    public function pregnancyLinks(): HasMany
+    {
+        return $this->hasMany(UserPregnancyLink::class, 'user_id');
     }
 }

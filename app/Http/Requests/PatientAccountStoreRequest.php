@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 
 /**
  * DEPLA Phase 2B — validation + authorization for provisioning a patient
@@ -52,6 +51,11 @@ class PatientAccountStoreRequest extends FormRequest
      */
     public function rules(): array
     {
+        // DEPLA Phase 1.5: the email is the ONLY credential input. Any
+        // password fields a stale/crafted form might still post are
+        // deliberately NOT validated and never reach the service - the
+        // patient chooses their own password through the emailed setup
+        // link.
         return [
             'email' => [
                 'required',
@@ -63,10 +67,6 @@ class PatientAccountStoreRequest extends FormRequest
                 // active AND archived accounts.
                 Rule::unique('users', 'email'),
             ],
-            'password' => ['required', 'string', 'confirmed', Password::defaults()],
-            // Stated separately from `confirmed` so a missing confirmation is
-            // reported as missing rather than only as a mismatch.
-            'password_confirmation' => ['required', 'string'],
         ];
     }
 
