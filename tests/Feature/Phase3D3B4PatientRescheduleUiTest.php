@@ -278,12 +278,16 @@ it('renders the reschedule form fields with clinic-hours constraints and no owne
         ->toContain('min="' . now(\App\Services\AppointmentManagementService::CLINIC_TIMEZONE)->toDateString() . '"')
         ->toContain('required');
 
-    // Proposed time: required, clinic hours 08:00 up to before 17:00.
+    // Phase 4: proposed time is the shared 30-minute slot picker (the
+    // endpoint catalog enforces clinic hours); the free-form time input
+    // with its min/max attributes is gone.
     expect($form)
-        ->toContain('name="proposed_time"')
-        ->toContain('type="time"')
-        ->toContain('min="08:00"')
-        ->toContain('max="16:59"');
+        ->toContain('data-picker-id="reschedule-' . $appointment->id . '"')
+        ->toContain('\u0022timeName\u0022:\u0022proposed_time\u0022')
+        ->toContain('data-slot-carrier')
+        ->not->toContain('type="time"')
+        ->not->toContain('min="08:00"')
+        ->not->toContain('max="16:59"');
 
     // Optional reason with length bounds.
     expect($form)
@@ -325,14 +329,18 @@ it('omits the time field from delivery cards and keeps it on counseling cards', 
     $deliveryForm = phase3d3b4RescheduleFormSegment($content, $delivery);
     $counselingForm = phase3d3b4RescheduleFormSegment($content, $counseling);
 
-    // K5: delivery proposals are date-only - the time input is not rendered.
+    // K5: delivery proposals are date-only - the time picker is not
+    // rendered at all (no proposed_time carrier, no picker instance).
     expect($deliveryForm)->not->toBe('')
-        ->not->toContain('name="proposed_time"')
+        ->not->toContain('proposed_time')
+        ->not->toContain('data-picker-id="reschedule-' . $delivery->id . '"')
         ->toContain('name="proposed_date"');
 
-    // Checkup and counseling both require a time inside clinic hours.
+    // Checkup and counseling both require a time via the shared slot
+    // picker (required carrier driven by the picker's readiness).
     expect($counselingForm)->not->toBe('')
-        ->toContain('name="proposed_time"')
+        ->toContain('data-picker-id="reschedule-' . $counseling->id . '"')
+        ->toContain('\u0022timeName\u0022:\u0022proposed_time\u0022')
         ->toContain('required');
 });
 
@@ -595,11 +603,13 @@ it('reopens the reschedule disclosure, preserves old input and keeps the reason 
         $content
     ))->toBe(1);
 
-    // Old input preserved in the reschedule fields.
+    // Old input preserved in the reschedule fields. The proposed time
+    // old value is carried by the slot picker's validated preselection
+    // (initial config), never a free-form value attribute.
     $form = phase3d3b4RescheduleFormSegment($content, $appointment);
     expect($form)
         ->toContain('value="20/11/2026"')
-        ->toContain('value="10:30"')
+        ->toContain('\u0022initial\u0022:\u002210:30\u0022')
         ->toContain($reason);
 
     // Field error rendered against its input.

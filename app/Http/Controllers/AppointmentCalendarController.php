@@ -515,6 +515,14 @@ class AppointmentCalendarController extends Controller
                 'sourceLabel' => self::SOURCE_LABELS[$appointment->source] ?? $appointment->source,
                 'requestedDate' => $appointment->requested_date?->format('M j, Y') ?? 'Not provided',
                 'requestedDateIso' => $appointment->requested_date?->format('Y-m-d'),
+                // QA FIX 2 - effective scheduled date for the Complete gate:
+                // confirmed_date when present, otherwise requested_date (the
+                // same COALESCE AppointmentManagementService::complete()
+                // enforces). Emitted as a plain Y-m-d string, never a parsed
+                // instant, so Alpine compares it directly against the
+                // server-rendered Manila day (CLINIC_TODAY) with no UTC
+                // conversion able to shift the clinic calendar date.
+                'effectiveDateIso' => ($appointment->confirmed_date ?? $appointment->requested_date)?->toDateString(),
                 'requestedTime' => $appointment->requested_time
                     ? substr((string) $appointment->requested_time, 0, 5)
                     : null,

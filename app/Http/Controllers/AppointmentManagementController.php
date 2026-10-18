@@ -10,6 +10,7 @@ use App\Http\Requests\AppointmentWalkInStoreRequest;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Services\AppointmentManagementService;
+use App\Services\ClinicAvailabilityService;
 use App\Services\SystemNotificationService;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -38,7 +39,26 @@ class AppointmentManagementController extends Controller
     public function __construct(
         private readonly AppointmentManagementService $service,
         private readonly SystemNotificationService $notifications,
+        private readonly ClinicAvailabilityService $availability,
     ) {
+    }
+
+    /**
+     * GET /appointments/slots?date=YYYY-MM-DD — JSON slot catalog for the
+     * clinic date picker (Phase 2). Admin/staff only via the 'clinic'
+     * route middleware. No patient-identifying data in the payload: only
+     * slot times, states and the closure flag. Invalid date => 422 with
+     * the safe DomainException message (never a 500).
+     */
+    public function slots(Request $request): JsonResponse
+    {
+        try {
+            $payload = $this->availability->slotsForDate((string) $request->query('date', ''));
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json($payload);
     }
 
     public function confirm(AppointmentConfirmRequest $request, Appointment $appointment): RedirectResponse

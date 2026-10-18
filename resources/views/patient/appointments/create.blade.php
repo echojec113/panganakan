@@ -74,12 +74,14 @@
               action="{{ route('patient.appointments.store') }}"
               x-data="{
                   submitting: false,
+                  slotReady: false,
                   type: '{{ old('appointment_type', \App\Models\Appointment::TYPE_CHECKUP) }}',
                   get requiresTime() {
                       return this.type !== '{{ \App\Models\Appointment::TYPE_DELIVERY_REQUEST }}';
                   }
               }"
-              @submit="submitting = true"
+              x-on:slot-picker-state="slotReady = ($event.detail.id === 'book' && $event.detail.ready)"
+              @submit="if (requiresTime && !slotReady) { $event.preventDefault(); return; } submitting = true"
               class="space-y-6 px-6 py-6">
             @csrf
 
@@ -113,7 +115,7 @@
                 @enderror
 
                 <p id="type-hint" class="mt-2 text-xs" style="color: var(--body-text);">
-                    Checkup and counseling need a preferred time inside clinic hours. Delivery requests are 24/7 and may be date-only.
+                    Checkup and counseling need a preferred time from the available clinic slots. Delivery requests are 24/7 and are date-only.
                 </p>
             </fieldset>
 
@@ -129,59 +131,53 @@
                 </p>
             </div>
 
-            <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {{-- ═══ Preferred Date ═══ --}}
-                <div>
-                    <label for="requested_date" class="mb-2 block text-sm font-semibold" style="color: var(--depla-navy);">
-                        Preferred Date <span class="text-red-600" aria-hidden="true">*</span>
-                    </label>
-                    <input type="date"
-                           id="requested_date"
-                           name="requested_date"
-                           value="{{ old('requested_date') }}"
-                           min="{{ $clinicToday }}"
-                           required
-                           class="h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2"
-                           style="border-color: #D1D5DB; color: var(--depla-navy);"
-                           aria-describedby="date-hint @error('requested_date') date-error @enderror">
-                    <p id="date-hint" class="mt-1.5 text-xs" style="color: var(--body-text);">
-                        Today or a later date (Philippine time). Today is {{ \Carbon\Carbon::parse($clinicToday)->format('F j, Y') }}.
-                    </p>
-                    @error('requested_date')
-                        <p id="date-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ $message }}</p>
-                    @enderror
-                </div>
+            {{-- ═══ Preferred Date ═══ --}}
+            <div class="max-w-sm">
+                <label for="requested_date" class="mb-2 block text-sm font-semibold" style="color: var(--depla-navy);">
+                    Preferred Date <span class="text-red-600" aria-hidden="true">*</span>
+                </label>
+                <input type="date"
+                       id="requested_date"
+                       name="requested_date"
+                       value="{{ old('requested_date') }}"
+                       min="{{ $clinicToday }}"
+                       required
+                       class="h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2"
+                       style="border-color: #D1D5DB; color: var(--depla-navy);"
+                       aria-describedby="date-hint @error('requested_date') date-error @enderror">
+                <p id="date-hint" class="mt-1.5 text-xs" style="color: var(--body-text);">
+                    Today or a later date (Philippine time). Today is {{ \Carbon\Carbon::parse($clinicToday)->format('F j, Y') }}.
+                    Available times update automatically when you change the date.
+                </p>
+                @error('requested_date')
+                    <p id="date-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ $message }}</p>
+                @enderror
+            </div>
 
-                {{-- ═══ Preferred Time ═══ --}}
-                <div>
-                    <label for="requested_time" class="mb-2 block text-sm font-semibold" style="color: var(--depla-navy);">
-                        Preferred Time
-                        <span class="text-red-600" aria-hidden="true" x-show="requiresTime" x-cloak>*</span>
-                        <span class="text-xs font-normal" style="color: var(--body-text);" x-show="!requiresTime">(optional for delivery requests)</span>
-                    </label>
-                    <input type="time"
-                           id="requested_time"
-                           name="requested_time"
-                           value="{{ old('requested_time') }}"
-                           :required="requiresTime"
-                           :min="requiresTime ? '08:00' : null"
-                           :max="requiresTime ? '16:59' : null"
-                           class="h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2"
-                           style="border-color: #D1D5DB; color: var(--depla-navy);"
-                           aria-describedby="time-hint @error('requested_time') time-error @enderror">
-                    <p id="time-hint" class="mt-1.5 text-xs" style="color: var(--body-text);">
-                        <span x-show="requiresTime" x-cloak>Between 8:00 AM and before 5:00 PM (Philippine clinic hours, provisional). Leave empty only for a date-only delivery request.</span>
-                        <span x-show="!requiresTime">Optional. Leave empty for a date-only delivery request.</span>
-                    </p>
-                    @error('requested_time')
-                        <p id="time-error" class="mt-1.5 text-sm text-red-600" role="alert">{{ $message }}</p>
-                    @enderror
-                </div>
+            {{-- ═══ Preferred Time — shared 30-minute slot picker (Phase 4).
+                 Hidden entirely for Delivery Requests (date-only); the
+                 hidden carrier is disabled so no timed value is submitted.
+                 The endpoint response is the only slot source of truth. --}}
+            <div x-show="requiresTime" x-cloak>
+                <x-slot-picker
+                    time-name="requested_time"
+                    date-id="requested_date"
+                    :url="route('patient.appointments.slots')"
+                    :initial="old('requested_time')"
+                    picker-id="book"
+                    label="Preferred Time"
+                    :required="true"
+                    hide-expr="!requiresTime"
+                />
+                <p class="mt-1.5 text-xs" style="color: var(--body-text);">
+                    Choose one 30-minute clinic slot (8:00 AM to 5:00 PM, Philippine time).
+                    Booked, past and clinic-closed times cannot be selected. Submitting a request does not reserve the slot — the clinic confirms your schedule.
+                </p>
             </div>
 
             <div class="flex flex-wrap items-center gap-3 border-t pt-5" style="border-color: var(--light-border);">
                 <button type="submit"
-                        :disabled="submitting"
+                        :disabled="submitting || (requiresTime && !slotReady)"
                         class="inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                         style="background: var(--depla-dark-green); outline-color: var(--depla-green);">
                     <svg x-show="!submitting" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">

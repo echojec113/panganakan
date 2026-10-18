@@ -570,7 +570,10 @@ it('decline notifies only the owning portal user and keeps the explanation out o
 */
 
 it('auto-resolution by staff completion sends no reschedule outcome notification', function () {
-    phase3d3b3Freeze('2026-10-12 09:00:00');
+    // QA FIX 2: freeze one hour before the fixture's 14:00 start - the
+    // reschedule request is still submittable and the completion that
+    // follows is due today (2026-11-07).
+    phase3d3b3Freeze('2026-11-07 13:00:00');
     [, $staff, , $patient] = phase3d3b3World();
     $appointment = phase3d3b3ConfirmedAppointment($patient, $staff->id);
     $request = phase3d3b3ServiceRequest($appointment, $patient);

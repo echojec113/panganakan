@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Appointment;
 use App\Services\AppointmentManagementService;
+use App\Services\ClinicAvailabilityService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator as BaseValidator;
 
@@ -79,6 +80,24 @@ class PatientAppointmentRescheduleRequest extends FormRequest
     public function withValidator(BaseValidator $validator): void
     {
         $validator->after(function (BaseValidator $validator) {
+            // Phase 2: slot-grid alignment for timed types (early field
+            // feedback - the service repeats assertSlotStart() at the
+            // write boundary). A delivery proposal is date-only (K5):
+            // any submitted time is ignored by the service, so skip.
+            $appointment = $this->targetAppointment();
+            $isTimedType = $appointment !== null
+                && $appointment->appointment_type !== Appointment::TYPE_DELIVERY_REQUEST;
+
+            if ($isTimedType && ! $validator->errors()->has('proposed_time')) {
+                $slotIssue = ClinicAvailabilityService::slotStartIssue(
+                    is_string($this->input('proposed_time')) ? $this->input('proposed_time') : null
+                );
+
+                if ($slotIssue !== null) {
+                    $validator->errors()->add('proposed_time', $slotIssue);
+                }
+            }
+
             // Past-schedule rule on the PROPOSED schedule (defence in
             // depth - the service repeats this at the write boundary
             // for direct callers). A delivery proposal is date-only

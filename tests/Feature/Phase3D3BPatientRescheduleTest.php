@@ -347,9 +347,10 @@ it('accepts the clinic-hours boundary times for checkup appointments', function 
         'proposed_time' => '08:00',
     ])->assertSessionHasNoErrors();
 
+    // Phase 2: the last valid grid slot start is 16:30 (ends at 17:00).
     phase3d3ReschedulePost($user, $second, [
         'proposed_date' => '2026-11-21',
-        'proposed_time' => '16:59',
+        'proposed_time' => '16:30',
     ])->assertSessionHasNoErrors();
 
     expect(AppointmentChangeRequest::count())->toBe(2);
@@ -563,10 +564,13 @@ it('refuses a proposal matching another pending appointment of the same patient 
     expect(AppointmentChangeRequest::count())->toBe(0);
 });
 
-it('allows a proposal that matches an appointment of a different type', function () {
+it('refuses a proposal matching a confirmed appointment slot even when the type differs (Phase 2 occupancy)', function () {
     phase3d3Freeze('2026-10-12 09:00:00');
     [$user, $patient] = phase3d3Eligible();
     $appointment = phase3d3ConfirmedAppointment($patient);
+    // Another CONFIRMED appointment (counseling) already occupies the
+    // 2026-12-03 09:00 slot. Phase 2: one confirmed appointment per
+    // slot regardless of type, so the proposal is refused.
     phase3d3ConfirmedAppointment($patient, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'confirmed_date' => '2026-12-03',
@@ -576,10 +580,9 @@ it('allows a proposal that matches an appointment of a different type', function
     phase3d3ReschedulePost($user, $appointment, [
         'proposed_date' => '2026-12-03',
         'proposed_time' => '09:00',
-    ])->assertSessionHasNoErrors();
+    ])->assertSessionHasErrors();
 
-    expect(AppointmentChangeRequest::sole()->type)
-        ->toBe(AppointmentChangeRequest::TYPE_RESCHEDULE);
+    expect(AppointmentChangeRequest::count())->toBe(0);
 });
 
 /*

@@ -15,6 +15,7 @@ use Carbon\Carbon;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class PatientController extends Controller
@@ -151,7 +152,10 @@ class PatientController extends Controller
 }
     public function trashed()
     {
-    $patients = Patient::onlyTrashed()->get();
+    $patients = Patient::onlyTrashed()
+        ->orderByDesc('deleted_at')
+        ->orderByDesc('id')
+        ->get();
 
     return view('patients.trashed', compact('patients'));
     }
@@ -160,7 +164,13 @@ class PatientController extends Controller
     {
     $patient = Patient::onlyTrashed()->findOrFail($id);
 
-    $patient->restore(); // 🔥 triggers cascade restore
+    // One transaction across the parent restore AND every cascade restore
+    // fired by Patient's restoring model event, so a mid-cascade failure
+    // rolls back to the fully-archived state instead of leaving a
+    // partially-restored patient.
+    DB::transaction(function () use ($patient) {
+        $patient->restore(); // 🔥 triggers cascade restore
+    });
 
     return redirect()->route('patients.index')
         ->with('success', 'Patient restored successfully');
@@ -304,13 +314,7 @@ class PatientController extends Controller
             })->values()
         );
 
-        // Check for required records before allowing prenatal visit creation
-        $hasMedicalHistory = $patient->medicalHistory !== null;
-        $hasUltrasound = $patient->ultrasounds()->exists();
-        $hasBirthPlan = $patient->birthPlan !== null;
-        $canAddPrenatalVisit = $hasMedicalHistory && $hasUltrasound && $hasBirthPlan;
-
-        return view('patients.show', compact('patient', 'latestAssessment', 'hasMedicalHistory', 'hasUltrasound', 'hasBirthPlan', 'canAddPrenatalVisit', 'monitoringState', 'monitoringStateLabel', 'monitoringEligible', 'daysUntilOrPastEdd', 'monitoringReturnUrl'));
+        return view('patients.show', compact('patient', 'latestAssessment', 'monitoringState', 'monitoringStateLabel', 'monitoringEligible', 'daysUntilOrPastEdd', 'monitoringReturnUrl'));
     }
 
     /**
@@ -1398,14 +1402,20 @@ $this->logAction(
 
     $name = $patient->first_name . ' ' . $patient->last_name;
 
-    $patient->delete();
+    // One transaction across the parent soft delete, every cascade delete
+    // fired by Patient's deleting model event, and the audit entry, so a
+    // mid-cascade failure leaves no partially-archived patient behind and
+    // no audit row claims an archive that was rolled back.
+    DB::transaction(function () use ($patient, $name) {
+        $patient->delete();
 
-    // ✅ AUDIT LOG
-    $this->logAction(
-        'DELETE',
-        'PATIENT',
-        'Deleted patient: ' . $name
-    );
+        // ✅ AUDIT LOG
+        $this->logAction(
+            'DELETE',
+            'PATIENT',
+            'Deleted patient: ' . $name
+        );
+    });
 
     return redirect()->route('patients.index');
 }

@@ -566,7 +566,10 @@ it('refuses a stale approve after staff cancelled the appointment directly (auto
 });
 
 it('refuses a stale decline after staff completed the appointment (auto-declined in-tx)', function () {
-    phase3d3b2Freeze('2026-10-12 09:00:00');
+    // QA FIX 2: freeze one hour before the fixture's 14:00 start - the
+    // reschedule request is still submittable and the completion that
+    // follows is due today (2026-11-07).
+    phase3d3b2Freeze('2026-11-07 13:00:00');
     [, $patient] = phase3d3b2Eligible();
     $appointment = phase3d3b2ConfirmedAppointment($patient);
     $request = phase3d3b2RescheduleRequest($appointment, $patient);

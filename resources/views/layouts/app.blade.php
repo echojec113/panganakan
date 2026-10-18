@@ -783,6 +783,16 @@
                 Patient Accounts
             </a>
 
+            {{-- Clinic Availability (DEPLA Phase 3) - Admin only closures.
+                 Rendered inside the role-gated Administration block, so
+                 Staff/Patient sessions never see it; the route group is
+                 additionally guarded by AdminMiddleware. --}}
+            <a href="{{ route('admin.clinic-unavailability.index') }}"
+               class="nav-item {{ request()->routeIs('admin.clinic-unavailability.*') ? 'active' : '' }}">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><line x1="9" y1="15" x2="9" y2="15.01"></line><line x1="12" y1="15" x2="12" y2="15.01"></line><line x1="15" y1="15" x2="15" y2="15.01"></line></svg></span>
+                Clinic Availability
+            </a>
+
             <a href="{{ route('audit-logs.index') }}"
                class="nav-item {{ request()->routeIs('audit-logs.*') ? 'active' : '' }}">
                 <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg></span>

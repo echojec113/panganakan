@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Appointment;
+use App\Models\AppointmentSlotHold;
 use App\Models\AuditLog;
 use App\Models\Patient;
 use App\Models\User;
@@ -186,6 +187,9 @@ it('lets staff cancel a confirmed appointment and records the actor in the audit
 });
 
 it('lets an admin mark a confirmed appointment as completed', function () {
+    // QA FIX 2: freeze on the fixture's own scheduled day (10:00 has already
+    // passed at 15:00) - completion compares DATES only, so today still works.
+    phase3b2bFreezeManila('2026-11-05 15:00:00');
     $appointment = phase3b2bConfirmedAppointment(phase3b2bPatient(), phase3b2bStaff());
 
     phase3b2bActAsPatch(phase3b2bAdmin(), 'appointments.complete', $appointment)
@@ -195,6 +199,8 @@ it('lets an admin mark a confirmed appointment as completed', function () {
 });
 
 it('lets staff mark a confirmed appointment as completed', function () {
+    // QA FIX 2: due-today fixture (frozen Manila clock) as above.
+    phase3b2bFreezeManila('2026-11-05 15:00:00');
     $appointment = phase3b2bConfirmedAppointment(phase3b2bPatient(), phase3b2bAdmin());
 
     phase3b2bActAsPatch(phase3b2bStaff(), 'appointments.complete', $appointment)
@@ -202,6 +208,7 @@ it('lets staff mark a confirmed appointment as completed', function () {
 
     expect($appointment->refresh()->status)->toBe(Appointment::STATUS_COMPLETED);
 });
+
 
 /*
 |--------------------------------------------------------------------------
@@ -353,23 +360,27 @@ it('requires valid scheduling data to confirm', function () {
     expect($appointment->refresh()->status)->toBe(Appointment::STATUS_PENDING);
 });
 
-it('enforces the provisional clinic-hours rule for checkup confirmations', function () {
+it('enforces the slot-grid clinic-hours rule for checkup confirmations', function () {
     $appointment = phase3b2bAppointment(phase3b2bPatient(), ['appointment_type' => Appointment::TYPE_CHECKUP]);
     $admin = phase3b2bAdmin();
 
-    // Out-of-hours times are now refused by the FormRequest's field-level
-    // clinic-hours rules (surfaced under 'confirmed_time'); the service
-    // check remains the authoritative backstop for direct callers.
-    foreach (['07:59', '17:00', '18:30'] as $rejectedTime) {
+    // Out-of-hours and non-grid times are refused by the FormRequest's
+    // field-level slot rules (surfaced under 'confirmed_time'); the
+    // service assertSlotStart remains the authoritative backstop.
+    foreach (['07:59', '17:00', '18:30', '16:59', '09:15'] as $rejectedTime) {
         phase3b2bActAsPatch($admin, 'appointments.confirm', $appointment, [
             'confirmed_date' => '2026-11-06',
             'confirmed_time' => $rejectedTime,
         ])->assertSessionHasErrors('confirmed_time');
     }
 
-    foreach (['08:00', '16:59'] as $acceptedTime) {
+    // Grid boundaries: open (08:00) and the LAST slot start (16:30).
+    foreach (['08:00', '16:30'] as $acceptedTime) {
         $appointment->status = Appointment::STATUS_PENDING;
         $appointment->save();
+        // Re-pending a previously confirmed row must drop its hold (no
+        // production transition does this; the fixture simulates one).
+        AppointmentSlotHold::query()->where('appointment_id', $appointment->id)->delete();
         phase3b2bActAsPatch($admin, 'appointments.confirm', $appointment, [
             'confirmed_date' => '2026-11-06',
             'confirmed_time' => $acceptedTime,
@@ -381,7 +392,7 @@ it('enforces the provisional clinic-hours rule for checkup confirmations', funct
     }
 });
 
-it('enforces the provisional clinic-hours rule for counseling confirmations', function () {
+it('enforces the slot-grid clinic-hours rule for counseling confirmations', function () {
     $appointment = phase3b2bAppointment(phase3b2bPatient(), [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_time' => '10:00',
@@ -394,7 +405,7 @@ it('enforces the provisional clinic-hours rule for counseling confirmations', fu
 
     phase3b2bActAsPatch(phase3b2bStaff(), 'appointments.confirm', $appointment, [
         'confirmed_date' => '2026-11-06',
-        'confirmed_time' => '16:59',
+        'confirmed_time' => '16:30',
     ])->assertSessionHas('success');
 
     expect($appointment->refresh()->status)->toBe(Appointment::STATUS_CONFIRMED);
@@ -484,7 +495,7 @@ it('creates a confirmed walk-in appointment for an existing patient', function (
             'patient_id' => $patient->id,
             'appointment_type' => Appointment::TYPE_CHECKUP,
             'appointment_date' => '2026-11-08',
-            'appointment_time' => '09:15',
+            'appointment_time' => '09:30',
         ])
         ->assertRedirect(route('appointments.index'))
         ->assertSessionHas('success');
@@ -494,7 +505,7 @@ it('creates a confirmed walk-in appointment for an existing patient', function (
         ->and($appointment->status)->toBe(Appointment::STATUS_CONFIRMED)
         ->and($appointment->requested_date->toDateString())->toBe('2026-11-08')
         ->and($appointment->confirmed_date->toDateString())->toBe('2026-11-08')
-        ->and((string) $appointment->confirmed_time)->toContain('09:15')
+        ->and((string) $appointment->confirmed_time)->toContain('09:30')
         ->and($appointment->reviewed_by)->toBe($staff->id)
         ->and($appointment->reviewed_at)->not->toBeNull()
         ->and($appointment->patient_id)->toBe($patient->id);
@@ -556,20 +567,43 @@ it('refuses walk-in creation for archived or missing patients', function () {
         ->assertOk();
 });
 
-it('allows multiple appointments to share the same date and time', function () {
+it('enforces one confirmed appointment per slot for walk-ins (Phase 2)', function () {
     $staff = phase3b2bStaff();
-    $slot = ['appointment_date' => '2026-11-08', 'appointment_time' => '09:00'];
 
-    foreach (['Sharea', 'Shareb'] as $last) {
-        $this->actingAs($staff)
-            ->post(route('appointments.walk-in.store'), array_merge($slot, [
-                'patient_id' => phase3b2bPatient('Dup' . $last, $last)->id,
-                'appointment_type' => Appointment::TYPE_CHECKUP,
-            ]))
-            ->assertSessionHas('success');
-    }
+    // First walk-in claims the 09:00 slot (hold reserved).
+    $this->actingAs($staff)
+        ->post(route('appointments.walk-in.store'), [
+            'appointment_date' => '2026-11-08',
+            'appointment_time' => '09:00',
+            'patient_id' => phase3b2bPatient('Sharea', 'Sharea')->id,
+            'appointment_type' => Appointment::TYPE_CHECKUP,
+        ])
+        ->assertSessionHas('success');
+
+    // A second walk-in into the SAME slot is refused (approved rule:
+    // at most one confirmed/completed appointment per 30-minute slot).
+    $this->actingAs($staff)
+        ->post(route('appointments.walk-in.store'), [
+            'appointment_date' => '2026-11-08',
+            'appointment_time' => '09:00',
+            'patient_id' => phase3b2bPatient('Shareb', 'Shareb')->id,
+            'appointment_type' => Appointment::TYPE_CHECKUP,
+        ])
+        ->assertSessionHasErrors('walk_in');
 
     // whereDate: SQLite stores the date cast as 'Y-m-d 00:00:00' text.
+    // Only the first booking exists; a different slot stays bookable.
+    expect(Appointment::whereDate('confirmed_date', '2026-11-08')->count())->toBe(1);
+
+    $this->actingAs($staff)
+        ->post(route('appointments.walk-in.store'), [
+            'appointment_date' => '2026-11-08',
+            'appointment_time' => '09:30',
+            'patient_id' => phase3b2bPatient('Sharec', 'Sharec')->id,
+            'appointment_type' => Appointment::TYPE_CHECKUP,
+        ])
+        ->assertSessionHas('success');
+
     expect(Appointment::whereDate('confirmed_date', '2026-11-08')->count())->toBe(2);
 });
 
@@ -619,7 +653,12 @@ it('enforces the same scheduling rules on walk-ins and permits date-only deliver
 |required*/
 
 it('records one audit event per action with actor, patient and status transition', function () {
+    // QA FIX 2: freeze the clinic day on the confirmed schedule (2026-11-06),
+    // an hour BEFORE its 09:00 start - the confirmation stays valid and the
+    // completion that follows is due today.
+    phase3b2bFreezeManila('2026-11-06 08:30:00');
     $patient = phase3b2bPatient();
+
     $staff = phase3b2bStaff();
     $admin = phase3b2bAdmin();
 
@@ -785,7 +824,7 @@ it('renders the management UI: walk-in button, action URLs and modal forms', fun
         ->assertSee(route('appointments.confirm', $pending), false)
         ->assertSee(route('appointments.cancel', $confirmed), false)
         ->assertSee('Mark Completed')
-        ->assertSee('provisional');
+        ->assertSee('8:00 AM to 5:00 PM Philippine time');
 });
 
 /*
@@ -830,15 +869,16 @@ it('rejects a walk-in scheduled for yesterday', function () {
         ->and(AuditLog::count())->toBe($auditsBefore);
 });
 
-it("rejects today's past walk-in time and allows today's future and equal-minute times", function () {
-    phase3b2bFreezeManila('2026-10-14 14:35:30');
+it("rejects today's past walk-in time and allows today's future and equal-minute slot starts", function () {
+    // Frozen exactly ON a grid slot minute: 14:30 is the current slot.
+    phase3b2bFreezeManila('2026-10-14 14:30:00');
     $staff = phase3b2bStaff();
     $patient = phase3b2bPatient();
 
-    // 14:30 (Manila) has already passed at 14:35:30.
+    // 14:00 (Manila) has already passed at 14:30:00.
     phase3b2bWalkIn($staff, $patient, [
         'appointment_date' => '2026-10-14',
-        'appointment_time' => '14:30',
+        'appointment_time' => '14:00',
     ])->assertSessionHasErrors('appointment_time');
 
     // 15:00 is still ahead today.
@@ -847,10 +887,10 @@ it("rejects today's past walk-in time and allows today's future and equal-minute
         'appointment_time' => '15:00',
     ])->assertSessionHas('success');
 
-    // The exact current minute is allowed (not earlier than now).
+    // The exact current slot minute is allowed (not earlier than now).
     phase3b2bWalkIn($staff, phase3b2bPatient('Min', 'Boundary'), [
         'appointment_date' => '2026-10-14',
-        'appointment_time' => '14:35',
+        'appointment_time' => '14:30',
     ])->assertSessionHas('success');
 
     expect(Appointment::whereDate('confirmed_date', '2026-10-14')->count())->toBe(2);
@@ -894,7 +934,7 @@ it('keeps the provisional clinic-hours window for checkup and counseling', funct
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'appointment_date' => '2026-10-15',
-        'appointment_time' => '16:59',
+        'appointment_time' => '16:30',
     ])->assertSessionHas('success');
 
     expect(Appointment::where('appointment_type', Appointment::TYPE_COUNSELING)->count())->toBe(1);
@@ -1119,17 +1159,21 @@ it('keeps existing past appointments readable, in status, and workflow-actionabl
     ])->assertSessionHas('success');
     expect($pastPending->refresh()->status)->toBe(Appointment::STATUS_DECLINED);
 
-    // Complete still works after a fresh future confirmation round-trip.
+    // Complete still works after a fresh confirmation round-trip. QA FIX 2:
+    // completion requires a DUE schedule (today or earlier, Asia/Manila), so
+    // the fresh appointment is confirmed for the frozen clinic day at a
+    // still-open clinic time - the rule ignores the clock time itself.
     $fresh = phase3b2bAppointment($patient, [
-        'requested_date' => '2026-10-16',
-        'requested_time' => '09:00',
+        'requested_date' => '2026-10-14',
+        'requested_time' => '15:00',
     ]);
     phase3b2bFreezeManila('2026-10-14 14:35:30');
     phase3b2bActAsPatch($admin, 'appointments.confirm', $fresh, [
-        'confirmed_date' => '2026-10-16', 'confirmed_time' => '09:00',
+        'confirmed_date' => '2026-10-14', 'confirmed_time' => '15:00',
     ])->assertSessionHas('success');
     phase3b2bActAsPatch($admin, 'appointments.complete', $fresh)->assertSessionHas('success');
     expect($fresh->refresh()->status)->toBe(Appointment::STATUS_COMPLETED);
+
 });
 
 /*
@@ -1180,11 +1224,12 @@ it('renders the walk-in modal with a visible patient search input, full button l
 
     // Create button: full label lives in the x-text attribute (rendered
     // only when the Alpine component initializes - the regression made it
-    // an empty green square).
+    // an empty green square). Phase 4: also gated on the walk-in slot
+    // picker's readiness for timed types.
     $response->assertSee('Create Walk-in Appointment');
     expect($response->getContent())
         ->toContain("x-text=\"submitting ? 'Creating\u{2026}' : 'Create Walk-in Appointment'\"")
-        ->toContain(':disabled="submitting || !walkIn.patientId"');
+        ->toContain(':disabled="submitting || !walkIn.patientId || (walkIn.type !== \'delivery_request\' && !walkInSlotReady)"');
 });
 
 it('rejects out-of-clinic-hours times with field-level errors and still accepts in-window and delivery times', function () {
@@ -1222,10 +1267,10 @@ it('rejects out-of-clinic-hours times with field-level errors and still accepts 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_CHECKUP,
         'appointment_date' => '2026-10-15',
-        'appointment_time' => '16:59',
+        'appointment_time' => '16:30',
     ])->assertSessionHas('success');
 
-    // Delivery requests bypass the clinic-hours rules entirely (24/7).
+    // Delivery requests bypass the slot-grid rules entirely (24/7).
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
@@ -1384,7 +1429,7 @@ it('renders a single Confirmed placeholder and consistent reviewer placeholders'
 | key clobber at the HTTP layer to prove the failure mode is real.
 */
 
-it('renders both confirmed_time inputs with a disabled binding so only the active one submits', function () {
+it('renders the slot-picker carrier and delivery input with disabling so only one confirmed_time submits', function () {
     $pending = phase3b2bAppointment(phase3b2bPatient('Tmi', 'Inputs'));
 
     $html = $this->actingAs(phase3b2bAdmin())
@@ -1392,17 +1437,22 @@ it('renders both confirmed_time inputs with a disabled binding so only the activ
         ->assertOk()
         ->getContent();
 
-    // Exactly two confirmed_time controls (checkup/counseling + delivery).
-    expect(substr_count($html, 'name="confirmed_time"'))->toBe(2);
+    // Exactly ONE literal name="confirmed_time" (the delivery input); the
+    // timed control is the Phase 4 slot picker's Alpine-bound hidden
+    // carrier (:name="timeName"), never a second plain input.
+    expect(substr_count($html, 'name="confirmed_time"'))->toBe(1);
 
-    // Each control disables itself whenever the OTHER one is the visible,
-    // active input - so exactly one is enabled (and submitted) at a time.
+    // The picker carrier disables itself while availability is unresolved
+    // OR when the appointment is a delivery request, so it can never
+    // submit alongside the delivery input (the original duplicate-key
+    // bug this invariant protects against).
     expect($html)
-        ->toContain('x-bind:disabled="selected?.type === \'delivery_request\'"')
+        ->toContain(':disabled="!ready || (selected?.type === &#039;delivery_request&#039;)"')
+        // The delivery input disables itself for every non-delivery type.
         ->toContain('x-bind:disabled="selected?.type !== \'delivery_request\'"');
 
-    // Required stays on the checkup/counseling control only.
-    expect($html)->toContain('name="confirmed_time" required step="60"');
+    // The delivery control stays optional + minute-stepped (date-only).
+    expect($html)->toContain('name="confirmed_time" step="60"');
 });
 
 it('keeps a checkup confirmation successful even when a duplicate empty confirmed_time key is present', function () {
@@ -1415,18 +1465,18 @@ it('keeps a checkup confirmation successful even when a duplicate empty confirme
     // documents the exact failure mode the disabled binding prevents.
     $appointment = phase3b2bAppointment(phase3b2bPatient(), [
         'appointment_type' => Appointment::TYPE_CHECKUP,
-        'requested_time' => '16:56',
+        'requested_time' => '16:30',
     ]);
     $admin = phase3b2bAdmin();
 
     // A single well-formed value (what the fixed form actually sends) succeeds.
     phase3b2bActAsPatch($admin, 'appointments.confirm', $appointment, [
         'confirmed_date' => '2026-11-06',
-        'confirmed_time' => '16:56',
+        'confirmed_time' => '16:30',
     ])->assertSessionHas('success');
 
     expect($appointment->refresh()->status)->toBe(Appointment::STATUS_CONFIRMED)
-        ->and((string) $appointment->confirmed_time)->toContain('16:56');
+        ->and((string) $appointment->confirmed_time)->toContain('16:30');
 
     // The legacy duplicate-empty-key payload (pre-fix browser behaviour) is
     // still correctly refused as a missing time - validation is not weakened.
@@ -1435,7 +1485,7 @@ it('keeps a checkup confirmation successful even when a duplicate empty confirme
         ->from(route('appointments.index'))
         ->call('PATCH', route('appointments.confirm', $second), [
             'confirmed_date' => '2026-11-06',
-            'confirmed_time' => ['16:56', ''],
+            'confirmed_time' => ['16:30', ''],
         ], [], [], [], null)
         ->assertSessionHasErrors('confirmed_time');
 
@@ -1519,13 +1569,13 @@ it('keeps failed confirmation pending and successful confirmation moving Pending
     ])->assertSessionHasErrors('confirmed_time');
     expect($outOfHours->refresh()->status)->toBe(Appointment::STATUS_PENDING);
 
-    // A valid in-window HH:MM time flips Pending -> Confirmed.
+    // A valid in-window grid slot start flips Pending -> Confirmed.
     $ok = phase3b2bAppointment(phase3b2bPatient('Valid', 'Time'), [
         'requested_time' => '09:00',
     ]);
     phase3b2bActAsPatch($admin, 'appointments.confirm', $ok, [
-        'confirmed_date' => '2026-10-15', 'confirmed_time' => '16:56',
+        'confirmed_date' => '2026-10-15', 'confirmed_time' => '16:30',
     ])->assertSessionHas('success');
     expect($ok->refresh()->status)->toBe(Appointment::STATUS_CONFIRMED)
-        ->and((string) $ok->confirmed_time)->toContain('16:56');
+        ->and((string) $ok->confirmed_time)->toContain('16:30');
 });

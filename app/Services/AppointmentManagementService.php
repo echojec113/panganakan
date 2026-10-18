@@ -39,6 +39,27 @@ use Illuminate\Support\Facades\Validator;
  * used until confirmed. No fixed session duration is invented and there is
  * no capacity limit - multiple appointments may share a date/time.
  *
+ * Phase 2 (appointment scheduling upgrade) SUPERSEDES the no-capacity
+ * clause above for NEW writes while preserving the 08:00-17:00 window:
+ * checkup/counseling schedules must now be 30-MINUTE GRID slot starts
+ * (08:00, 08:30, ... 16:30 - ClinicAvailabilityService), clinic closures
+ * are enforced (full-day blocks every type incl. delivery dates; partial
+ * windows block timed types), and at most ONE confirmed/completed
+ * appointment may occupy a slot. Occupancy is checked at the write
+ * boundary (hold row OR legacy-window appointment) and new confirmed/
+ * walk-in/approved-reschedule writes reserve an appointment_slot_holds
+ * row whose UNIQUE (hold_date, slot_start) index is the authoritative
+ * concurrency barrier (a race loser gets a clean DomainException, never a
+ * 500). Cancel/decline RELEASE the hold; completion RETAINS it; a
+ * reschedule MOVES it (legacy confirmed rows without a hold get a fresh
+ * reserve at the new slot). Pending requests never reserve slots and may
+ * still target the same requested slot as another pending request.
+ * Legacy non-grid records are never rewritten: they stay viewable,
+ * cancellable and completable, occupy their slot window on the read side,
+ * and staff must pick a grid-aligned time when confirming a legacy
+ * pending request; a legacy non-grid reschedule proposal is refused at
+ * approval (the patient must submit a new, valid proposal).
+ *
  * Delivery requests are accepted 24/7 with an optional time (date-only
  * is allowed). A delivery confirmation is scheduling/request approval
  * ONLY: it never guarantees a bed, never creates an admission and never
@@ -144,6 +165,17 @@ class AppointmentManagementService
     public const CLINIC_TIMEZONE = 'Asia/Manila';
 
     /**
+     * Phase 2: schedule/occupancy/closure rules and the slot-hold ledger
+     * all live in the reusable ClinicAvailabilityService (constructor DI
+     * - the container resolves it for controllers and app() callers alike;
+     * there is no direct `new` anywhere in the codebase).
+     */
+    public function __construct(
+        private readonly ClinicAvailabilityService $availability,
+    ) {
+    }
+
+    /**
      * Confirm a pending appointment request.
      *
      * @throws DomainException on invalid transition or invalid schedule
@@ -157,6 +189,13 @@ class AppointmentManagementService
 
             $time = $this->validateSchedule($locked->appointment_type, $confirmedDate, $confirmedTime);
 
+            // Phase 2: occupancy re-checked at the authoritative write -
+            // a slot taken (or a closure added) AFTER the pending request
+            // was submitted still refuses confirmation.
+            if (self::usesTimedSlots($locked->appointment_type)) {
+                $this->assertSlotNotOccupied($confirmedDate, $time);
+            }
+
             $previous = $locked->status;
 
             $locked->confirmed_date = $confirmedDate;
@@ -165,6 +204,16 @@ class AppointmentManagementService
             $locked->reviewed_by = $actor->id;
             $locked->reviewed_at = now();
             $locked->save();
+
+            // Phase 2: the hold INSERT is the LAST data write - its
+            // UNIQUE (hold_date, slot_start) index is the authoritative
+            // barrier, so a concurrent confirmation of the same slot
+            // loses cleanly (DomainException -> rollback) even where
+            // lockForUpdate is a no-op. Completed retains the hold;
+            // delivery requests never get one.
+            if (self::usesTimedSlots($locked->appointment_type)) {
+                $this->availability->reserveHold($locked, $confirmedDate, $time);
+            }
 
             $this->audit($actor, $locked, 'APPOINTMENT_CONFIRMED', $previous, Appointment::STATUS_CONFIRMED, sprintf(
                 'Appointment #%d for patient ID %d confirmed (%s, %s %s).',
@@ -200,6 +249,10 @@ class AppointmentManagementService
             $locked->reviewed_at = now();
             $locked->save();
 
+            // Phase 2: release any hold (normally none - pending rows
+            // never reserve). Idempotent by design.
+            $this->availability->releaseHold($locked);
+
             $this->audit($actor, $locked, 'APPOINTMENT_DECLINED', $previous, Appointment::STATUS_DECLINED, sprintf(
                 'Appointment #%d for patient ID %d declined. Reason: %s',
                 $locked->id,
@@ -233,6 +286,10 @@ class AppointmentManagementService
             $locked->cancellation_reason = $reason;
             $locked->save();
 
+            // Phase 2: cancellation RELEASES the slot hold so the slot
+            // becomes bookable again.
+            $this->availability->releaseHold($locked);
+
             $this->audit($actor, $locked, 'APPOINTMENT_CANCELLED', $previous, Appointment::STATUS_CANCELLED, sprintf(
                 'Appointment #%d for patient ID %d cancelled by user ID %d. Reason: %s',
                 $locked->id,
@@ -260,7 +317,13 @@ class AppointmentManagementService
      * No clinical side effects: no prenatal visit, birth plan, pregnancy
      * outcome, delivery or occupancy record is created.
      *
-     * @throws DomainException on invalid transition
+     * Date rule (QA FIX 2): completion is only allowed on or after the
+     * appointment's effective scheduled date (confirmed_date when set,
+     * otherwise requested_date), measured against the current Asia/Manila
+     * calendar day. Times are ignored, so an appointment scheduled later
+     * today may still be completed today.
+     *
+     * @throws DomainException on invalid transition or a not-yet-due schedule
      */
     public function complete(Appointment $appointment, User $actor): Appointment
     {
@@ -269,10 +332,18 @@ class AppointmentManagementService
 
             $this->assertStatus($locked, Appointment::STATUS_CONFIRMED, 'complete');
 
+            // Re-checked after the lock so the client-side hide is never
+            // the only enforcement point for a future-dated completion.
+            $this->assertCompletionScheduleDue($locked);
+
             $previous = $locked->status;
 
             $locked->status = Appointment::STATUS_COMPLETED;
             $locked->save();
+
+            // Phase 2: completion deliberately does NOT release the slot
+            // hold - a completed appointment RETAINS occupancy (approved
+            // rule); holds are only released by cancel/decline.
 
             $this->audit($actor, $locked, 'APPOINTMENT_COMPLETED', $previous, Appointment::STATUS_COMPLETED, sprintf(
                 'Appointment #%d for patient ID %d marked completed by user ID %d.',
@@ -319,6 +390,12 @@ class AppointmentManagementService
 
             $time = $this->validateSchedule($appointmentType, $date, $time);
 
+            // Phase 2: a walk-in is immediately confirmed, so the slot
+            // must be free (no hold, no legacy-window appointment).
+            if (self::usesTimedSlots($appointmentType)) {
+                $this->assertSlotNotOccupied($date, $time);
+            }
+
             $appointment = new Appointment();
             $appointment->patient_id = $patient->id;
             $appointment->appointment_type = $appointmentType;
@@ -331,6 +408,12 @@ class AppointmentManagementService
             $appointment->reviewed_by = $actor->id;
             $appointment->reviewed_at = now();
             $appointment->save();
+
+            // Phase 2: walk-in confirmation reserves the slot hold (same
+            // last-write position and unique barrier as confirm()).
+            if (self::usesTimedSlots($appointmentType)) {
+                $this->availability->reserveHold($appointment, $date, $time);
+            }
 
             $this->audit($actor, $appointment, 'WALK_IN_APPOINTMENT_CREATED', null, Appointment::STATUS_CONFIRMED, sprintf(
                 'Walk-in appointment #%d created for patient ID %d (%s, %s %s).',
@@ -388,6 +471,15 @@ class AppointmentManagementService
     {
         return DB::transaction(function () use ($patient, $appointmentType, $date, $time) {
             $time = $this->validateSchedule($appointmentType, $date, $time);
+
+            // Phase 2: a pending request may target a slot another
+            // PENDING request also targets (pendings never occupy), but
+            // not a slot already held by a confirmed/completed
+            // appointment - that request could never be confirmed.
+            // Read-side check only: pending rows never reserve holds.
+            if (self::usesTimedSlots($appointmentType)) {
+                $this->assertSlotNotOccupied($date, $time);
+            }
 
             $duplicate = Appointment::query()
                 ->where('patient_id', $patient->id)
@@ -466,6 +558,10 @@ class AppointmentManagementService
             $locked->status = Appointment::STATUS_CANCELLED;
             $locked->cancellation_reason = $reason;
             $locked->save();
+
+            // Phase 2: defensive release (a pending row never holds a
+            // slot; idempotent if the invariant ever drifts).
+            $this->availability->releaseHold($locked);
 
             $this->audit($actor, $locked, 'PATIENT_CANCELLED_PENDING', $previous, Appointment::STATUS_CANCELLED, sprintf(
                 'Appointment #%d for patient ID %d cancelled directly by the patient (user ID %d). Reason: %s',
@@ -626,6 +722,14 @@ class AppointmentManagementService
 
             $time = $this->validateSchedule($locked->appointment_type, $date, $time);
 
+            // Phase 2: the proposed slot must be free of OTHER
+            // confirmed/completed appointments and holds (this
+            // appointment's own current slot never blocks it). Pendings
+            // and other proposals never occupy, so they cannot collide.
+            if (self::usesTimedSlots($locked->appointment_type)) {
+                $this->assertSlotNotOccupied($date, $time, $locked->id);
+            }
+
             // Collision guard 1 (K2): a proposal identical to the
             // CURRENT confirmed schedule is not a reschedule. The
             // current schedule is the one the patient can see:
@@ -725,6 +829,9 @@ class AppointmentManagementService
             $locked->status = Appointment::STATUS_CANCELLED;
             $locked->cancellation_reason = $lockedRequest->reason;
             $locked->save();
+
+            // Phase 2: approved cancellation RELEASES the slot hold.
+            $this->availability->releaseHold($locked);
 
             $lockedRequest->status = AppointmentChangeRequest::STATUS_APPROVED;
             $lockedRequest->reviewed_by = $actor->id;
@@ -887,6 +994,14 @@ class AppointmentManagementService
 
             $time = $this->validateSchedule($locked->appointment_type, $date, $time);
 
+            // Phase 2: authoritative occupancy re-check at approval - a
+            // slot taken (or a closure added) AFTER the proposal was
+            // submitted still refuses the approval. The appointment
+            // itself is excluded so its own current slot never blocks.
+            if (self::usesTimedSlots($locked->appointment_type)) {
+                $this->assertSlotNotOccupied($date, $time, $locked->id);
+            }
+
             // The CURRENT schedule (the one the patient can see):
             // confirmed schedule for a confirmed row, requested schedule
             // as the defensive fallback - shared with guard 1 and the
@@ -909,6 +1024,22 @@ class AppointmentManagementService
             $locked->confirmed_date = $date;
             $locked->confirmed_time = $time;
             $locked->save();
+
+            // Phase 2: move the slot hold to the new schedule. A legacy
+            // confirmed appointment may have NO hold row (created before
+            // Phase 1) - moveHold() would refuse, so a fresh reserve is
+            // created instead. If the new slot was just taken by another
+            // booking, reserveHold()/moveHold() throws DomainException
+            // and the SINGLE transaction rolls back - the appointment
+            // keeps its original schedule untouched. Delivery requests
+            // never hold slots (no timed move).
+            if (self::usesTimedSlots($locked->appointment_type)) {
+                if ($this->availability->hasHold($locked)) {
+                    $this->availability->moveHold($locked, $date, $time);
+                } else {
+                    $this->availability->reserveHold($locked, $date, $time);
+                }
+            }
 
             $lockedRequest->status = AppointmentChangeRequest::STATUS_APPROVED;
             $lockedRequest->reviewed_by = $actor->id;
@@ -1201,29 +1332,97 @@ class AppointmentManagementService
             $time = $this->normalizeTime($time);
 
             $this->assertNotPastSchedule($date, $time);
+            // Full-day closures block delivery-request dates too (approved
+            // rule); partial time windows never apply to delivery.
+            $this->assertClinicAvailable($appointmentType, $date, $time);
 
             return $time;
         }
 
         // checkup + counseling (and any future non-delivery type): a time
-        // is required and must fall inside the provisional clinic hours.
+        // is required and must be a valid 30-minute GRID slot start
+        // (Phase 2) - 08:00, 08:30, ... 16:30. assertSlotStart enforces
+        // both the grid alignment and the 08:00-17:00 window, and refuses
+        // arbitrary times (09:17) and 17:00 starts. Legacy non-grid
+        // records are never rewritten - this rule applies only to NEW
+        // writes (staff pick a grid time when confirming a legacy
+        // pending request).
         $time = $this->normalizeTime($time);
 
         if ($time === null) {
             throw new DomainException('An appointment time is required for checkup and counseling appointments.');
         }
 
-        if ($time < self::CLINIC_OPEN_TIME || $time >= self::CLINIC_LAST_START_TIME) {
-            throw new DomainException(sprintf(
-                'Checkup and counseling appointments must start between %s and before %s (Philippine clinic hours, provisional).',
-                self::CLINIC_OPEN_TIME,
-                self::CLINIC_LAST_START_TIME
-            ));
-        }
+        $time = $this->availability->assertSlotStart($time);
 
         $this->assertNotPastSchedule($date, $time);
+        $this->assertClinicAvailable($appointmentType, $date, $time);
 
         return $time;
+    }
+
+    /** Checkup and counseling are the timed-slot types (delivery is date-only). */
+    private static function usesTimedSlots(string $appointmentType): bool
+    {
+        return in_array($appointmentType, [
+            Appointment::TYPE_CHECKUP,
+            Appointment::TYPE_COUNSELING,
+        ], true);
+    }
+
+    /**
+     * Phase 2 closure enforcement at the write boundary (inside every
+     * transaction that validates a schedule - confirm, walk-in, online
+     * request, reschedule submission and approval all route through
+     * validateSchedule()). Full-day closures block every appointment
+     * type including delivery-request dates; partial time-window
+     * closures block only timed types. Revalidated at each authoritative
+     * write, so a closure added AFTER a pending request or a reschedule
+     * proposal was submitted still refuses confirmation/approval of the
+     * closed slot. Existing appointments that predate the closure are
+     * never touched.
+     *
+     * @throws DomainException when the date/slot is closed
+     */
+    private function assertClinicAvailable(string $appointmentType, string $date, ?string $time): void
+    {
+        $this->availability->assertSchedulingSchemaReady();
+
+        if ($this->availability->isDateFullyClosed($date)) {
+            throw new DomainException(
+                'The clinic is unavailable for appointments on the selected date. Please choose another available date.'
+            );
+        }
+
+        if (self::usesTimedSlots($appointmentType)
+            && $time !== null
+            && $this->availability->isSlotClosed($date, $time)) {
+            throw new DomainException(
+                'The selected time is unavailable because the clinic is closed during that period. Please choose a different time.'
+            );
+        }
+    }
+
+    /**
+     * Phase 2 occupancy enforcement: before a timed schedule is written
+     * as (or moved to) a confirmed slot, the slot must be free - no hold
+     * row and no confirmed/completed legacy-window appointment (other
+     * than $ignoreAppointmentId itself, so a reschedule never blocks on
+     * its own current slot). Pending requests never call this against
+     * other pendings - they do not occupy, so several patients may
+     * request the same slot.
+     *
+     * @throws DomainException when the slot is already occupied
+     */
+    private function assertSlotNotOccupied(string $date, string $time, ?int $ignoreAppointmentId = null): void
+    {
+        $this->availability->assertSchedulingSchemaReady();
+
+        if ($this->availability->isSlotOccupied($date, $time, $ignoreAppointmentId)) {
+            throw new DomainException(
+                'That appointment time slot is no longer available. Please choose a different available time.'
+            );
+        }
     }
 
     /**
@@ -1356,6 +1555,30 @@ class AppointmentManagementService
     }
 
     /**
+     * QA FIX 2 completion-date rule: a confirmed appointment may only be
+     * marked completed on or after its effective scheduled date. The
+     * effective date is confirmed_date when present, otherwise
+     * requested_date - the same COALESCE the patient portal and the
+     * calendar use, so a rescheduled confirmation never regresses to the
+     * original requested date. The comparison is calendar-date only in
+     * Asia/Manila (times are deliberately ignored: later today is due
+     * today). Re-checked inside the transaction after lockAppointment(),
+     * so the Alpine UI gate is never the only enforcement point.
+     *
+     * @throws DomainException when the appointment is not yet due
+     */
+    private function assertCompletionScheduleDue(Appointment $appointment): void
+    {
+        $date = ($appointment->confirmed_date ?? $appointment->requested_date)?->toDateString();
+
+        $issue = self::completionNotDueIssue($date);
+
+        if ($issue !== null) {
+            throw new DomainException($issue);
+        }
+    }
+
+    /**
      * Phase 3D.2B cutoff rule (user-approved interpretation, symmetric
      * with pastScheduleIssue's Manila anchoring):
      *   - date + time: allowed STRICTLY BEFORE the start minute; the
@@ -1413,6 +1636,47 @@ class AppointmentManagementService
                 $normalizedTime,
                 $now->toDateString(),
                 $now->format('H:i')
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * QA FIX 2 single source of truth for the completion-date rule.
+     *
+     * Compares a plain calendar date (the effective scheduled date,
+     * confirmed ?? requested) against TODAY in Asia/Manila - never the
+     * server/UTC day and never the appointment time:
+     *   - earlier or equal date (any time of day) => null, completion allowed;
+     *   - later date => staff-facing message.
+     * A missing/blank date returns null: no schedule is recorded, so the
+     * format rules own that input (same convention as
+     * scheduledStartPassedIssue). Kept public and side-effect free so the
+     * view, the FormRequest and tests can all reuse the exact rule the
+     * service enforces.
+     */
+    public static function completionNotDueIssue(?string $date): ?string
+    {
+        if ($date === null || trim($date) === '') {
+            return null;
+        }
+
+        $scheduleDate = Carbon::createFromFormat('Y-m-d', $date, self::CLINIC_TIMEZONE);
+
+        if (! $scheduleDate instanceof Carbon) {
+            return null; // format rules report invalid dates.
+        }
+
+        $today = Carbon::now(self::CLINIC_TIMEZONE)->startOfDay();
+
+        // startOfDay: createFromFormat inherits the current time-of-day
+        // for missing parts, so "today" must be normalized before compare.
+        if ($scheduleDate->startOfDay()->gt($today)) {
+            return sprintf(
+                'This appointment is scheduled for %s, which is in the future (Philippine time). Today is %s. An appointment can only be marked completed on or after its scheduled date.',
+                $date,
+                $today->toDateString()
             );
         }
 

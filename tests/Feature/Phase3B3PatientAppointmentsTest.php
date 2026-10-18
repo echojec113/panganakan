@@ -459,10 +459,18 @@ it('enforces checkup clinic hours at the request layer', function () {
         'requested_time' => '17:00',
     ])->assertSessionHasErrors('requested_time');
 
+    // Phase 2: non-grid times are refused too (slot starts only).
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_CHECKUP,
         'requested_date' => $date,
         'requested_time' => '16:59',
+    ])->assertSessionHasErrors('requested_time');
+
+    // The last valid grid slot start (16:30, ends at clinic close 17:00).
+    phase3b3Post($user, [
+        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'requested_date' => $date,
+        'requested_time' => '16:30',
     ])->assertRedirect(route('patient.appointments.index'));
 
     expect(Appointment::count())->toBe(1);
@@ -569,10 +577,13 @@ it('preserves old input on a validation failure', function () {
     $response->assertSessionHasErrors('requested_date')
         ->assertSessionHas('_old_input');
 
+    // Phase 4: the old time value is carried by the slot picker's
+    // validated preselection (initial config), not a free-form
+    // value attribute; the old date value stays on the date input.
     $this->actingAs($user)->get(route('patient.appointments.create'))
         ->assertOk()
         ->assertSee('value="2026-10-09"', false)
-        ->assertSee('value="09:00"', false);
+        ->assertSee('\u0022initial\u0022:\u002209:00\u0022', false);
 });
 
 /*
@@ -818,10 +829,13 @@ it('shows the request form with clinic-hours and delivery guidance', function ()
         ->assertSee('does not guarantee confirmation')
         ->assertSee('Delivery requests do not reserve a bed.')
         ->assertSee('contact or visit the clinic directly')
-        ->assertSee('8:00 AM to before 5:00 PM')
+        ->assertSee('8:00 AM to 5:00 PM')
         ->assertSee('name="appointment_type"', false)
         ->assertSee('name="requested_date"', false)
-        ->assertSee('name="requested_time"', false)
+        // Phase 4: requested_time is the shared slot picker's carrier
+        // (bound through the picker config), not a free-form input.
+        ->assertSee('\u0022timeName\u0022:\u0022requested_time\u0022', false)
+        ->assertSee('data-slot-carrier', false)
         ->assertDontSee('name="patient_id"', false)
         ->assertDontSee('name="status"', false)
         ->assertDontSee('name="source"', false)
@@ -954,9 +968,11 @@ it('does not add unexpected appointment tables or mutate the appointments schema
         'requested_time' => '10:00',
     ]);
 
-    // The canonical appointments table plus the approved Phase 3D.2
-    // change-request table are the ONLY appointment-bearing tables.
-    // This is an exact-set assertion: any unknown third table fails.
+    // The canonical appointments table, the approved Phase 3D.2
+    // change-request table, and the approved Phase 1 slot-hold ledger
+    // (empty by design - no backfill) are the ONLY appointment-bearing
+    // tables. This is an exact-set assertion: any unknown fourth table
+    // fails. The appointments schema itself remains unmutated.
     $appointmentTables = array_values(array_filter(
         Schema::getTables(),
         fn (array $table) => str_contains(strtolower($table['name']), 'appointment')
@@ -970,6 +986,7 @@ it('does not add unexpected appointment tables or mutate the appointments schema
 
     expect($names)->toBe([
         'appointment_change_requests',
+        'appointment_slot_holds',
         'appointments',
     ]);
 });

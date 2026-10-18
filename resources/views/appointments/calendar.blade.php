@@ -114,14 +114,24 @@
                 </x-flash>
             @endif
 
-            {{-- Filters (GET only - browsing never mutates data) --}}
-            <form method="GET" action="{{ route('appointments.index') }}" class="cal-card mb-5 flex flex-wrap items-end gap-3 p-4">
+            {{-- Filters (GET only - browsing never mutates data).
+                 QA FIX 3: no Apply button - each filter submits the form on
+                 change (requestSubmit keeps normal submission semantics:
+                 query-string building, hidden view/date inputs and the
+                 server-side filter resolution all stay identical). A
+                 data-busy guard swallows a second submit while the first is
+                 still in flight (reset on bfcache restore by the script
+                 below). --}}
+            <form method="GET" action="{{ route('appointments.index') }}" id="appointmentFilterForm"
+                  onsubmit="if (this.hasAttribute('data-busy')) { return false; } this.setAttribute('data-busy', '1');"
+                  class="cal-card mb-5 flex flex-wrap items-end gap-3 p-4">
                 <input type="hidden" name="view" value="{{ $view }}">
                 <input type="hidden" name="date" value="{{ $date->toDateString() }}">
 
                 <div>
                     <label for="filter-type" class="block text-xs font-semibold uppercase tracking-wider text-[#657083] mb-1">Service Type</label>
-                    <select id="filter-type" name="type" class="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
+                    <select id="filter-type" name="type" onchange="document.getElementById('appointmentFilterForm').requestSubmit()"
+                            class="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
                         <option value="all" {{ $typeFilter === 'all' ? 'selected' : '' }}>All Types</option>
                         @foreach ($typeLabels as $typeValue => $typeLabel)
                             <option value="{{ $typeValue }}" {{ $typeFilter === $typeValue ? 'selected' : '' }}>{{ $typeLabel }}</option>
@@ -131,7 +141,8 @@
 
                 <div>
                     <label for="filter-status" class="block text-xs font-semibold uppercase tracking-wider text-[#657083] mb-1">Status</label>
-                    <select id="filter-status" name="status" class="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
+                    <select id="filter-status" name="status" onchange="document.getElementById('appointmentFilterForm').requestSubmit()"
+                            class="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
                         <option value="all" {{ $statusFilter === 'all' ? 'selected' : '' }}>All Statuses</option>
                         <option value="active" {{ $statusFilter === 'active' ? 'selected' : '' }}>Active (Pending, Confirmed, Completed)</option>
                         @foreach ($statusLabels as $statusValue => $statusLabel)
@@ -139,8 +150,6 @@
                         @endforeach
                     </select>
                 </div>
-
-                <button type="submit" class="rounded-lg bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4aa04c]">Apply Filters</button>
             </form>
 
             {{-- Period title + legend --}}
@@ -461,7 +470,7 @@
                             {{-- Pending: Confirm / Decline --}}
                             <div x-show="!action && selected?.status === 'pending'" class="flex flex-wrap gap-2">
                                 <button type="button"
-                                        x-on:click="action = 'confirm'"
+                                        x-on:click="action = 'confirm'; if (selected?.type !== 'delivery_request') { $nextTick(() => $dispatch('depla-slot-sync', { id: 'confirm', date: selected?.requestedDateIso ?? '', time: selected?.requestedTime ?? '' })); }"
                                         class="rounded-lg bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4aa04c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#367E4B]">
                                     Confirm
                                 </button>
@@ -472,7 +481,13 @@
                                 </button>
                             </div>
 
-                            {{-- Confirmed: Cancel / Mark Completed --}}
+                            {{-- Confirmed: Cancel / Mark Completed.
+                                 QA FIX 2: Cancel keeps its original
+                                 confirmed-status condition; only Mark
+                                 Completed is additionally gated on the
+                                 effective scheduled date being today or
+                                 earlier (Asia/Manila). The server re-checks
+                                 the completion rule authoritatively. --}}
                             <div x-show="!action && selected?.status === 'confirmed'" class="flex flex-wrap gap-2">
                                 <button type="button"
                                         x-on:click="action = 'cancel'"
@@ -480,6 +495,7 @@
                                     Cancel
                                 </button>
                                 <button type="button"
+                                        x-show="isCompletionDue(selected?.effectiveDateIso)"
                                         x-on:click="action = 'complete'"
                                         class="rounded-lg bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4aa04c] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#367E4B]">
                                     Mark Completed
@@ -533,7 +549,8 @@
                             {{-- CONFIRM --}}
                             <form x-show="action === 'confirm'" x-cloak
                                   method="POST" :action="selected?.confirmUrl"
-                                x-on:submit="if (guardConfirmSchedule()) { submitting = true; } else { $event.preventDefault(); }"
+                                x-on:slot-picker-state="confirmSlotReady = ($event.detail.id === 'confirm' && $event.detail.ready)"
+                                x-on:submit="if (selected?.type !== 'delivery_request' && !confirmSlotReady) { $event.preventDefault(); return; } if (guardConfirmSchedule()) { submitting = true; } else { $event.preventDefault(); }"
                                   class="mt-1 space-y-3">
                                 @csrf
                                 <input type="hidden" name="_method" value="PATCH">
@@ -560,31 +577,33 @@
                                     @error('confirmed_date')
                                         <p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>
                                     @enderror
-                                    <p class="mt-1 text-xs text-[#657083]">Today ({{ $clinicToday }}) or a future date — Philippine time. Past schedules cannot be confirmed.</p>
+                                    <p class="mt-1 text-xs text-[#657083]">Today ({{ $clinicToday }}) or a future date — Philippine time. Past schedules cannot be confirmed. Available times update when you change the date.</p>
                                 </div>
 
-                                {{-- Confirmed Time: ONE input carries name="confirmed_time" per
-                                     appointment type. Alpine x-show only toggles visibility (CSS)
-                                     and does NOT remove a control from the form, so both inputs
-                                     below would otherwise be submitted and PHP would keep the LAST
-                                     one - the hidden delivery input's empty value. That empty value
-                                     overwrote the visible checkup/counseling time, turning it into
-                                     null and tripping the "time is required" error (Bug: visible
-                                     04:56 PM but server saw no time). x-bind:disabled removes the
-                                     INACTIVE input from the submission entirely, so only the
-                                     visible/active time is sent. Both inputs still render so
-                                     Alpine can switch between them; the inactive one is disabled,
-                                     never submitted, and never carries the field name into PHP. --}}
+                                {{-- Confirmed Time — Phase 4 shared slot picker
+                                     for timed types. The patient-requested
+                                     time is preselected ONLY when the live
+                                     availability response reports it as an
+                                     available grid slot; a legacy non-grid,
+                                     occupied, past or closed time is never
+                                     rounded — the picker shows an explicit
+                                     notice and staff must choose another.
+                                     Delivery requests keep the optional
+                                     date-only time input below (no picker,
+                                     disabled unless the type is delivery so
+                                     only one confirmed_time ever submits). --}}
                                 <div x-show="selected?.type !== 'delivery_request'">
-                                    <label for="confirm-time" class="block text-xs font-semibold uppercase tracking-wider text-[#657083] mb-1">Confirmed Time</label>
-                                    <input id="confirm-time" type="time" name="confirmed_time" required step="60"
-                                           x-bind:disabled="selected?.type === 'delivery_request'"
-                                           :value="{{ json_encode(old('confirmed_time')) }} ?? selected?.requestedTime ?? ''"
-                                           class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
-                                    <p class="mt-1 text-xs text-[#657083]">Monday–Sunday, 8:00 AM to before 5:00 PM Philippine time (provisional clinic hours). Today's earlier times are blocked. No capacity limit — overlapping times are allowed.</p>
-                                    @error('confirmed_time')
-                                        <p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>
-                                    @enderror
+                                    <x-slot-picker
+                                        time-name="confirmed_time"
+                                        date-id="confirm-date"
+                                        :url="route('appointments.slots')"
+                                        picker-id="confirm"
+                                        label="Confirmed Time"
+                                        :required="true"
+                                        :preselect-notice="true"
+                                        hide-expr="selected?.type === 'delivery_request'"
+                                    />
+                                    <p class="mt-1 text-xs text-[#657083]">One 30-minute slot, Monday–Sunday, 8:00 AM to 5:00 PM Philippine time. Booked, past and clinic-closed slots cannot be selected. The clinic server re-checks availability when you confirm.</p>
                                 </div>
 
                                 <div x-show="selected?.type === 'delivery_request'">
@@ -603,7 +622,7 @@
                                    class="rounded-lg border border-red-200 bg-red-50 p-2 text-xs font-medium text-red-700"></p>
 
                                 <div class="flex flex-wrap gap-2">
-                                    <button type="submit" :disabled="submitting"
+                                    <button type="submit" :disabled="submitting || (selected?.type !== 'delivery_request' && !confirmSlotReady)"
                                             class="rounded-lg bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4aa04c] disabled:opacity-60"
                                             x-text="submitting ? 'Confirming…' : 'Confirm Appointment'"></button>
                                     <button type="button" x-on:click="action = null"
@@ -920,7 +939,8 @@
                 {{-- ══════════ WALK-IN APPOINTMENT MODAL ══════════ --}}
                 <x-modal name="walk-in-appointment" focusable max-width="lg">
                     <form method="POST" action="{{ route('appointments.walk-in.store') }}"
-                          x-on:submit="if (guardWalkInSchedule()) { submitting = true; } else { $event.preventDefault(); }"
+                          x-on:slot-picker-state="walkInSlotReady = ($event.detail.id === 'walk-in' && $event.detail.ready)"
+                          x-on:submit="if (walkIn.type !== 'delivery_request' && !walkInSlotReady) { $event.preventDefault(); return; } if (guardWalkInSchedule()) { submitting = true; } else { $event.preventDefault(); }"
                           class="p-6">
                         @csrf
 
@@ -1002,20 +1022,32 @@
                             </div>
                         </div>
 
-                        <div class="mt-3">
-                            <label for="walkin-time" class="block text-xs font-semibold uppercase tracking-wider text-[#657083] mb-1">
-                                Appointment Time <span x-show="walkIn.type !== 'delivery_request'" class="text-red-600">(required)</span>
-                            </label>
-                            <input id="walkin-time" type="time" name="appointment_time" step="60"
-                                   x-model="walkIn.time"
-                                   x-bind:required="walkIn.type !== 'delivery_request'"
-                                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
+                        {{-- Phase 4 — shared 30-minute slot picker replaces the
+                             free-form walk-in time input. Delivery walk-ins
+                             stay date-only (the picker's carrier is disabled
+                             by hide-expr so no timed value submits). The
+                             endpoint response is the only slot source of
+                             truth; booked, past and clinic-closed slots are
+                             disabled by the server-computed state. --}}
+                        <div class="mt-3" x-show="walkIn.type !== 'delivery_request'">
+                            <x-slot-picker
+                                time-name="appointment_time"
+                                date-id="walkin-date"
+                                :url="route('appointments.slots')"
+                                :initial="old('appointment_time')"
+                                picker-id="walk-in"
+                                label="Appointment Time"
+                                :required="true"
+                                hide-expr="walkIn.type === 'delivery_request'"
+                            />
                             <p class="mt-1 text-xs text-[#657083]">
-                                Checkup &amp; counseling: Monday–Sunday, 8:00 AM to before 5:00 PM Philippine time (provisional). Delivery requests: any time, 24/7, date-only allowed — confirming never reserves a bed. Today ({{ $clinicToday }}) or a future date only — today's earlier times are blocked (Philippine time).
+                                Checkup &amp; counseling: one 30-minute slot, Monday–Sunday, 8:00 AM to 5:00 PM Philippine time. Booked, past and clinic-closed slots cannot be selected. Today ({{ $clinicToday }}) or a future date only.
                             </p>
-                            @error('appointment_time')
-                                <p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>
-                            @enderror
+                        </div>
+
+                        <div x-show="walkIn.type === 'delivery_request'"
+                             class="mt-3 rounded-xl border border-[#E7E9E5] bg-[#FCFBF8] p-3 text-xs text-[#657083]">
+                            Delivery requests are date-only — no time slot is needed. They are accepted 24/7; confirming never reserves a bed.
                         </div>
 
                         <p x-show="scheduleError" x-text="scheduleError"
@@ -1026,7 +1058,7 @@
                         </p>
 
                         <div class="mt-5 flex flex-wrap gap-2">
-                            <button type="submit" :disabled="submitting || !walkIn.patientId"
+                            <button type="submit" :disabled="submitting || !walkIn.patientId || (walkIn.type !== 'delivery_request' && !walkInSlotReady)"
                                     class="rounded-lg bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4aa04c] disabled:opacity-60"
                                     x-text="submitting ? 'Creating…' : 'Create Walk-in Appointment'"></button>
                             <button type="button" x-on:click="$dispatch('close-modal', 'walk-in-appointment')"
@@ -1055,12 +1087,31 @@
                     const CLINIC_TODAY = {!! json_encode($clinicToday, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!};
                     const CLINIC_NOW = {!! json_encode($clinicNow, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!};
 
+                    // QA FIX 3: the filter form auto-submits on change and
+                    // guards duplicate submits with data-busy. When the page
+                    // is restored from the back/forward cache the document
+                    // (and that attribute) comes back as it was saved, so the
+                    // guard is cleared here or every later filter change
+                    // would be swallowed.
+                    window.addEventListener('pageshow', function () {
+                        var filterForm = document.getElementById('appointmentFilterForm');
+                        if (filterForm) {
+                            filterForm.removeAttribute('data-busy');
+                        }
+                    });
+
                     function appointmentDetailsPanel() {
                         return {
                             selected: null,
                             action: null,
                             submitting: false,
                             scheduleError: '',
+                            // Phase 4 — slot-picker readiness flags. The
+                            // bubbling slot-picker-state events update these;
+                            // submit buttons stay disabled until the picker
+                            // has verified availability AND a slot is chosen.
+                            confirmSlotReady: false,
+                            walkInSlotReady: false,
                             walkIn: {
                                 patientId: null,
                                 patientLabel: '',
@@ -1069,16 +1120,36 @@
                                 searching: false,
                                 type: {!! json_encode(old('appointment_type', 'checkup'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!},
                                 date: {!! json_encode(old('appointment_date', ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!},
-                                time: {!! json_encode(old('appointment_time', ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!},
                             },
                             open(id) {
                                 const all = JSON.parse(document.getElementById('appointmentDetailsData').textContent || '{}');
                                 this.selected = all[String(id)] || null;
                                 this.action = null;
                                 this.scheduleError = '';
+                                this.confirmSlotReady = false;
                                 if (this.selected) {
                                     this.$dispatch('open-modal', 'appointment-details');
                                 }
+                            },
+                            // QA FIX 2 - client mirror of the completion-date
+                            // rule enforced by
+                            // AppointmentManagementService::complete().
+                            // effectiveDateIso is the server-resolved
+                            // effective date (confirmed ?? requested) as a
+                            // plain Y-m-d string; CLINIC_TODAY is the
+                            // server-rendered Asia/Manila day. Comparing the
+                            // two as strings keeps this a pure calendar-date
+                            // comparison - no Date() parsing, so no UTC
+                            // conversion can shift the clinic day. Today or
+                            // earlier is eligible (times are ignored), a
+                            // future date hides the action. The server
+                            // re-validates at the write boundary, so a
+                            // bypassed UI still cannot complete early.
+                            isCompletionDue(date) {
+                                if (!date) {
+                                    return true; // no schedule recorded - server format rules own that input.
+                                }
+                                return date <= CLINIC_TODAY;
                             },
                             // Shared past-schedule guard (mirrors the server
                             // rule). Returns false and sets a readable
@@ -1100,11 +1171,16 @@
                                 return true;
                             },
                             guardWalkInSchedule() {
-                                return this.checkSchedule(this.walkIn.date, this.walkIn.time);
+                                const timeEl = this.walkIn.type === 'delivery_request'
+                                    ? null
+                                    : document.querySelector('[data-picker-id="walk-in"] [data-slot-carrier]');
+                                return this.checkSchedule(this.walkIn.date, timeEl ? timeEl.value : '');
                             },
                             guardConfirmSchedule() {
                                 const dateEl = document.getElementById('confirm-date');
-                                const timeEl = document.getElementById(this.selected?.type === 'delivery_request' ? 'confirm-time-delivery' : 'confirm-time');
+                                const timeEl = this.selected?.type === 'delivery_request'
+                                    ? document.getElementById('confirm-time-delivery')
+                                    : document.querySelector('[data-picker-id="confirm"] [data-slot-carrier]');
                                 return this.checkSchedule(dateEl ? dateEl.value : '', timeEl ? timeEl.value : '');
                             },
                             statusBadgeClass(status) {

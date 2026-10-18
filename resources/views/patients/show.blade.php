@@ -233,7 +233,7 @@
         @endif
 
                 <!-- Patient Header -->
-<div class="panel mb-6 overflow-visible">
+<div class="panel mb-6">
             <div class="panel-body">
                 <div class="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
 
@@ -323,100 +323,15 @@
                             @if(auth()->user()->role !== 'admin')
 
                                 {{-- Primary Action --}}
-                                @if($canAddPrenatalVisit)
-                                    <a
-                                        href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}"
-                                        class="btn btn-primary w-full justify-center"
-                                    >
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                                        </svg>
-                                        Add Prenatal Visit
-                                    </a>
-                                @else
-                                    <div class="group relative">
-                                        <button
-                                            type="button"
-                                            disabled
-                                            class="btn btn-secondary w-full cursor-not-allowed justify-center opacity-60"
-                                        >
-                                            Complete Required Records First
-                                        </button>
-
-                                        <div class="absolute right-0 z-50 mt-2 hidden w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white p-4 shadow-lg group-hover:block">
-                                            <p class="mb-3 text-sm font-semibold text-gray-800">
-                                                Complete the following records before adding a prenatal visit:
-                                            </p>
-
-                                            <div class="space-y-3">
-
-                                                {{-- Medical History --}}
-                                                <div class="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div class="text-sm font-medium text-gray-700">
-                                                            Medical History
-                                                        </div>
-                                                        <div class="mt-0.5 text-xs {{ $hasMedicalHistory ? 'text-green-700' : 'text-red-600' }}">
-                                                            {{ $hasMedicalHistory ? 'Complete' : 'Required' }}
-                                                        </div>
-                                                    </div>
-
-                                                    @if(!$hasMedicalHistory)
-                                                        <a
-                                                            href="{{ route('medical-histories.create', ['patient_id' => $patient->id]) }}"
-                                                            class="text-sm font-semibold text-blue-700 hover:text-blue-900"
-                                                        >
-                                                            Add
-                                                        </a>
-                                                    @endif
-                                                </div>
-
-                                                {{-- Ultrasound --}}
-                                                <div class="flex items-start justify-between gap-3 border-t border-gray-100 pt-3">
-                                                    <div>
-                                                        <div class="text-sm font-medium text-gray-700">
-                                                            Ultrasound Record
-                                                        </div>
-                                                        <div class="mt-0.5 text-xs {{ $hasUltrasound ? 'text-green-700' : 'text-red-600' }}">
-                                                            {{ $hasUltrasound ? 'Complete' : 'Required' }}
-                                                        </div>
-                                                    </div>
-
-                                                    @if(!$hasUltrasound)
-                                                        <a
-                                                            href="{{ route('ultrasound.create', $patient->id) }}"
-                                                            class="text-sm font-semibold text-blue-700 hover:text-blue-900"
-                                                        >
-                                                            Add
-                                                        </a>
-                                                    @endif
-                                                </div>
-
-                                                {{-- Birth Plan --}}
-                                                <div class="flex items-start justify-between gap-3 border-t border-gray-100 pt-3">
-                                                    <div>
-                                                        <div class="text-sm font-medium text-gray-700">
-                                                            Birth Plan
-                                                        </div>
-                                                        <div class="mt-0.5 text-xs {{ $hasBirthPlan ? 'text-green-700' : 'text-red-600' }}">
-                                                            {{ $hasBirthPlan ? 'Complete' : 'Required' }}
-                                                        </div>
-                                                    </div>
-
-                                                    @if(!$hasBirthPlan)
-                                                        <a
-                                                            href="{{ route('birth-plans.create', ['patient_id' => $patient->id]) }}"
-                                                            class="text-sm font-semibold text-blue-700 hover:text-blue-900"
-                                                        >
-                                                            Add
-                                                        </a>
-                                                    @endif
-                                                </div>
-
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endif
+                                <a
+                                    href="{{ route('prenatal-visits.create', ['patient_id' => $patient->id]) }}"
+                                    class="btn btn-primary w-full justify-center"
+                                >
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    Add Prenatal Visit
+                                </a>
 
                                 {{-- Secondary Actions --}}
                                 <div class="grid grid-cols-2 gap-2">
@@ -1643,7 +1558,7 @@
                                     >
                                         <a
                                             href="{{ route('prenatal-visits.edit', $visit->id) }}"
-                                            class="inline-flex shrink-0 items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900 transition-all duration-150"
+                                            class="inline-flex shrink-0 items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
                                             title="Edit prenatal visit"
                                             aria-label="Edit prenatal visit"
                                         >
@@ -2028,7 +1943,7 @@
             @if($patient->medicalHistory)
                 <a
                     href="{{ route('medical-histories.edit', $patient->medicalHistory->id) }}"
-                    class="text-sm font-medium text-blue-600 hover:text-blue-800"
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900"
                 >
                     Edit
                 </a>
@@ -2512,7 +2427,7 @@
                                     <div onclick="event.stopPropagation()">
     <a
         href="{{ route('ultrasound.edit', $u->id) }}"
-        class="text-sm font-medium text-blue-600 hover:text-blue-800"
+        class="text-sm font-medium text-gray-600 hover:text-gray-900"
     >
         Edit
     </a>
@@ -3724,7 +3639,7 @@
 
         <a
             href="{{ route('referrals.index') }}"
-            class="text-sm font-medium text-blue-600 hover:text-blue-800"
+            class="text-sm font-medium text-gray-600 hover:text-gray-900"
         >
             Manage
         </a>

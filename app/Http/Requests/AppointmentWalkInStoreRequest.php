@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Services\AppointmentManagementService;
+use App\Services\ClinicAvailabilityService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator as BaseValidator;
@@ -60,6 +61,24 @@ class AppointmentWalkInStoreRequest extends FormRequest
                     $validator->errors()->add('patient_id', 'The selected patient record does not exist.');
                 } elseif ($patient->trashed()) {
                     $validator->errors()->add('patient_id', 'Archived patients cannot be given walk-in appointments.');
+                }
+            }
+
+            // Phase 2: slot-grid alignment for timed types (early field
+            // feedback - the service repeats assertSlotStart() at the
+            // write boundary). Delivery requests are date-only.
+            $requiresTime = in_array($this->input('appointment_type'), [
+                Appointment::TYPE_CHECKUP,
+                Appointment::TYPE_COUNSELING,
+            ], true);
+
+            if ($requiresTime && ! $validator->errors()->has('appointment_time')) {
+                $slotIssue = ClinicAvailabilityService::slotStartIssue(
+                    is_string($this->input('appointment_time')) ? $this->input('appointment_time') : null
+                );
+
+                if ($slotIssue !== null) {
+                    $validator->errors()->add('appointment_time', $slotIssue);
                 }
             }
 

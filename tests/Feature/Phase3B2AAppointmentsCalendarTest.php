@@ -450,12 +450,13 @@ it('exposes only read-only GET routes under the appointments namespace', functio
     $named = collect(Route::getRoutes()->getRoutes())
         ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'appointments.'));
 
-    expect($named)->toHaveCount(7);
+    expect($named)->toHaveCount(8);
 
-    // Browsing (calendar index + patient search) is GET-only.
+    // Browsing (calendar index + patient search + Phase 2 slot catalog)
+    // is GET-only.
     $getOnly = $named->filter(fn ($route) => array_diff($route->methods(), ['GET', 'HEAD']) === []);
     expect($getOnly->map(fn ($route) => $route->getName())->sort()->values()->all())
-        ->toBe(['appointments.index', 'appointments.patient-search']);
+        ->toBe(['appointments.index', 'appointments.patient-search', 'appointments.slots']);
 
     // Every other appointments route is a mutation (PATCH/POST only) - never GET.
     foreach ($named->reject(fn ($route) => array_diff($route->methods(), ['GET', 'HEAD']) === []) as $route) {

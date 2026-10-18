@@ -423,6 +423,9 @@
                     Request Reschedule
                 </summary>
                 <form method="POST" action="{{ route('patient.appointments.rescheduleRequest', ['appointmentId' => $appointment->id]) }}"
+                      x-data="{ slotReady: false, submitting: false }"
+                      x-on:slot-picker-state="slotReady = ($event.detail.id === 'reschedule-{{ $appointment->id }}' && $event.detail.ready)"
+                      @submit="if (!slotReady) { $event.preventDefault(); return; } submitting = true"
                       class="border-t px-3 py-3" style="border-color: var(--light-border);">
                     @csrf
                     <input type="hidden" name="form" value="reschedule">
@@ -443,32 +446,30 @@
                            style="border-color: #D1D5DB; color: var(--depla-navy);"
                            aria-describedby="reschedule-date-hint-{{ $appointment->id }} @error('proposed_date') reschedule-date-error-{{ $appointment->id }} @enderror">
                     <p id="reschedule-date-hint-{{ $appointment->id }}" class="mt-1.5 text-xs" style="color: var(--body-text);">
-                        Today or a later date (Philippine time).
+                        Today or a later date (Philippine time). Available times update automatically when you change the date.
                     </p>
                     @error('proposed_date')
                         <p id="reschedule-date-error-{{ $appointment->id }}" class="mt-1.5 text-xs font-medium" style="color: #991B1B;" role="alert">{{ $message }}</p>
                     @enderror
 
                     @if (! $isDelivery)
-                        <label for="reschedule-time-{{ $appointment->id }}" class="mt-3 block text-sm font-semibold" style="color: var(--depla-navy);">
-                            Proposed Time <span aria-hidden="true">*</span>
-                        </label>
-                        <input type="time"
-                               id="reschedule-time-{{ $appointment->id }}"
-                               name="proposed_time"
-                               value="{{ old('proposed_time') }}"
-                               min="08:00"
-                               max="16:59"
-                               required
-                               class="mt-1.5 h-11 w-full rounded-xl border px-3 text-sm focus:outline-none focus:ring-2"
-                               style="border-color: #D1D5DB; color: var(--depla-navy);"
-                               aria-describedby="reschedule-time-hint-{{ $appointment->id }} @error('proposed_time') reschedule-time-error-{{ $appointment->id }} @enderror">
-                        <p id="reschedule-time-hint-{{ $appointment->id }}" class="mt-1.5 text-xs" style="color: var(--body-text);">
-                            Between 8:00 AM and before 5:00 PM (Philippine clinic hours, provisional).
-                        </p>
-                        @error('proposed_time')
-                            <p id="reschedule-time-error-{{ $appointment->id }}" class="mt-1.5 text-xs font-medium" style="color: #991B1B;" role="alert">{{ $message }}</p>
-                        @enderror
+                        {{-- Phase 4 — shared 30-minute slot picker replaces the
+                             free-form time input. Delivery reschedules stay
+                             date-only (no picker rendered). --}}
+                        <div class="mt-3">
+                            <x-slot-picker
+                                time-name="proposed_time"
+                                :date-id="'reschedule-date-'.$appointment->id"
+                                :url="route('patient.appointments.slots')"
+                                :initial="old('proposed_time')"
+                                :picker-id="'reschedule-'.$appointment->id"
+                                label="Proposed Time"
+                                :required="true"
+                            />
+                            <p class="mt-1.5 text-xs" style="color: var(--body-text);">
+                                Choose one 30-minute clinic slot. Booked, past and clinic-closed times cannot be selected.
+                            </p>
+                        </div>
                     @endif
 
                     <label for="reschedule-reason-{{ $appointment->id }}" class="mt-3 block text-sm font-semibold" style="color: var(--depla-navy);">
@@ -485,7 +486,8 @@
                     @endif
 
                     <button type="submit"
-                            class="mt-3 inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                            :disabled="submitting || !slotReady"
+                            class="mt-3 inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                             style="background: var(--depla-dark-green);">
                         Submit Reschedule Request
                     </button>

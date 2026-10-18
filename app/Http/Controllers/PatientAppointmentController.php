@@ -9,9 +9,11 @@ use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\User;
 use App\Services\AppointmentManagementService;
+use App\Services\ClinicAvailabilityService;
 use App\Services\SystemNotificationService;
 use Carbon\Carbon;
 use DomainException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -62,7 +64,31 @@ class PatientAppointmentController extends Controller
     public function __construct(
         private readonly AppointmentManagementService $service,
         private readonly SystemNotificationService $notifications,
+        private readonly ClinicAvailabilityService $availability,
     ) {
+    }
+
+    /**
+     * GET /patient/appointments/slots?date=YYYY-MM-DD — JSON slot catalog
+     * for the booking date picker (Phase 2). Patient-safety scoped: the
+     * payload contains only slot times and public state labels (available
+     * / occupied / past / unavailable) plus the clinic-closed flag —
+     * NEVER another patient's identity, appointment id, notes, confirmed
+     * time or any other patient row. Unauthorized roles follow the same
+     * portalUserOrAbort() refusal as every other action here. Invalid
+     * date => 422 with the safe DomainException message.
+     */
+    public function slots(Request $request): JsonResponse
+    {
+        $this->portalUserOrAbort($request);
+
+        try {
+            $payload = $this->availability->slotsForDate((string) $request->query('date', ''));
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json($payload);
     }
 
     /**

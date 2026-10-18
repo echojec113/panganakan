@@ -146,7 +146,7 @@ Each case uses: **ID** / **Preconditions** / **Test Steps** / **Expected Result*
 ### PAT-004 — View patient profile
 - **Preconditions:** ONGOING patient with visits, medical history, ultrasound, birth plan.
 - **Steps:** `GET /patients/{id}`.
-- **Expected:** Profile renders latest assessment (created_at desc, id desc), visit history newest-first, monitoring state card (see OUT section). "Add prenatal visit" only enabled when MedicalHistory + Ultrasound + BirthPlan all exist (`canAddPrenatalVisit`).
+- **Expected:** Profile renders latest assessment (created_at desc, id desc), visit history newest-first, monitoring state card (see OUT section). "Add Prenatal Visit" always shown for eligible ONGOING non-admin patients regardless of record completeness (QA Fix 2026-10-18); a visit created before Medical History/Ultrasound/Birth Plan exist classifies as `ASSESSMENT INCOMPLETE`, never LOW.
 
 ### PAT-005 — Edit patient
 - **Steps:** `GET/PUT /patients/{id}/edit`; change name/address; also try invalid LMP/EDD.

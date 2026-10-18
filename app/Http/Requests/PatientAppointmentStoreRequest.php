@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Appointment;
 use App\Services\AppointmentManagementService;
+use App\Services\ClinicAvailabilityService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator as BaseValidator;
@@ -62,6 +63,25 @@ class PatientAppointmentStoreRequest extends FormRequest
     public function withValidator(BaseValidator $validator): void
     {
         $validator->after(function (BaseValidator $validator) {
+            // Phase 2: slot-grid alignment for timed types (early field
+            // feedback - the service repeats assertSlotStart() at the
+            // write boundary). Delivery requests are date-only: any
+            // submitted time is ignored by the service, so skip.
+            $requiresTime = in_array($this->input('appointment_type'), [
+                Appointment::TYPE_CHECKUP,
+                Appointment::TYPE_COUNSELING,
+            ], true);
+
+            if ($requiresTime && ! $validator->errors()->has('requested_time')) {
+                $slotIssue = ClinicAvailabilityService::slotStartIssue(
+                    is_string($this->input('requested_time')) ? $this->input('requested_time') : null
+                );
+
+                if ($slotIssue !== null) {
+                    $validator->errors()->add('requested_time', $slotIssue);
+                }
+            }
+
             // Past-schedule rule (defence in depth - the service repeats
             // this check at the write boundary for direct callers).
             if (! $validator->errors()->hasAny(['requested_date', 'requested_time'])) {

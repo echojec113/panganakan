@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Appointment;
 use App\Services\AppointmentManagementService;
+use App\Services\ClinicAvailabilityService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -53,6 +54,24 @@ class AppointmentConfirmRequest extends FormRequest
     public function withValidator(BaseValidator $validator): void
     {
         $validator->after(function (BaseValidator $validator) {
+            // Phase 2: slot-grid alignment for timed types (early field
+            // feedback - the service repeats assertSlotStart() at the
+            // write boundary). The appointment type comes from the ROUTED
+            // row so it cannot be forged. Delivery requests are date-only.
+            $appointment = $this->route('appointment');
+            $requiresTime = $appointment instanceof Appointment
+                && $appointment->appointment_type !== Appointment::TYPE_DELIVERY_REQUEST;
+
+            if ($requiresTime && ! $validator->errors()->has('confirmed_time')) {
+                $slotIssue = ClinicAvailabilityService::slotStartIssue(
+                    is_string($this->input('confirmed_time')) ? $this->input('confirmed_time') : null
+                );
+
+                if ($slotIssue !== null) {
+                    $validator->errors()->add('confirmed_time', $slotIssue);
+                }
+            }
+
             // Past-schedule rule (defence in depth - the service repeats
             // this check at the write boundary for direct callers).
             if (! $validator->errors()->hasAny(['confirmed_date', 'confirmed_time'])) {

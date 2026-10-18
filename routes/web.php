@@ -28,6 +28,7 @@ use App\Http\Controllers\AppointmentCalendarController;
 use App\Http\Controllers\AppointmentChangeRequestController;
 use App\Http\Controllers\AppointmentManagementController;
 use App\Http\Controllers\Admin\PatientAccountManagementController;
+use App\Http\Controllers\Admin\ClinicAvailabilityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -168,6 +169,15 @@ Route::get('/patient/pregnancies/{episodeId}', [PatientPregnancyHistoryControlle
 Route::get('/patient/appointments', [PatientAppointmentController::class, 'index'])
     ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
     ->name('patient.appointments.index');
+
+/*
+| Phase 2 slot catalog: GET-only JSON for the booking date picker.
+| Same middleware chain as the rest of the patient portal. The payload
+| exposes only slot times and public state labels - no patient data.
+*/
+Route::get('/patient/appointments/slots', [PatientAppointmentController::class, 'slots'])
+    ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
+    ->name('patient.appointments.slots');
 
 Route::get('/patient/appointments/create', [PatientAppointmentController::class, 'create'])
     ->middleware(['auth', 'patient-portal-account', 'must-change-password', 'no-store'])
@@ -405,6 +415,14 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
     Route::get('/appointments/patient-search', [AppointmentManagementController::class, 'patientSearch'])
         ->name('appointments.patient-search');
 
+    /*
+    | Phase 2 slot catalog: GET-only JSON for the staff calendar date
+    | picker. Inside the 'clinic' boundary (auth + admin|staff + no-store).
+    | Payload carries only slot times, states and the closure flag.
+    */
+    Route::get('/appointments/slots', [AppointmentManagementController::class, 'slots'])
+        ->name('appointments.slots');
+
     Route::patch('/appointments/{appointment}/confirm', [AppointmentManagementController::class, 'confirm'])
         ->name('appointments.confirm');
 
@@ -557,6 +575,33 @@ Route::delete('/profile/photo', [ProfileController::class, 'destroyPhoto'])
         Route::post('/patient-accounts/{account}/reactivate', [PatientAccountManagementController::class, 'reactivate'])
             ->withTrashed()
             ->name('patient-accounts.reactivate');
+
+        /*
+        |------------------------------------------------------------------
+        | Clinic Availability (DEPLA Phase 3) - Admin-only closures
+        |------------------------------------------------------------------
+        | Full-day, date-range and time-slot clinic unavailability.
+        | Inherited 'auth' + 'clinic' + no-store chain from the outer
+        | group, plus AdminMiddleware here, plus per-FormRequest
+        | authorize() and the controller assertAdmin() (three layers).
+        | GET .../affected is the read-only preview consumed by the
+        | confirm modal; it never mutates and the backend re-computes
+        | everything inside the write transaction.
+        */
+        Route::get('/admin/clinic-unavailability', [ClinicAvailabilityController::class, 'index'])
+            ->name('admin.clinic-unavailability.index');
+
+        Route::get('/admin/clinic-unavailability/affected', [ClinicAvailabilityController::class, 'affected'])
+            ->name('admin.clinic-unavailability.affected');
+
+        Route::post('/admin/clinic-unavailability', [ClinicAvailabilityController::class, 'store'])
+            ->name('admin.clinic-unavailability.store');
+
+        Route::patch('/admin/clinic-unavailability/{closure}', [ClinicAvailabilityController::class, 'update'])
+            ->name('admin.clinic-unavailability.update');
+
+        Route::delete('/admin/clinic-unavailability/{closure}', [ClinicAvailabilityController::class, 'destroy'])
+            ->name('admin.clinic-unavailability.destroy');
     });
 
     /*

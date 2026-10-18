@@ -111,7 +111,7 @@ function phase3b4WalkIn(User $staff, Patient $patient, array $overrides = [])
     return test()->actingAs($staff)->post(route('appointments.walk-in.store'), array_merge([
         'patient_id' => $patient->id,
         'appointment_type' => Appointment::TYPE_CHECKUP,
-        'appointment_date' => '2026-10-15',
+        'appointment_date' => now('Asia/Manila')->addDay()->toDateString(),
         'appointment_time' => '15:00',
     ], $overrides));
 }
@@ -321,7 +321,11 @@ it('notifies the linked patient on declined, cancelled and completed transitions
     expect($cancelledData['message'])->toBe('Your appointment has been cancelled. Please check My Appointments for details.')
         ->and($cancelledData['event_key'])->toBe('appointment-cancelled:' . $cancel->id);
 
-    $complete = phase3b4ConfirmedAppointment($patient, $admin, ['confirmed_date' => '2026-11-06']);
+    // QA FIX 2: completion needs a due (today-or-earlier) schedule, so this
+    // fixture drops the future default for an eligible past date.
+    $complete = phase3b4ConfirmedAppointment($patient, $admin, [
+        'confirmed_date' => now('Asia/Manila')->subDay()->toDateString(),
+    ]);
 
     phase3b4ActAsPatch($admin, 'appointments.complete', $complete)->assertSessionHas('success');
 
@@ -350,6 +354,8 @@ it('sends no patient notification when the patient has no linked or an archived 
         ->and(DB::table('notifications')->count())->toBe(0);
 
     // Archived (soft-deleted) portal account: excluded by the User scope.
+    // Phase 2: a DIFFERENT slot is used - the first confirm above already
+    // occupies 2026-11-05 10:00 (one confirmed appointment per slot).
     $archivedUser = phase3b4User('patient', 'Archived Portal');
     $archivedPatient = phase3b4Patient('Archived', 'Link');
     phase3b4Link($archivedPatient, $archivedUser);
@@ -358,7 +364,7 @@ it('sends no patient notification when the patient has no linked or an archived 
 
     phase3b4ActAsPatch($admin, 'appointments.confirm', $appointment, [
         'confirmed_date' => '2026-11-05',
-        'confirmed_time' => '10:00',
+        'confirmed_time' => '11:00',
     ])->assertSessionHas('success');
 
     expect($appointment->refresh()->status)->toBe(Appointment::STATUS_CONFIRMED)
@@ -524,7 +530,12 @@ it('renders an accurate unread count and a friendly empty state', function () {
         ->assertSee('You have no notifications yet');
 
     $first = phase3b4Appointment($patient, ['requested_date' => '2026-11-05']);
-    $second = phase3b4ConfirmedAppointment($patient, $admin, ['confirmed_date' => '2026-11-06']);
+    // QA FIX 2: completion needs a due (today-or-earlier) schedule, so this
+    // fixture drops the future default for an eligible past date. $first is
+    // still confirmed for 2026-11-05 below (a future confirmation stays legal).
+    $second = phase3b4ConfirmedAppointment($patient, $admin, [
+        'confirmed_date' => now('Asia/Manila')->subDay()->toDateString(),
+    ]);
 
     phase3b4ActAsPatch($admin, 'appointments.confirm', $first, [
         'confirmed_date' => '2026-11-05', 'confirmed_time' => '10:00',
