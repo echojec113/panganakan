@@ -157,6 +157,7 @@
                             </label>
                             <select name="presentation" id="presentation" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
                                 <option value="">Select Presentation</option>
+                                <option value="Not visible yet" {{ old('presentation', $ultrasound->presentation) == 'Not visible yet' ? 'selected' : '' }}>Not visible yet</option>
                                 <option value="Cephalic" {{ old('presentation', $ultrasound->presentation) == 'Cephalic' ? 'selected' : '' }}>Cephalic (Head down)</option>
                                 <option value="Breech" {{ old('presentation', $ultrasound->presentation) == 'Breech' ? 'selected' : '' }}>Breech</option>
                                 <option value="Transverse" {{ old('presentation', $ultrasound->presentation) == 'Transverse' ? 'selected' : '' }}>Transverse</option>

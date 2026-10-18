@@ -1,5 +1,16 @@
 # Implementation Progress
 
+## 2026-10-18 - Ultrasound Edit Presentation preservation
+
+- Completed minimal UI fix: Edit now includes `Not visible yet` before Cephalic, using `old('presentation', $ultrasound->presentation)` for selection. Existing options and HTML `required` are unchanged.
+- Root cause: Create exposed all five accepted values, while Edit omitted `Not visible yet`; an existing saved value therefore had no matching option. Both store and update already accept the exact value, so no backend implementation change was necessary.
+- Before/after option matrix: Create remains `Not visible yet, Cephalic, Breech, Transverse, Oblique`; Edit changes from `Cephalic, Breech, Transverse, Oblique` to the same five values as Create. Empty placeholders remain unchanged.
+- Tests: `tests/Unit/UltrasoundPresentationRegressionTest.php` passes 9 tests / 87 assertions (0 failures). Covers rendered Blade select parity and required attributes, all five database-backed preselected values, unchanged saves and remarks edits, old-input precedence, guest redirects and non-staff rejection, missing-record 404s, and refusal to reassign ownership via submitted patient_id. Controller/routes/middleware are unchanged; staff access remains role-based, not a new per-staff ownership policy.
+- Isolation: config cache absent; phpunit.xml forces testing + SQLite `:memory:`; tests/TestCase.php guard verified. No migrations or RefreshDatabase used: this test class deliberately sits outside Feature's global migration hook and builds only disposable in-memory fixture tables. Recalculation service is mocked; no clinical assessments run. Initial old-input test failed because direct fragment rendering lacked a request-bound session; corrected the test fixture and reran successfully.
+- Defense notes: one option restores the existing form contract without refactoring or broadening validation. Tests render the actual select fragment and exercise the real update HTTP route; full-page/browser interaction is not covered. Test runtime was PHP 8.2.12. No broader suite was run and no unrelated failures were observed in this focused run.
+- Follow-up finding (unchanged): both forms require Presentation in HTML, but store/update validation uses `nullable`. Aligning that policy requires separate scope; this fix preserves required-selection behavior.
+- Safety: no ML, clinical rules/thresholds, fetal assessments, gestational-age logic, production schema, existing patient data, environment/database configuration, configuration cache, dependencies, public/hot, branch, or deployment changes. All writes made by tests were to synthetic SQLite in-memory records.
+
 ## Sprint 1 — RiskAssessmentService
 
 Status: Complete
