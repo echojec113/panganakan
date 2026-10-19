@@ -992,7 +992,7 @@
                     </li>
 
                     <li class="header-nav-item">
-                        <a href="#policies" class="header-nav-link">Patient Info</a>
+                        <a href="#policies" class="header-nav-link">Patient Policies</a>
                     </li>
                 </ul>
             </nav>
@@ -1059,7 +1059,7 @@
                 </li>
 
                 <li>
-                    <a href="#policies" class="mobile-nav-link">Patient Info</a>
+                    <a href="#policies" class="mobile-nav-link">Patient Policies</a>
                 </li>
             </ul>
 
