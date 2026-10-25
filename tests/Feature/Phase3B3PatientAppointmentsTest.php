@@ -122,7 +122,7 @@ it('lets an eligible patient open My Appointments', function () {
         ->assertSee('Pending Requests')
         ->assertSee('Upcoming Confirmed Appointments')
         ->assertSee('Appointment History')
-        ->assertSee('does not guarantee confirmation');
+        ->assertSee('need clinic confirmation');
 });
 
 it('links My Appointments from the portal navigation and the dashboard card', function () {
@@ -250,7 +250,7 @@ it('treats a soft-deleted user as a guest', function () {
 |--------------------------------------------------------------------------
 */
 
-it('lets a patient create a checkup request', function () {
+it('lets a patient create a checkup request that is confirmed immediately', function () {
     [$user, $patient] = phase3b3Eligible();
     $date = phase3b3FutureDate();
 
@@ -259,17 +259,17 @@ it('lets a patient create a checkup request', function () {
         'requested_date' => $date,
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'))
-        ->assertSessionHas('success', 'Your appointment request has been submitted. Please wait for confirmation from the clinic.');
+        ->assertSessionHas('success', 'Your checkup is confirmed. Your selected time slot is now reserved for you.');
 
     $appointment = Appointment::sole();
     expect($appointment->patient_id)->toBe($patient->id)
         ->and($appointment->appointment_type)->toBe(Appointment::TYPE_CHECKUP)
         ->and($appointment->source)->toBe(Appointment::SOURCE_ONLINE)
-        ->and($appointment->status)->toBe(Appointment::STATUS_PENDING)
+        ->and($appointment->status)->toBe(Appointment::STATUS_CONFIRMED)
         ->and($appointment->requested_date->toDateString())->toBe($date)
         ->and((string) $appointment->requested_time)->toContain('10:00')
-        ->and($appointment->confirmed_date)->toBeNull()
-        ->and($appointment->confirmed_time)->toBeNull()
+        ->and($appointment->confirmed_date->toDateString())->toBe($date)
+        ->and((string) $appointment->confirmed_time)->toContain('10:00')
         ->and($appointment->reviewed_by)->toBeNull()
         ->and($appointment->reviewed_at)->toBeNull()
         ->and($appointment->decline_reason)->toBeNull()
@@ -308,7 +308,7 @@ it('lets a patient create a delivery request', function () {
         ->and($appointment->source)->toBe(Appointment::SOURCE_ONLINE);
 });
 
-it('always stores source online and status pending regardless of submitted values', function () {
+it('ignores forged server-owned fields and system-confirms an online checkup', function () {
     [$user, $patient] = phase3b3Eligible();
 
     phase3b3Post($user, [
@@ -331,9 +331,9 @@ it('always stores source online and status pending regardless of submitted value
     $appointment = Appointment::sole();
     expect($appointment->patient_id)->toBe($patient->id)
         ->and($appointment->source)->toBe(Appointment::SOURCE_ONLINE)
-        ->and($appointment->status)->toBe(Appointment::STATUS_PENDING)
-        ->and($appointment->confirmed_date)->toBeNull()
-        ->and($appointment->confirmed_time)->toBeNull()
+        ->and($appointment->status)->toBe(Appointment::STATUS_CONFIRMED)
+        ->and($appointment->confirmed_date->toDateString())->toBe($appointment->requested_date->toDateString())
+        ->and((string) $appointment->confirmed_time)->toContain('10:00')
         ->and($appointment->reviewed_by)->toBeNull()
         ->and($appointment->reviewed_at)->toBeNull()
         ->and($appointment->decline_reason)->toBeNull()
@@ -621,20 +621,21 @@ it('rejects an exact duplicate active request but allows after decline', functio
 
     expect(Appointment::count())->toBe(2);
 
-    // A different type at the same time is NOT a duplicate.
+    // A different type at a different time is NOT a duplicate (a confirmed
+    // checkup now occupies its slot for every type).
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
-        'requested_time' => '10:00',
+        'requested_time' => '11:00',
     ])->assertRedirect(route('patient.appointments.index'));
 
     expect(Appointment::count())->toBe(3);
 
-    // Decline the first request: history does not block a new identical one.
-    // (forceFill->save: Phase 3D.4B narrowed $fillable, and status/
-    // decline_reason are server-owned columns mass assignment ignores.)
+    // Cancel the first (auto-confirmed) checkup: history and its released
+    // hold do not block a new identical one.
     $first = Appointment::orderBy('id')->first();
-    $first->forceFill(['status' => Appointment::STATUS_DECLINED, 'decline_reason' => 'Clinic unavailable'])->save();
+    $first->forceFill(['status' => Appointment::STATUS_CANCELLED, 'cancellation_reason' => 'Test'])->save();
+    \App\Models\AppointmentSlotHold::query()->where('appointment_id', $first->id)->delete();
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_CHECKUP,
@@ -669,7 +670,7 @@ it('treats a confirmed appointment as an active duplicate blocker', function () 
     expect(Appointment::count())->toBe(1);
 });
 
-it('lets a different patient request the identical schedule', function () {
+it('refuses a different patient the identical checkup slot (first come first served)', function () {
     [$userA] = phase3b3Eligible();
     [$userB] = phase3b3Eligible();
     $date = phase3b3FutureDate();
@@ -681,10 +682,10 @@ it('lets a different patient request the identical schedule', function () {
     ];
 
     phase3b3Post($userA, $payload)->assertRedirect(route('patient.appointments.index'));
-    phase3b3Post($userB, $payload)->assertRedirect(route('patient.appointments.index'));
+    phase3b3Post($userB, $payload)->assertSessionHasErrors('appointment');
 
-    expect(Appointment::count())->toBe(2)
-        ->and(Appointment::where('status', Appointment::STATUS_PENDING)->count())->toBe(2);
+    expect(Appointment::count())->toBe(1)
+        ->and(Appointment::where('status', Appointment::STATUS_CONFIRMED)->count())->toBe(1);
 });
 
 it('does not impose a one-appointment-per-day restriction', function () {
@@ -700,7 +701,7 @@ it('does not impose a one-appointment-per-day restriction', function () {
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
-        'requested_time' => '09:00',
+        'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
 
     phase3b3Post($user, [
@@ -826,7 +827,7 @@ it('shows the request form with clinic-hours and delivery guidance', function ()
     $this->actingAs($user)->get(route('patient.appointments.create'))
         ->assertOk()
         ->assertSee('Request an Appointment')
-        ->assertSee('does not guarantee confirmation')
+        ->assertSee('do not guarantee confirmation')
         ->assertSee('Delivery requests do not reserve a bed.')
         ->assertSee('contact or visit the clinic directly')
         ->assertSee('8:00 AM to 5:00 PM')
@@ -885,7 +886,7 @@ it('creates no admission, bed, occupancy or clinical record', function () {
     }
 });
 
-it('writes no audit entry for a patient submission and notifies active clinic users', function () {
+it('writes one auto-confirm audit entry and notifies clinic users and the patient', function () {
     [$user] = phase3b3Eligible();
     phase3b3User('admin');
     phase3b3User('staff');
@@ -896,11 +897,11 @@ it('writes no audit entry for a patient submission and notifies active clinic us
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
 
-    // Phase 3B.4: a committed online request notifies every active clinic
-    // user (one row per recipient). The online request itself stays
-    // unaudited, exactly as in Phase 3B.3 — no audit row is written.
-    expect(AuditLog::count())->toBe(0)
-        ->and(DB::table('notifications')->count())->toBe(2);
+    // FCFS Phase 2: one in-transaction audit row, two clinic alerts
+    // (admin + staff) and one patient confirmation.
+    expect(AuditLog::count())->toBe(1)
+        ->and(AuditLog::first()->action)->toBe('ONLINE_APPOINTMENT_AUTO_CONFIRMED')
+        ->and(DB::table('notifications')->count())->toBe(3);
 });
 
 it('creates no partial record when validation fails', function () {
@@ -934,7 +935,7 @@ it('reflects a newly submitted pending request on the Admin/Staff calendar', fun
     $date = phase3b3FutureDate();
 
     phase3b3Post($user, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
@@ -944,7 +945,7 @@ it('reflects a newly submitted pending request on the Admin/Staff calendar', fun
     $response = $this->actingAs($admin)->get(route('appointments.index', ['view' => 'day', 'date' => $date]));
 
     $response->assertOk()
-        ->assertSee('Checkup')
+        ->assertSee('Counseling')
         ->assertSee($patient->last_name)
         ->assertSee('Pending')
         ->assertSee('Online');
@@ -989,4 +990,41 @@ it('does not add unexpected appointment tables or mutate the appointments schema
         'appointment_slot_holds',
         'appointments',
     ]);
+});
+it("Phase 3: next_visit_time column exists", function () {
+    $hasColumn = DB::connection()->getSchemaBuilder()->hasColumn("prenatal_visits", "next_visit_time");
+    expect($hasColumn)->toBeTrue();
+});
+
+it("Phase 3: prenatal_visit_id FK column exists on appointments", function () {
+    $hasColumn = DB::connection()->getSchemaBuilder()->hasColumn("appointments", "prenatal_visit_id");
+    expect($hasColumn)->toBeTrue();
+});
+
+it("Phase 3: staff can store date+time creating follow-up appointment", function () {
+    $user = User::factory()->create(["role" => "staff"]);
+    $patient = new User(["role" => "patient"]);
+    $patient->save();
+    $payload = ["patient_id" => $patient->id, "next_visit_date" => now()->addDays(7)->toDateString(), "next_visit_time" => "09:00", "hypertension" => "1"];
+    $response = $this->actingAs($user)->post(route("prenatal-visits.store"), $payload);
+    $response->assertRedirect();
+    $visit = PrenatalVisit::latest("id")->first();
+    expect($visit->next_visit_time)->toBe("09:00");
+    $appointment = $visit->activeFollowUpAppointment();
+    expect($appointment)->not->toBeNull();
+});
+
+it("Phase 3: date-only store creates no appointment", function () {
+    $user = User::factory()->create(["role" => "staff"]);
+    $patient = new User(["role" => "patient"]);
+    $patient->save();
+    $payload = ["patient_id" => $patient->id, "next_visit_date" => now()->addDays(7)->toDateString()];
+    $response = $this->actingAs($user)->post(route("prenatal-visits.store"), $payload);
+    $response->assertRedirect();
+    $visit = PrenatalVisit::latest("id")->first();
+    expect($visit->next_visit_time)->toBeNull();
+});
+
+it("Phase 3: SOURCE_STAFF_FOLLOWUP in Appointment::SOURCES", function () {
+    expect(Appointment::SOURCES)->toContain("staff_followup");
 });

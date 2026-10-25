@@ -31,6 +31,14 @@
                      when truthy the hidden input is disabled so no
                      timed value is submitted
       preselect-notice  explain when the initial value is not selectable
+      extra-params   optional map of ADDITIONAL query string values
+                     appended to every fetch (Phase 3 prenatal follow-up
+                     edit passes ignore_appointment_id so the visit's own
+                     linked appointment slot stays selectable). Values
+                     are stringified and URL-encoded; the server ignores
+                     or rejects anything it does not accept, so a forged
+                     map can never make an occupied foreign slot look
+                     free.
 --}}
 @props([
     'timeName',
@@ -42,6 +50,7 @@
     'required' => true,
     'hideExpr' => 'false',
     'preselectNotice' => false,
+    'extraParams' => [],
 ])
 
 @php
@@ -55,6 +64,7 @@
         'required' => (bool) $required,
         'initial' => (string) $initial,
         'preselectNotice' => (bool) $preselectNotice,
+        'extraParams' => (array) $extraParams,
     ];
 @endphp
 
@@ -226,6 +236,12 @@
                 pickerId: config.pickerId,
                 required: config.required !== false,
                 preselectNotice: !!config.preselectNotice,
+                // Phase 3: optional extra query values (e.g.
+                // ignore_appointment_id on the prenatal follow-up edit).
+                // Server-side validation stays authoritative either way.
+                extraParams: (config.extraParams && typeof config.extraParams === 'object')
+                    ? config.extraParams
+                    : {},
 
                 date: '',
                 selected: '',
@@ -234,6 +250,8 @@
                 loading: false,
                 error: '',
                 slotsLoaded: false,
+                stateWatchersRegistered: false,
+                lastEmittedReady: null,
                 // Monotonic fetch token: an out-of-order (stale) response
                 // whose seq no longer matches is DROPPED and can never
                 // overwrite newer results (Part C).
@@ -257,6 +275,16 @@
 
                 init() {
                     var self = this;
+                    if (!this.stateWatchersRegistered) {
+                        this.stateWatchersRegistered = true;
+                        this.$watch('selected', function () {
+                            self.emitState();
+                        });
+                        this.$watch('loading', function () {
+                            self.emitState();
+                        });
+                    }
+
                     var dateEl = document.getElementById(this.dateId);
 
                     if (dateEl) {
@@ -313,8 +341,21 @@
                     }
 
                     try {
+                        var query = 'date=' + encodeURIComponent(this.date);
+                        var extra = this.extraParams || {};
+
+                        Object.keys(extra).forEach(function (key) {
+                            var value = extra[key];
+
+                            if (value === null || value === undefined || value === '') {
+                                return;
+                            }
+
+                            query += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(String(value));
+                        });
+
                         var response = await fetch(
-                            this.url + '?date=' + encodeURIComponent(this.date),
+                            this.url + '?' + query,
                             { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' }
                         );
 
@@ -389,11 +430,17 @@
                 },
 
                 emitState() {
+                    var ready = this.ready;
+                    if (this.lastEmittedReady === ready) {
+                        return;
+                    }
+
+                    this.lastEmittedReady = ready;
                     // Bubbles to the enclosing form so submit buttons can
                     // disable themselves while availability is unresolved.
                     this.$dispatch('slot-picker-state', {
                         id: this.pickerId,
-                        ready: this.ready,
+                        ready: ready,
                     });
                 },
 

@@ -49,11 +49,35 @@ class AppointmentManagementController extends Controller
      * route middleware. No patient-identifying data in the payload: only
      * slot times, states and the closure flag. Invalid date => 422 with
      * the safe DomainException message (never a 500).
+     *
+     * Phase 3 (prenatal follow-up edit): optional ignore_appointment_id
+     * lets the edit form see its OWN linked appointment's slot as
+     * selectable again (the slot it already occupies). Staff-only route,
+     * integer-coerced, and it only ever REMOVES one row from the read -
+     * it never marks a foreign slot available, never returns appointment
+     * data, and the authoritative write path re-validates occupancy with
+     * its own explicit ignore argument. The PATIENT endpoint deliberately
+     * does not accept this parameter.
      */
     public function slots(Request $request): JsonResponse
     {
+        $rawIgnore = $request->query('ignore_appointment_id');
+        $ignoreAppointmentId = null;
+
+        if ($rawIgnore !== null && $rawIgnore !== '') {
+            if (! is_scalar($rawIgnore) || ! ctype_digit((string) $rawIgnore)) {
+                return response()->json(['message' => 'The ignore appointment reference is invalid.'], 422);
+            }
+
+            $ignoreAppointmentId = (int) $rawIgnore;
+        }
+
         try {
-            $payload = $this->availability->slotsForDate((string) $request->query('date', ''));
+            $payload = $this->availability->slotsForDate(
+                (string) $request->query('date', ''),
+                null,
+                $ignoreAppointmentId
+            );
         } catch (DomainException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

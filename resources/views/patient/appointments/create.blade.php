@@ -37,7 +37,7 @@
             Request an Appointment
         </h1>
         <p class="mt-2 text-sm leading-6" style="color: var(--body-text);">
-            Choose an appointment type and your preferred schedule. The clinic will review your request and confirm a schedule.
+            Choose an appointment type and your preferred schedule. Checkups are confirmed immediately when your chosen slot is available; counseling and delivery requests are reviewed by the clinic.
         </p>
     </header>
 
@@ -45,7 +45,10 @@
     <div class="mb-6 rounded-2xl border px-5 py-4 text-sm leading-6"
          style="border-color: #BBF7D0; background: #F0FDF4; color: #166534;"
          role="note">
-        <p class="font-semibold">Submitting an appointment request does not guarantee confirmation.</p>
+        <p class="font-semibold">Checkups are confirmed immediately when your selected slot is still available.</p>
+        <p class="mt-2">
+            Counseling and delivery requests are reviewed by the clinic and do not guarantee confirmation.
+        </p>
         <p class="mt-2">
             Checkup and counseling appointments are available Monday&ndash;Sunday, 8:00 AM to before 5:00 PM (Philippine time, provisional).
             Delivery requests are accepted any day, at any time, and may be date-only.
@@ -171,7 +174,13 @@
                 />
                 <p class="mt-1.5 text-xs" style="color: var(--body-text);">
                     Choose one 30-minute clinic slot (8:00 AM to 5:00 PM, Philippine time).
-                    Booked, past and clinic-closed times cannot be selected. Submitting a request does not reserve the slot — the clinic confirms your schedule.
+                    Booked, past and clinic-closed times cannot be selected.
+                    <span x-show="type === '{{ \App\Models\Appointment::TYPE_CHECKUP }}'">
+                        Selecting a time does not reserve it — your checkup is confirmed and the slot reserved only when you submit and the slot is still available.
+                    </span>
+                    <span x-show="type !== '{{ \App\Models\Appointment::TYPE_CHECKUP }}'" x-cloak>
+                        Submitting a request does not reserve the slot — the clinic confirms your schedule.
+                    </span>
                 </p>
             </div>
 
@@ -183,7 +192,7 @@
                     <svg x-show="!submitting" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
                     </svg>
-                    <span x-text="submitting ? 'Submitting…' : 'Submit Appointment Request'">Submit Appointment Request</span>
+                    <span x-text="submitting ? 'Submitting…' : (type === '{{ \App\Models\Appointment::TYPE_CHECKUP }}' ? 'Book Checkup' : 'Submit Appointment Request')">Submit Appointment Request</span>
                 </button>
 
                 <a href="{{ route('patient.appointments.index') }}"

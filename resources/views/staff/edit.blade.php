@@ -12,7 +12,7 @@
                 @csrf
                 @method('PUT')
 
-                @if (!$staff->first_name && !$staff->last_name)
+                @if (!$staff->first_name && !$staff->last_name && !$legacyNamePrefill)
                     <p class="rounded-lg bg-amber-50 p-3 text-sm text-gray-700 break-words">Existing name: <strong>{{ $staff->name }}</strong>. Enter the first, middle (optional), and last names manually to save structured information.</p>
                 @endif
                 @include('staff._profile-fields', ['staff' => $staff])
@@ -107,4 +107,5 @@
         });
     </script>
 
+    @include('staff._address-scripts')
 </x-app-layout>

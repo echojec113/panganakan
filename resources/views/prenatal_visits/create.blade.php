@@ -388,12 +388,34 @@
                                 class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition">{{ old('treatment_plan') }}</textarea>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Next Visit Date</label>
+                            <label for="next_visit_date" class="block text-sm font-medium text-gray-700 mb-1">Next Visit Date</label>
                             <input type="date" name="next_visit_date" id="next_visit_date"
                                 value="{{ old('next_visit_date') }}"
                                 data-min-date="{{ today()->toDateString() }}"
                                 class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition">
                             <p class="text-xs text-gray-500 mt-1">Leave empty for system-generated recommendation (3 days for HIGH risk, 30 days for LOW risk)</p>
+                            @error('next_visit_date')
+                                <p class="text-xs font-medium text-red-600 mt-1" role="alert">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        {{-- Phase 3 - optional staff-confirmed follow-up. The
+                             picker loads the live slot catalog for the chosen
+                             date; submitting a date AND a time books a
+                             confirmed appointment, a date alone keeps the
+                             existing date-only recommendation and no time is
+                             ever invented. The server re-validates every
+                             slot at the write boundary. --}}
+                        <div>
+                            <x-slot-picker
+                                time-name="next_visit_time"
+                                date-id="next_visit_date"
+                                :url="route('appointments.slots')"
+                                :initial="old('next_visit_time')"
+                                picker-id="prenatal-follow-up-create"
+                                label="Next Visit Time"
+                                :required="false"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">Optional. Choosing a time books a confirmed follow-up appointment for this patient and reserves the slot. Leave it empty for a date-only recommendation &mdash; no appointment is created.</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Additional Notes</label>

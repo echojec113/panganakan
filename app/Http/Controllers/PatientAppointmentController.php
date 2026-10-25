@@ -204,11 +204,22 @@ class PatientAppointmentController extends Controller
                 $patient,
                 $request->validated('appointment_type'),
                 $request->validated('requested_date'),
-                $request->validated('requested_time')
+                $request->validated('requested_time'),
+                $user
             );
         } catch (DomainException $exception) {
             // withInput preserves the typed schedule across the redirect.
             return back()->withInput()->withErrors(['appointment' => $exception->getMessage()]);
+        }
+
+        // Notifications fire only after the booking transaction committed.
+        if ($appointment->status === Appointment::STATUS_CONFIRMED) {
+            $this->notifications->notifyAppointmentBooked($appointment);
+            $this->notifications->notifyAppointmentStatusChanged($appointment, Appointment::STATUS_CONFIRMED);
+
+            return redirect()
+                ->route('patient.appointments.index')
+                ->with('success', 'Your checkup is confirmed. Your selected time slot is now reserved for you.');
         }
 
         $this->notifications->notifyAppointmentRequested($appointment);

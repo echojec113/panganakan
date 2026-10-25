@@ -48,6 +48,7 @@ class PrenatalVisit extends Model
         'recommendation',
         'treatment_plan',
         'next_visit_date',
+        'next_visit_time',
         'reminder_tomorrow_sent_at',
         'reminder_today_sent_at',
 
@@ -115,6 +116,40 @@ class PrenatalVisit extends Model
     public function referrals()
     {
         return $this->hasMany(\App\Models\Referral::class, 'prenatal_visit_id');
+    }
+
+    /**
+     * DEPLA Phase 3 (prenatal follow-up) - the appointment this visit's
+     * Next Visit date + time produced.
+     *
+     * latest('id') is the tie-break so a rescheduled-by-cancel-and-create
+     * cycle still resolves deterministically to the newest row. CANCELLED,
+     * DECLINED and COMPLETED rows are NOT soft-deleted, so they remain
+     * visible here as history - use activeFollowUpAppointment() when the
+     * caller needs "the appointment that still occupies a slot".
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasOne<\App\Models\Appointment, $this>
+     */
+    public function followUpAppointment()
+    {
+        return $this->hasOne(\App\Models\Appointment::class, 'prenatal_visit_id')->latest('id');
+    }
+
+    /**
+     * The linked appointment that is still operationally live (pending or
+     * confirmed) - the only state that can hold a slot. Returns null for a
+     * date-only / cleared Next Visit and for visits that never scheduled a
+     * follow-up, which is exactly the "nothing to cancel or reschedule"
+     * state the controller and the edit form key their UI rules on.
+     */
+    public function activeFollowUpAppointment(): ?\App\Models\Appointment
+    {
+        return $this->followUpAppointment()
+            ->whereIn('status', [
+                \App\Models\Appointment::STATUS_PENDING,
+                \App\Models\Appointment::STATUS_CONFIRMED,
+            ])
+            ->first();
     }
 
     public function repeatBpRecordedBy()

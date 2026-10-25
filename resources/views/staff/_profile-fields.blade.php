@@ -17,7 +17,7 @@
                 {{ $label }} @if ($required)<span class="text-red-500">*</span>@endif
             </label>
             <input id="staff-{{ $field }}" type="{{ $type }}" name="{{ $field }}"
-                value="{{ old($field, $field === 'birthday' ? $staff?->birthday?->toDateString() : $staff?->{$field}) }}"
+                value="{{ old($field, $field === 'birthday' ? $staff?->birthday?->toDateString() : ($legacyNamePrefill[$field] ?? $staff?->{$field})) }}"
                 @if ($required) required @endif
                 @if ($limit) maxlength="{{ $limit }}" @endif
                 @if ($field === 'birthday') max="{{ today()->toDateString() }}" @endif
@@ -31,9 +31,6 @@
     @endforeach
     <div class="min-w-0 sm:col-span-2">
         <x-input-error :messages="$errors->get('name')" class="mt-1 break-words" />
-        <label for="staff-address" class="staff-label block text-sm font-medium text-gray-700">Address <span class="text-red-500">*</span></label>
-        <textarea id="staff-address" name="address" rows="3" required maxlength="1000"
-            class="staff-input mt-1 block w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ old('address', $staff?->address) }}</textarea>
-        <x-input-error :messages="$errors->get('address')" class="mt-1 break-words" />
+        @include('staff._address-fields')
     </div>
 </div>

@@ -32,6 +32,9 @@
     $sourceLabels = [
         \App\Models\Appointment::SOURCE_ONLINE => 'Online',
         \App\Models\Appointment::SOURCE_WALK_IN => 'Walk-in',
+        // Phase 3 - booked by clinic staff from a prenatal visit's Next
+        // Visit schedule. Never offered to the patient as "Online".
+        \App\Models\Appointment::SOURCE_STAFF_FOLLOWUP => 'Clinic follow-up',
     ];
 
     $statusMeta = [
@@ -303,6 +306,29 @@
     @endif
 
     {{-- ═══ Phase 3D.2B/3D.3B — patient change-request actions ═══ --}}
+
+    {{-- Phase 3 — staff-managed follow-ups (and any other non-online
+         card) stay fully read-only in the portal. The cancel/reschedule
+         forms below already refuse non-online rows server-side; this
+         notice makes that visible instead of silently hiding the
+         controls, and tells the patient exactly how to change it. --}}
+    @unless ($isOnline)
+        <p class="mt-3 rounded-xl px-3 py-2 text-sm"
+           style="background: #F9FAFB; color: #374151;">
+            <span class="font-semibold" style="color: var(--depla-navy);">
+                @if ($appointment->source === \App\Models\Appointment::SOURCE_STAFF_FOLLOWUP)
+                    Clinic-managed follow-up.
+                @else
+                    Clinic-managed appointment.
+                @endif
+            </span>
+            This appointment was scheduled by the clinic
+            @if ($appointment->source === \App\Models\Appointment::SOURCE_STAFF_FOLLOWUP)
+                from your prenatal visit
+            @endif
+            and can't be cancelled or moved online. To cancel or reschedule, please call or visit the clinic.
+        </p>
+    @endunless
 
     {{-- A change request is awaiting clinic review: the confirmed
          appointment stays active and no further actions are offered

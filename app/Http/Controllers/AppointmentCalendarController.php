@@ -58,6 +58,7 @@ class AppointmentCalendarController extends Controller
     private const SOURCE_LABELS = [
         Appointment::SOURCE_ONLINE => 'Online',
         Appointment::SOURCE_WALK_IN => 'Walk-in',
+        Appointment::SOURCE_STAFF_FOLLOWUP => 'Clinic follow-up',
     ];
 
     private const STATUS_LABELS = [

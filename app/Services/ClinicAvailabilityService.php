@@ -562,9 +562,18 @@ class ClinicAvailabilityService
      * state}. NEVER includes patient names, appointment IDs or closure
      * reasons (approved policy - this is the contract Phase 2 UI consumes).
      *
+     * $ignoreAppointmentId (Phase 3 prenatal follow-up edit) excludes ONE
+     * appointment's own hold and legacy occupancy so the appointment being
+     * EDITED can select the very slot it already occupies - without it the
+     * edit form could never re-save its unchanged schedule. It only ever
+     * REMOVES occupancy from the read: no other slot's state is affected,
+     * no appointment row is read out of the payload, and the authoritative
+     * write-path checks (isSlotOccupied / assertSlotNotOccupied) keep their
+     * own ignore argument, which the follow-up service passes explicitly.
+     *
      * @return array{date: string, clinic_today: bool, fully_unavailable: bool, slots: array<int, array{start: string, end: string, label: string, state: string}>}
      */
-    public function slotsForDate(string $date, ?Carbon $now = null): array
+    public function slotsForDate(string $date, ?Carbon $now = null, ?int $ignoreAppointmentId = null): array
     {
         $this->assertSchedulingSchemaReady();
 
@@ -575,11 +584,19 @@ class ClinicAvailabilityService
         $windows = $fullyClosed ? [] : $this->unavailableWindows($date);
         $holdStarts = AppointmentSlotHold::query()
             ->where('hold_date', $date)
+            ->when(
+                $ignoreAppointmentId !== null,
+                fn ($query) => $query->where('appointment_id', '!=', $ignoreAppointmentId)
+            )
             ->pluck('slot_start')
             ->map(fn ($time) => $this->normalizeTimeInput((string) $time))
             ->filter()
             ->all();
         $occupiedTimes = $this->occupyingAppointmentsForDate($date)
+            ->reject(
+                fn (Appointment $appointment) => $ignoreAppointmentId !== null
+                    && (int) $appointment->id === $ignoreAppointmentId
+            )
             ->map(fn (Appointment $appointment) => $this->normalizeTimeInput((string) $appointment->confirmed_time))
             ->filter()
             ->all();

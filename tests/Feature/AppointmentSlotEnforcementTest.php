@@ -223,14 +223,15 @@ it('refuses a walk-in into an occupied slot', function () {
     asfService()->createWalkIn(asfAdmin(), asfPatient('Walk')->id, Appointment::TYPE_CHECKUP, '2026-11-05', '11:00');
 })->throws(DomainException::class);
 
-it('refuses an online request against an already-confirmed slot but allows shared pending slots', function () {
+it('refuses an online checkup against an already-confirmed slot but allows shared pending slots', function () {
     $patientA = asfPatient('Alpha');
     $patientB = asfPatient('Beta');
-    $patientC = asfPatient('Gamma');
+    [$userC, $patientC] = asfPortalPair();
 
-    asfService()->createOnlineRequest($patientA, Appointment::TYPE_CHECKUP, '2026-11-07', '09:00');
-    // Pendings never occupy: a second pending may target the same slot.
-    asfService()->createOnlineRequest($patientB, Appointment::TYPE_CHECKUP, '2026-11-07', '09:00');
+    // Counseling stays pending and pendings never occupy: two pendings may
+    // target the same slot.
+    asfService()->createOnlineRequest($patientA, Appointment::TYPE_COUNSELING, '2026-11-07', '09:00');
+    asfService()->createOnlineRequest($patientB, Appointment::TYPE_COUNSELING, '2026-11-07', '09:00');
 
     expect(Appointment::query()->where('status', Appointment::STATUS_PENDING)->count())->toBe(2);
 
@@ -241,7 +242,7 @@ it('refuses an online request against an already-confirmed slot but allows share
         ->firstOrFail();
     asfService()->confirm($first, asfAdmin(), '2026-11-07', '09:00');
 
-    expect(fn () => asfService()->createOnlineRequest($patientC, Appointment::TYPE_CHECKUP, '2026-11-07', '09:00'))
+    expect(fn () => asfService()->createOnlineRequest($patientC, Appointment::TYPE_CHECKUP, '2026-11-07', '09:00', $userC))
         ->toThrow(DomainException::class);
 });
 

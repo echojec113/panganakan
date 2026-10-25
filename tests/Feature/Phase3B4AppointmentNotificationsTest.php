@@ -155,7 +155,7 @@ it('notifies every active admin and staff account for a new online request', fun
     [$patientUser] = phase3b4Eligible();
 
     phase3b4PostOnline($patientUser, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => '2026-11-05',
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
@@ -171,7 +171,7 @@ it('notifies every active admin and staff account for a new online request', fun
         $data = json_decode($row->data, true);
         expect($data['type'])->toBe('APPOINTMENT_REQUESTED')
             ->and($data['title'])->toBe('New Appointment Request')
-            ->and($data['message'])->toContain('New appointment request: Checkup appointment submitted for November 5, 2026.')
+            ->and($data['message'])->toContain('New appointment request: Counseling appointment submitted for November 5, 2026.')
             ->and($data['event_key'])->toBe('appointment-requested:' . $appointment->id)
             ->and($data['destination']['route'])->toBe('appointments.index')
             ->and($data['destination']['parameters'])->toBe([
@@ -224,7 +224,7 @@ it('sends no notification for an invalid or duplicate-rejected online submission
 
     // Invalid (past) schedule: validation fails before any transaction.
     phase3b4PostOnline($patientUser, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => '2026-10-13',
         'requested_time' => '10:00',
     ])->assertSessionHasErrors('requested_date');
@@ -233,7 +233,7 @@ it('sends no notification for an invalid or duplicate-rejected online submission
 
     // A valid first submission notifies once...
     phase3b4PostOnline($patientUser, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => '2026-11-05',
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
@@ -242,7 +242,7 @@ it('sends no notification for an invalid or duplicate-rejected online submission
 
     // ...and a duplicate-rejected second submission adds nothing.
     phase3b4PostOnline($patientUser, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => '2026-11-05',
         'requested_time' => '10:00',
     ])->assertSessionHasErrors('appointment');
@@ -462,7 +462,7 @@ it('shows appointment notifications in the existing clinic notification tray', f
     [$patientUser] = phase3b4Eligible();
 
     phase3b4PostOnline($patientUser, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => '2026-11-05',
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
@@ -471,7 +471,7 @@ it('shows appointment notifications in the existing clinic notification tray', f
         ->get(route('dashboard'))
         ->assertOk()
         ->assertSee('New Appointment Request')
-        ->assertSee('New appointment request: Checkup appointment submitted for November 5, 2026.')
+        ->assertSee('New appointment request: Counseling appointment submitted for November 5, 2026.')
         ->assertSee('View request');
 
     // The clinic mark-as-read route consumes the same row.
@@ -731,7 +731,7 @@ it('generates no emails, SMS or queued jobs for appointment notifications', func
     [$patientUser, $patient] = phase3b4Eligible();
 
     phase3b4PostOnline($patientUser, [
-        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => '2026-11-05',
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));

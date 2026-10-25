@@ -58,8 +58,8 @@
                <span>Back to Manage Staff</span>
            </a>
 
-           <div class="staff-card overflow-hidden rounded-2xl border bg-white shadow-sm">
-               <div class="border-b border-gray-100 bg-[#F6F4EE] px-6 py-5">
+            <div class="staff-card rounded-2xl border bg-white shadow-sm">
+                <div class="rounded-t-2xl border-b border-gray-100 bg-[#F6F4EE] px-6 py-5">
                    <x-app-header
                        title="Add Staff"
                        subtitle="Create a new clinic staff account."
@@ -101,10 +101,7 @@
                        @endforeach
                        <div class="min-w-0 sm:col-span-2">
                            <x-input-error :messages="$errors->get('name')" class="mt-1 break-words" />
-                           <label for="staff-address" class="staff-label block text-sm font-medium text-gray-700">Address <span class="text-red-500">*</span></label>
-                           <textarea id="staff-address" name="address" rows="3" required maxlength="1000"
-                               class="staff-input mt-1 block w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ old('address', $staff?->address) }}</textarea>
-                           <x-input-error :messages="$errors->get('address')" class="mt-1 break-words" />
+                           @include('staff._address-fields')
                        </div>
                    </div>
 
@@ -261,4 +258,5 @@
         });
     </script>
 
+    @include('staff._address-scripts')
 </x-app-layout>

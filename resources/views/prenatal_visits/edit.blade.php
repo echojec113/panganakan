@@ -458,13 +458,65 @@
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">{{ old('treatment_plan', $visit->treatment_plan) }}</textarea>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">Next Visit Date</label>
+                            <label for="next_visit_date" class="block text-sm font-medium text-gray-700 mb-2">Next Visit Date</label>
                             <input type="date" name="next_visit_date" id="next_visit_date" 
                                 value="{{ old('next_visit_date', $visit->next_visit_date) }}" 
                                 data-min-date="{{ today()->toDateString() }}"
                                 class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                             <p class="text-xs text-gray-500 mt-1">Current risk level: <strong class="{{ $visit->risk_level == 'HIGH' ? 'text-red-600' : 'text-green-600' }}">{{ $visit->risk_level }}</strong></p>
+                            @error('next_visit_date')
+                                <p class="text-xs font-medium text-red-600 mt-1" role="alert">{{ $message }}</p>
+                            @enderror
                         </div>
+
+                        {{-- Phase 3 - staff-confirmed follow-up slot picker.
+                             ignore_appointment_id lets the visit's OWN
+                             linked appointment keep its slot selectable, so
+                             saving an unchanged schedule always works. The
+                             server re-validates every slot at the write
+                             boundary. --}}
+                        <div class="sm:col-span-2">
+                            <x-slot-picker
+                                time-name="next_visit_time"
+                                date-id="next_visit_date"
+                                :url="route('appointments.slots')"
+                                :initial="old('next_visit_time', $visit->next_visit_time)"
+                                picker-id="prenatal-follow-up-edit"
+                                label="Next Visit Time"
+                                :required="false"
+                                :extra-params="$followUp ? ['ignore_appointment_id' => $followUp->id] : []"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">
+                                Optional. Choosing a time books (or moves) a confirmed follow-up appointment for this patient.
+                                A date on its own keeps a date-only recommendation and creates no appointment.
+                            </p>
+                        </div>
+
+                        {{-- Phase 3 / decision 2 - dropping a booked follow-up
+                             is an explicit, confirmed action, never a side
+                             effect of an empty field. The server refuses a
+                             cleared schedule without this flag. --}}
+                        @if ($followUp)
+                            <div class="sm:col-span-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                                <label for="clear_next_visit" class="flex items-start gap-2 text-sm">
+                                    <input type="checkbox"
+                                           id="clear_next_visit"
+                                           name="clear_next_visit"
+                                           value="1"
+                                           class="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#55B85A] focus:ring-[#55B85A]"
+                                           data-follow-up-clear
+                                           {{ old('clear_next_visit') ? 'checked' : '' }}>
+                                    <span class="text-amber-900">
+                                        <strong>Clear Scheduled Next Visit</strong>
+                                        &mdash; cancels the linked follow-up appointment
+                                        ({{ $followUp->confirmed_date?->format('M j, Y') ?? 'no date' }}
+                                        @if ($followUp->confirmed_time) at {{ substr((string) $followUp->confirmed_time, 0, 5) }} @endif),
+                                        releases the reserved time slot, and empties both Next Visit fields.
+                                        The cancelled appointment stays in the calendar history.
+                                    </span>
+                                </label>
+                            </div>
+                        @endif
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Additional Notes</label>
                             <textarea name="notes" rows="2" 
@@ -524,14 +576,14 @@
     <div id="updateConfirmationModal" class="prenatal-dialog fixed inset-0 z-50 hidden items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 overflow-y-auto">
         <div class="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 my-4 sm:my-auto p-6">
             <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <div id="updateConfirmationIcon" class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m-2 10a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
                 <div class="min-w-0">
-                    <h3 class="font-semibold text-gray-900 truncate">Confirm Update</h3>
-                    <p class="text-sm text-gray-500">Do you want to save changes to this prenatal visit?</p>
+                    <h3 class="font-semibold text-gray-900 truncate" id="updateConfirmationTitle">Confirm Update</h3>
+                    <p class="text-sm text-gray-500" id="updateConfirmationText">Do you want to save changes to this prenatal visit?</p>
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-6">
@@ -658,6 +710,79 @@
             const confirmUpdateBtn = document.getElementById('confirmUpdateBtn');
             const cancelUpdateBtn = document.getElementById('cancelUpdateBtn');
             let updateSubmitConfirmed = false;
+
+            // ── Phase 3 / decision 2: clearing a scheduled Next Visit is
+            // never a side effect of an empty field. Ticking the box asks
+            // straight away, the normal save modal then restates what will
+            // happen, and only when the staff really confirms does the
+            // request carry clear_next_visit=1 (the server refuses a
+            // cleared schedule without that flag).
+            const clearNextVisit = document.getElementById('clear_next_visit');
+            const updateConfirmationTitle = document.getElementById('updateConfirmationTitle');
+            const updateConfirmationText = document.getElementById('updateConfirmationText');
+            const updateConfirmationIcon = document.getElementById('updateConfirmationIcon');
+            const normalConfirmClass = confirmUpdateBtn ? confirmUpdateBtn.className : '';
+            const clearConfirmClass = normalConfirmClass
+                .replace('bg-blue-600', 'bg-amber-600')
+                .replace('hover:bg-blue-700', 'hover:bg-amber-700');
+            let stashedNextVisitDate = null;
+
+            function refreshUpdateConfirmationCopy() {
+                const clearing = !!(clearNextVisit && clearNextVisit.checked);
+
+                if (updateConfirmationTitle) {
+                    updateConfirmationTitle.textContent = clearing ? 'Clear Scheduled Next Visit' : 'Confirm Update';
+                }
+                if (updateConfirmationText) {
+                    updateConfirmationText.textContent = clearing
+                        ? 'This cancels the booked follow-up appointment, releases its time slot, and empties both Next Visit fields. The cancelled appointment stays in the calendar history. Continue?'
+                        : 'Do you want to save changes to this prenatal visit?';
+                }
+                if (updateConfirmationIcon) {
+                    updateConfirmationIcon.classList.toggle('bg-amber-100', clearing);
+                    updateConfirmationIcon.classList.toggle('bg-blue-100', !clearing);
+                }
+                if (confirmUpdateBtn) {
+                    confirmUpdateBtn.className = clearing ? clearConfirmClass : normalConfirmClass;
+                    confirmUpdateBtn.textContent = clearing ? 'Clear & save' : 'Save changes';
+                }
+            }
+
+            clearNextVisit?.addEventListener('change', function () {
+                if (!this.checked) {
+                    refreshUpdateConfirmationCopy();
+                    return;
+                }
+
+                stashedNextVisitDate = nextVisitDate ? nextVisitDate.value : null;
+
+                if (nextVisitDate) {
+                    nextVisitDate.value = '';
+                    nextVisitDate.dispatchEvent(new Event('input', { bubbles: true }));
+                    nextVisitDate.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                const confirmed = window.confirm(
+                    'Clear Scheduled Next Visit?\n\n' +
+                    'This cancels the follow-up appointment booked for this visit and releases its reserved time slot. ' +
+                    'Pick Cancel and the date stays as it was.'
+                );
+
+                if (confirmed) {
+                    refreshUpdateConfirmationCopy();
+                    return;
+                }
+
+                this.checked = false;
+
+                if (nextVisitDate && stashedNextVisitDate) {
+                    nextVisitDate.value = stashedNextVisitDate;
+                    nextVisitDate.dispatchEvent(new Event('input', { bubbles: true }));
+                    nextVisitDate.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
+
+            refreshUpdateConfirmationCopy();
 
             function openUpdateConfirmationModal() {
                 if (updateConfirmationModal) {

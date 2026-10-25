@@ -55,7 +55,7 @@ class StaffController extends Controller
 {
     $this->checkAdmin();
 
-    $profile = $request->safe()->except('password');
+    $profile = $request->profileData();
 
     $plainTextPassword = $request->input('password');
 
@@ -100,7 +100,9 @@ public function edit(User $staff)
     $this->checkAdmin();
     abort_unless($staff->role === 'staff', 403);
 
-    return view('staff.edit', compact('staff'));
+    $legacyNamePrefill = \App\Services\StaffNamePrefill::fromLegacy($staff);
+
+    return view('staff.edit', compact('staff', 'legacyNamePrefill'));
 }
 
 // 💾 Update staff
@@ -109,7 +111,7 @@ public function update(StaffProfileRequest $request, User $staff)
     $this->checkAdmin();
     abort_unless($staff->role === 'staff', 403);
 
-    $staff->update($request->validated());
+    $staff->update($request->profileData());
 
     // ✅ AUDIT LOG
     $this->logAction(

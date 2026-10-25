@@ -51,9 +51,23 @@ class Appointment extends Model
     public const SOURCE_ONLINE = 'online';
     public const SOURCE_WALK_IN = 'walk_in';
 
+    /**
+     * DEPLA Phase 3 (prenatal follow-up) - a CONFIRMED appointment the
+     * clinic created from a prenatal visit's Next Visit date + time.
+     *
+     * Staff-managed: the patient may view it in My Appointments but can
+     * never cancel or request a reschedule (PatientAppointmentController's
+     * service re-asserts source === online on every patient mutation, and
+     * the portal card renders clinic-contact instructions instead of the
+     * request forms). It is NOT a walk-in: the row always carries
+     * prenatal_visit_id, and its schedule is owned by the prenatal visit.
+     */
+    public const SOURCE_STAFF_FOLLOWUP = 'staff_followup';
+
     public const SOURCES = [
         self::SOURCE_ONLINE,
         self::SOURCE_WALK_IN,
+        self::SOURCE_STAFF_FOLLOWUP,
     ];
 
     /**
@@ -146,6 +160,21 @@ class Appointment extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * DEPLA Phase 3 (prenatal follow-up) - the prenatal visit whose Next
+     * Visit date + time this appointment was confirmed from.
+     *
+     * NULL for every non-follow-up row (walk-ins, patient online bookings,
+     * legacy history). Uses withTrashed() so an ARCHIVED (soft-deleted)
+     * visit still resolves for read-only history rendering - the clinical
+     * record behind an existing appointment must never vanish from the
+     * calendar just because the visit was archived.
+     */
+    public function prenatalVisit(): BelongsTo
+    {
+        return $this->belongsTo(PrenatalVisit::class, 'prenatal_visit_id')->withTrashed();
     }
 
     /**

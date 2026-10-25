@@ -150,6 +150,23 @@ it('gates the booking submit on slot-picker readiness', function () {
         ->assertSee(':disabled="!ready || (!requiresTime)"', false);
 });
 
+it('watches selection and loading changes and deduplicates readiness events', function () {
+    [$user] = spuPortalPair();
+
+    $html = $this->actingAs($user)
+        ->get(route('patient.appointments.create'))
+        ->assertOk()
+        ->getContent();
+
+    expect($html)
+        ->toContain("\$watch('selected'")
+        ->toContain("\$watch('loading'")
+        ->toContain('lastEmittedReady === ready')
+        ->toContain('this.lastEmittedReady = ready')
+        ->toContain("this.\$dispatch('slot-picker-state'")
+        ->toContain('ready: ready');
+});
+
 /*
 |--------------------------------------------------------------------------
 | 2. Patient reschedule form

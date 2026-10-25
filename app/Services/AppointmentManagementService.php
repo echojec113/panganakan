@@ -467,8 +467,12 @@ class AppointmentManagementService
      * @throws DomainException when the schedule is invalid or an active
      *                         duplicate already exists
      */
-    public function createOnlineRequest(Patient $patient, string $appointmentType, string $date, ?string $time): Appointment
+    public function createOnlineRequest(Patient $patient, string $appointmentType, string $date, ?string $time, ?User $actor = null): Appointment
     {
+        if ($appointmentType === Appointment::TYPE_CHECKUP) {
+            return $this->createAutoConfirmedCheckup($patient, $date, $time, $actor);
+        }
+
         return DB::transaction(function () use ($patient, $appointmentType, $date, $time) {
             $time = $this->validateSchedule($appointmentType, $date, $time);
 
@@ -513,6 +517,80 @@ class AppointmentManagementService
             // decline_reason / cancellation_reason intentionally left NULL -
             // they belong to the staff review workflow, never to the patient.
             $appointment->save();
+
+            return $appointment;
+        });
+    }
+
+    /**
+     * FCFS Phase 2 - a NEW patient-initiated ONLINE CHECKUP is confirmed
+     * immediately. The whole operation (patient-row lock, validation,
+     * duplicate check, appointment insert, slot-hold insert, audit) runs
+     * in ONE transaction, so it commits or rolls back together and no
+     * orphan confirmed appointment, hold or audit row can survive a
+     * failure. reviewed_by/reviewed_at stay NULL (system confirmation, no
+     * staff review); the actor is the patient's own portal user, recorded
+     * in the audit row only.
+     *
+     * Lock order: patient row first (serializes the same patient's
+     * concurrent submissions), appointment insert, then the slot-hold
+     * INSERT LAST - its UNIQUE (hold_date, slot_start) index is the
+     * authoritative cross-patient barrier; the loser receives a
+     * DomainException (never an HTTP 500) and the transaction rolls back.
+     *
+     * @throws DomainException on authorization, schedule, duplicate or slot-collision refusal
+     */
+    private function createAutoConfirmedCheckup(Patient $patient, string $date, ?string $time, ?User $actor): Appointment
+    {
+        $actor ??= $patient->user_id !== null ? User::query()->find($patient->user_id) : null;
+
+        if ($actor === null || $actor->role !== 'patient' || $patient->user_id !== $actor->id) {
+            throw new DomainException('Only the patient who owns this record can book an online checkup.');
+        }
+
+        return DB::transaction(function () use ($patient, $date, $time, $actor) {
+            Patient::query()->whereKey($patient->id)->lockForUpdate()->firstOrFail();
+
+            $time = $this->validateSchedule(Appointment::TYPE_CHECKUP, $date, $time);
+            $this->assertSlotNotOccupied($date, $time);
+
+            $duplicate = Appointment::query()
+                ->where('patient_id', $patient->id)
+                ->where('appointment_type', Appointment::TYPE_CHECKUP)
+                ->whereIn('status', [Appointment::STATUS_PENDING, Appointment::STATUS_CONFIRMED])
+                ->whereDate('requested_date', $date)
+                ->where('requested_time', $time)
+                ->exists();
+
+            if ($duplicate) {
+                throw new DomainException(
+                    'You already have an active appointment request for this exact schedule. Please choose a different date or time.'
+                );
+            }
+
+            $appointment = new Appointment();
+            $appointment->patient_id = $patient->id;
+            $appointment->appointment_type = Appointment::TYPE_CHECKUP;
+            $appointment->source = Appointment::SOURCE_ONLINE;
+            $appointment->requested_date = $date;
+            $appointment->requested_time = $time;
+            $appointment->confirmed_date = $date;
+            $appointment->confirmed_time = $time;
+            $appointment->status = Appointment::STATUS_CONFIRMED;
+            $appointment->reviewed_by = null;
+            $appointment->reviewed_at = null;
+            $appointment->save();
+
+            $this->availability->reserveHold($appointment, $date, $time);
+
+            $this->audit($actor, $appointment, 'ONLINE_APPOINTMENT_AUTO_CONFIRMED', null, Appointment::STATUS_CONFIRMED, sprintf(
+                'Online checkup #%d for patient ID %d automatically confirmed (first-come-first-served) by patient portal user ID %d for %s %s.',
+                $appointment->id,
+                $appointment->patient_id,
+                $actor->id,
+                $date,
+                $time
+            ));
 
             return $appointment;
         });

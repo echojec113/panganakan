@@ -9,6 +9,7 @@ use App\Models\PrenatalVisit;
 use App\Models\Referral;
 use App\Models\User;
 use App\Notifications\AppointmentCancelledNotification;
+use App\Notifications\AppointmentBookedNotification;
 use App\Notifications\AppointmentCancellationApprovedNotification;
 use App\Notifications\AppointmentCancellationDeclinedNotification;
 use App\Notifications\AppointmentCancellationRequestedNotification;
@@ -241,6 +242,31 @@ class SystemNotificationService
             AppointmentRequestedNotification::class,
             $eventKey,
             fn () => new AppointmentRequestedNotification($appointment, $eventKey)
+        );
+    }
+
+    /**
+     * FCFS Phase 2 - an ONLINE checkup was auto-confirmed and committed.
+     * Notifies every active Admin/Staff account once per appointment
+     * (event_key pins the row, so retries never duplicate). Call only
+     * AFTER the booking transaction has committed. Database channel only.
+     *
+     * @return bool True when a notification was actually sent.
+     */
+    public function notifyAppointmentBooked(Appointment $appointment): bool
+    {
+        if ($appointment->source !== Appointment::SOURCE_ONLINE
+            || $appointment->status !== Appointment::STATUS_CONFIRMED) {
+            return false;
+        }
+
+        $eventKey = 'appointment-booked:' . $appointment->id;
+
+        return $this->sendOnceTo(
+            $this->clinicRecipients(),
+            AppointmentBookedNotification::class,
+            $eventKey,
+            fn () => new AppointmentBookedNotification($appointment, $eventKey)
         );
     }
 

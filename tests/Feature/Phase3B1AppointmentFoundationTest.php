@@ -186,15 +186,19 @@ it('represents a delivery request without a required time', function () {
         ->and($appointment->confirmed_time)->toBeNull();
 });
 
-it('represents both online and walk-in booking sources', function () {
+it('represents the online, walk-in and staff follow-up booking sources', function () {
     $patient = phase3b1Patient();
 
     $online = phase3b1Appointment($patient, ['source' => Appointment::SOURCE_ONLINE]);
     $walkIn = phase3b1Appointment($patient, ['source' => Appointment::SOURCE_WALK_IN]);
+    // Phase 3: a follow-up booked by clinic staff from a prenatal visit's
+    // Next Visit schedule. Existing entries keep their positions.
+    $followUp = phase3b1Appointment($patient, ['source' => Appointment::SOURCE_STAFF_FOLLOWUP]);
 
     expect($online->source)->toBe('online')
         ->and($walkIn->source)->toBe('walk_in')
-        ->and(Appointment::SOURCES)->toBe(['online', 'walk_in']);
+        ->and($followUp->source)->toBe('staff_followup')
+        ->and(Appointment::SOURCES)->toBe(['online', 'walk_in', 'staff_followup']);
 });
 
 it('defaults to pending and can represent a confirmed status', function () {
