@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Hash;
 /**
  * DEPLA Phase 2D — Admin/Staff Patient Account Creation UI.
  *
- * UI integration only: the section and modal render on the existing Patient
- * Profile and POST to the existing Phase 2B endpoint (patients.account.store).
+ * UI integration only: account status and eligible resend action render on
+ * the existing Patient Profile; registration now provisions accounts.
  * No new backend endpoint, no invitation link, no password viewing/reset.
  * Everything runs against isolated SQLite :memory:.
  */
@@ -73,7 +73,7 @@ it('shows the Patient Login Account section to an admin', function () {
     $response->assertOk();
     $response->assertSee('Patient Login Account');
     $response->assertSeeText('No Account');
-    $response->assertSee('Create Patient Account');
+    $response->assertDontSee('Create Patient Account');
 });
 
 it('shows the Patient Login Account section to a staff member', function () {
@@ -85,19 +85,19 @@ it('shows the Patient Login Account section to a staff member', function () {
     $response->assertOk();
     $response->assertSee('Patient Login Account');
     $response->assertSeeText('No Account');
-    $response->assertSee('Create Patient Account');
+    $response->assertDontSee('Create Patient Account');
 });
 
-it('offers account creation for an active patient with no login account, even without a clinical email', function () {
+it('shows no manual account creation action for a patient without an account', function () {
     $staff = phase2dActor('staff');
     $patient = phase2dPatient('No', 'Email', null);
 
     $response = $this->actingAs($staff)->get(route('patients.show', $patient->id));
 
     $response->assertOk();
-    $response->assertSee('This patient does not yet have portal login credentials');
-    $response->assertSee('Create Patient Account');
-    $response->assertSee('id="openCreateAccountModal"', false);
+    $response->assertSee('No portal account is linked to this patient record.');
+    $response->assertDontSee('Create Patient Account');
+    $response->assertDontSee('createAccountModal');
 });
 
 it('hides the create action and shows the active account state when a linked account exists', function () {
@@ -177,6 +177,9 @@ it('shows Password Change Required when the flag is set and Password Updated whe
     $flagged->assertOk();
     $flagged->assertSeeText('Password Change Required');
     $flagged->assertDontSeeText('Password Updated');
+    $flagged->assertSee('Resend Setup Email');
+    $flagged->assertSee(route('patients.account.resend-setup-email', $patient->id), false);
+    $flagged->assertDontSee('Create Patient Account');
 
     $user->forceFill(['must_change_password' => false])->save();
 
@@ -202,63 +205,21 @@ it('never renders the password or its hash in the Patient Profile', function () 
     $response->assertDontSee('must_change_password');
 });
 
-/*
-|--------------------------------------------------------------------------
-| Modal markup, submission target and safety
-|--------------------------------------------------------------------------
-*/
-
-it('points the modal form at the existing Phase 2B endpoint', function () {
+/* Patient profiles retain account state and resend, but no creation UI. */
+it('does not render the manual account creation form or modal', function () {
     $staff = phase2dActor('staff');
     $patient = phase2dPatient();
 
     $response = $this->actingAs($staff)->get(route('patients.show', $patient->id));
 
     $response->assertOk();
-    $response->assertSee('action="' . route('patients.account.store', $patient->id) . '"', false);
-    $response->assertSee('method="POST"', false);
+    $response->assertOk()
+        ->assertDontSee('Create Patient Account')
+        ->assertDontSee('createAccountModal')
+        ->assertDontSee(route('patients.account.store', $patient->id), false);
 });
 
-it('includes CSRF protection in the modal form', function () {
-    $staff = phase2dActor('staff');
-    $patient = phase2dPatient();
-
-    $response = $this->actingAs($staff)->get(route('patients.show', $patient->id));
-
-    $response->assertOk();
-    $response->assertSee('name="_token"', false);
-});
-
-it('renders the email-only modal, prefills the clinical email and starts closed', function () {
-    $staff = phase2dActor('staff');
-    $patient = phase2dPatient();
-
-    $response = $this->actingAs($staff)->get(route('patients.show', $patient->id));
-
-    $response->assertOk();
-    $response->assertSee('name="email"', false);
-    $response->assertSee('type="email"', false);
-    $response->assertSee('autocomplete="email"', false);
-    $response->assertSee('Login Email');
-
-    // Phase 1.5: no password inputs exist in the modal any more.
-    $response->assertDontSee('name="password"', false);
-    $response->assertDontSee('name="password_confirmation"', false);
-    $response->assertDontSee('Initial Password');
-    $response->assertDontSee('Confirm Initial Password');
-
-    // The mandated setup-email explanation is visible to staff.
-    $response->assertSee("An account setup email will be sent to the patient's email address.", false);
-    $response->assertSee('valid for 24 hours');
-
-    // Prefill from the clinical record (editable, never written back).
-    $response->assertSee('value="clinical.record@phase2d.test"', false);
-
-    // Closed by default; data-open drives the validation-failure reopen.
-    $response->assertSee('data-open="false"', false);
-});
-
-it('displays validation errors safely and reopens the modal', function () {
+it('displays validation errors safely without reopening a removed modal', function () {
     $staff = phase2dActor('staff');
     $patient = phase2dPatient();
 
@@ -277,9 +238,7 @@ it('displays validation errors safely and reopens the modal', function () {
     $profile->assertSee('Please review the highlighted issues.');
     $profile->assertSee('must be a valid email address');
 
-    // Modal reopened for correction, entered email preserved.
-    $profile->assertSee('data-open="true"', false);
-    $profile->assertSee('value="not-an-email-address"', false);
+    $profile->assertDontSee('createAccountModal');
 
     expect(Patient::find($patient->id)->user_id)->toBeNull();
     expect(User::where('role', 'patient')->count())->toBe(0);

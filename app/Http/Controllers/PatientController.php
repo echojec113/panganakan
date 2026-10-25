@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 use App\Models\Baby;
 use App\Models\Patient;
 use App\Models\PrenatalVisit;
+use App\Models\User;
+use App\Services\PatientAccountCreationService;
+use App\Services\PatientAccountSetupEmailService;
 use App\Services\PregnancyOutcomeRecordingService;
 use App\Services\PregnancyOutcomeMonitoringService;
 use App\Support\ListNormalizer;
@@ -16,13 +19,19 @@ use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Validation\Rule;
+use Throwable;
 
 class PatientController extends Controller
 {
     public function __construct(
         private PregnancyOutcomeRecordingService $pregnancyOutcomeRecordingService,
         private PregnancyOutcomeMonitoringService $pregnancyOutcomeMonitoringService,
+        private PatientAccountCreationService $patientAccountCreationService,
+        private PatientAccountSetupEmailService $patientAccountSetupEmail,
     ) {
     }
 
@@ -192,6 +201,11 @@ class PatientController extends Controller
     
    public function store(Request $request)
 {
+    $rawEmail = $request->input('email');
+    if (is_string($rawEmail)) {
+        $request->merge(['email' => Str::lower(trim($rawEmail))]);
+    }
+
     $validated = $request->validate([
         'first_name' => 'required|regex:/^[a-zA-Z\s]+$/|max:24',
         'middle_name' => 'nullable|regex:/^[a-zA-Z\s]+$/|max:24',
@@ -208,7 +222,7 @@ class PatientController extends Controller
         'city_municipality' => 'required|string|max:255',
 
         'contact_number' => ['required','regex:/^09\d{9}$/'],
-        'email' => 'nullable|email|max:255',
+        'email' => 'required|string|email|max:255',
         
 
         'civil_status' => 'required|in:Single,Married,Widowed',
@@ -275,8 +289,54 @@ class PatientController extends Controller
         'Added patient: ' . $patient->first_name . ' ' . $patient->last_name
     );
 
+    $actor = $request->user();
+    if (! $actor instanceof User) {
+        Log::error('PATIENT PORTAL ACCOUNT CREATION FAILED', [
+            'patient_id' => $patient->id,
+            'exception' => 'Missing authenticated clinic user',
+        ]);
+
+        return redirect()->route('patients.index')->with(
+            'warning',
+            'Patient saved, but the portal account could not be created. Contact an administrator to complete account setup.'
+        );
+    }
+
+    try {
+        $portalUser = $this->patientAccountCreationService->createForPatient($patient, $actor, $patient->email);
+    } catch (DomainException $exception) {
+        $message = str_contains($exception->getMessage(), 'email is already used')
+            ? 'Patient saved, but no portal account was created because this email is already used by an existing account. The existing account was not changed.'
+            : 'Patient saved, but the portal account could not be created. Contact an administrator to complete account setup.';
+
+        return redirect()->route('patients.index')->with('warning', $message);
+    } catch (UniqueConstraintViolationException) {
+        return redirect()->route('patients.index')->with(
+            'warning',
+            'Patient saved, but no portal account was created because this email is already used by an existing account. The existing account was not changed.'
+        );
+    } catch (Throwable $exception) {
+        Log::error('PATIENT PORTAL ACCOUNT CREATION FAILED', [
+            'patient_id' => $patient->id,
+            'actor_id' => $actor->id,
+            'exception' => $exception::class,
+        ]);
+
+        return redirect()->route('patients.index')->with(
+            'warning',
+            'Patient saved, but the portal account could not be created. Contact an administrator to complete account setup.'
+        );
+    }
+
+    if (! $this->patientAccountSetupEmail->send($portalUser, $actor)) {
+        return redirect()->route('patients.index')->with(
+            'warning',
+            'Patient and portal account saved, but the setup email could not be sent. Open the patient profile and use “Resend Setup Email” to try again.'
+        );
+    }
+
     return redirect()->route('patients.index')
-        ->with('success', 'Patient has been successfully added.');
+        ->with('success', 'Patient and portal account have been saved. The patient setup email was sent to the registered address.');
 }
 
     /**

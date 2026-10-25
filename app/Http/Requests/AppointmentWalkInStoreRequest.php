@@ -41,7 +41,7 @@ class AppointmentWalkInStoreRequest extends FormRequest
 
         return [
             'patient_id' => ['required', 'integer', 'exists:patients,id'],
-            'appointment_type' => ['required', 'string', Rule::in(Appointment::TYPES)],
+            'appointment_type' => ['required', 'string', Rule::in(Appointment::ROUTINE_BOOKABLE_TYPES)],
             'appointment_date' => ['required', 'string', 'date_format:Y-m-d'],
             'appointment_time' => $requiresTime
                 ? array_merge(['required', 'string', 'date_format:H:i'], AppointmentConfirmRequest::clinicHoursRules())
@@ -108,7 +108,7 @@ class AppointmentWalkInStoreRequest extends FormRequest
             'patient_id.integer' => 'Select an existing patient.',
             'patient_id.exists' => 'The selected patient record does not exist.',
             'appointment_type.required' => 'Choose the appointment type.',
-            'appointment_type.in' => 'Choose a valid appointment type.',
+            'appointment_type.in' => 'Routine appointment booking currently supports checkups only.',
             'appointment_date.required' => 'Choose the appointment date.',
             'appointment_date.date_format' => 'The appointment date must be a valid date (YYYY-MM-DD).',
             'appointment_time.required' => 'An appointment time is required for checkup and counseling appointments.',

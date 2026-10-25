@@ -117,7 +117,7 @@ class AppointmentCalendarController extends Controller
     {
         $type = (string) $request->query('type', 'all');
 
-        return $type === 'all' || in_array($type, Appointment::TYPES, true) ? $type : 'all';
+        return $type === 'all' || in_array($type, Appointment::ROUTINE_BOOKABLE_TYPES, true) ? $type : 'all';
     }
 
     private function resolveStatusFilter(Request $request): string

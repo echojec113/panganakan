@@ -47,6 +47,11 @@ class Appointment extends Model
         self::TYPE_DELIVERY_REQUEST,
     ];
 
+    /** Types accepted by new routine patient and staff appointment bookings. */
+    public const ROUTINE_BOOKABLE_TYPES = [
+        self::TYPE_CHECKUP,
+    ];
+
     /** Booking origin (source). */
     public const SOURCE_ONLINE = 'online';
     public const SOURCE_WALK_IN = 'walk_in';

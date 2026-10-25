@@ -4,6 +4,7 @@ use App\Models\Appointment;
 use App\Models\AuditLog;
 use App\Models\Patient;
 use App\Models\User;
+use App\Mail\AppointmentBookingEmail;
 use App\Notifications\EddApproachingNotification;
 use App\Services\SystemNotificationService;
 use Carbon\Carbon;
@@ -21,8 +22,8 @@ use Illuminate\Support\Facades\Queue;
 | the existing clinic tray integration, the new Patient Portal
 | Notifications surface (list / unread count / mark-as-read ownership /
 | role isolation / archived accounts), destination safety, clinical-alert
-| regression, delivery-failure state safety, and the no-email/no-SMS/no-
-| queue guarantee.
+| regression, delivery-failure state safety, booking receipt emails, and the
+| no-SMS/no-queue guarantee for workflow notifications.
 |
 | Frozen-time tests use Carbon::setTestNow in Asia/Manila and are always
 | cleared in afterEach so they cannot leak into the rest of the suite.
@@ -723,7 +724,7 @@ it('does not corrupt appointment state when notification delivery fails', functi
         ->and(DB::table('notifications')->count())->toBe(0);
 });
 
-it('generates no emails, SMS or queued jobs for appointment notifications', function () {
+it('sends an immediate booking receipt while appointment workflow notifications remain database-only', function () {
     Mail::fake();
     Queue::fake();
 
@@ -741,7 +742,10 @@ it('generates no emails, SMS or queued jobs for appointment notifications', func
         'confirmed_date' => '2026-11-05', 'confirmed_time' => '10:00',
     ])->assertSessionHas('success');
 
-    Mail::assertNothingSent();
+    Mail::assertSent(AppointmentBookingEmail::class, fn ($mail) =>
+        $mail->appointment->status === Appointment::STATUS_PENDING
+            && $mail->hasTo($patient->email)
+    );
     Queue::assertNothingPushed();
 
     expect(DB::table('jobs')->count())->toBe(0)
@@ -760,4 +764,21 @@ it('generates no emails, SMS or queued jobs for appointment notifications', func
         $instance = (new ReflectionClass($class))->newInstanceWithoutConstructor();
         expect($instance->via(null))->toBe(['database']);
     }
+});
+
+it('emails the patient immediately when an online checkup is auto-confirmed', function () {
+    Mail::fake();
+    [$patientUser, $patient] = phase3b4Eligible();
+    phase3b4FreezeManila('2026-10-29 08:00:00');
+
+    phase3b4PostOnline($patientUser, [
+        'appointment_type' => Appointment::TYPE_CHECKUP,
+        'requested_date' => '2026-11-05',
+        'requested_time' => '10:00',
+    ])->assertRedirect(route('patient.appointments.index'));
+
+    Mail::assertSent(AppointmentBookingEmail::class, fn ($mail) =>
+        $mail->appointment->status === Appointment::STATUS_CONFIRMED
+            && $mail->hasTo($patient->email)
+    );
 });

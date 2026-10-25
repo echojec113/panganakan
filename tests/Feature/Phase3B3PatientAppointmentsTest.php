@@ -133,7 +133,7 @@ it('links My Appointments from the portal navigation and the dashboard card', fu
     $response->assertOk()
         ->assertSee('href="' . route('patient.appointments.index') . '"', false)
         ->assertSee('My Appointments')
-        ->assertSee('Request a checkup, counseling, or delivery appointment online');
+        ->assertSee('Request checkup appointments online and track their status.');
 
     // The dashboard no longer advertises appointments as coming soon.
     $response->assertDontSee('Appointment services will be available soon.')
@@ -276,36 +276,50 @@ it('lets a patient create a checkup request that is confirmed immediately', func
         ->and($appointment->cancellation_reason)->toBeNull();
 });
 
-it('lets a patient create a counseling request', function () {
-    [$user, $patient] = phase3b3Eligible();
+it('rejects new counseling requests through the patient booking endpoint', function () {
+    [$user] = phase3b3Eligible();
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => phase3b3FutureDate(),
         'requested_time' => '14:30',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    $appointment = Appointment::sole();
-    expect($appointment->appointment_type)->toBe(Appointment::TYPE_COUNSELING)
-        ->and($appointment->patient_id)->toBe($patient->id)
-        ->and($appointment->status)->toBe(Appointment::STATUS_PENDING)
-        ->and((string) $appointment->requested_time)->toContain('14:30');
+    expect(Appointment::count())->toBe(0);
 });
 
-it('lets a patient create a delivery request', function () {
-    [$user, $patient] = phase3b3Eligible();
+it('rejects new delivery requests through the patient booking endpoint', function () {
+    [$user] = phase3b3Eligible();
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'requested_date' => phase3b3FutureDate(),
         'requested_time' => '23:30',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    $appointment = Appointment::sole();
-    expect($appointment->appointment_type)->toBe(Appointment::TYPE_DELIVERY_REQUEST)
-        ->and($appointment->patient_id)->toBe($patient->id)
-        ->and($appointment->status)->toBe(Appointment::STATUS_PENDING)
-        ->and($appointment->source)->toBe(Appointment::SOURCE_ONLINE);
+    expect(Appointment::count())->toBe(0);
+});
+
+it('rejects legacy request types at the service write boundary', function () {
+    [, $patient] = phase3b3Eligible();
+    $service = app(\App\Services\AppointmentManagementService::class);
+
+    expect(fn () => $service->createOnlineRequest(
+        $patient,
+        Appointment::TYPE_COUNSELING,
+        phase3b3FutureDate(),
+        '10:00'
+    ))->toThrow(\DomainException::class, 'Routine appointment booking currently supports checkups only.');
+
+    expect(fn () => $service->createWalkIn(
+        phase3b3User('staff'),
+        $patient->id,
+        Appointment::TYPE_DELIVERY_REQUEST,
+        phase3b3FutureDate(),
+        null
+    ))->toThrow(\DomainException::class, 'Routine appointment booking currently supports checkups only.');
+
+    expect(Appointment::count())->toBe(0);
 });
 
 it('ignores forged server-owned fields and system-confirms an online checkup', function () {
@@ -476,7 +490,7 @@ it('enforces checkup clinic hours at the request layer', function () {
     expect(Appointment::count())->toBe(1);
 });
 
-it('enforces counseling clinic hours at the request layer', function () {
+it('rejects counseling before schedule validation at the request layer', function () {
     [$user] = phase3b3Eligible();
     $date = phase3b3FutureDate();
 
@@ -484,18 +498,18 @@ it('enforces counseling clinic hours at the request layer', function () {
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
         'requested_time' => '07:30',
-    ])->assertSessionHasErrors('requested_time');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
         'requested_time' => '08:00',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    expect(Appointment::count())->toBe(1);
+    expect(Appointment::count())->toBe(0);
 });
 
-it('requires a time for checkup and counseling but not for delivery', function () {
+it('requires a time for checkups and rejects legacy types with or without one', function () {
     [$user] = phase3b3Eligible();
     $date = phase3b3FutureDate();
 
@@ -507,37 +521,34 @@ it('requires a time for checkup and counseling but not for delivery', function (
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
-    ])->assertSessionHasErrors('requested_time');
+    ])->assertSessionHasErrors('appointment_type');
 
     expect(Appointment::count())->toBe(0);
 
-    // Delivery: a date-only request is a real, accepted state.
+    // Delivery remains a legacy appointment type, unavailable for new requests.
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'requested_date' => $date,
-    ])->assertRedirect(route('patient.appointments.index'));
-
-    $appointment = Appointment::sole();
-    expect($appointment->appointment_type)->toBe(Appointment::TYPE_DELIVERY_REQUEST)
-        ->and($appointment->requested_time)->toBeNull();
+    ])->assertSessionHasErrors('appointment_type');
+    expect(Appointment::count())->toBe(0);
 });
 
-it('allows delivery requests at any hour including late night and midnight-adjacent times', function () {
+it('rejects delivery requests regardless of the submitted time', function () {
     [$user] = phase3b3Eligible();
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'requested_date' => phase3b3FutureDate(1),
         'requested_time' => '23:30',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'requested_date' => phase3b3FutureDate(2),
         'requested_time' => '02:15',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    expect(Appointment::count())->toBe(2);
+    expect(Appointment::count())->toBe(0);
 });
 
 it('rejects an invalid appointment type and an invalid date format', function () {
@@ -627,9 +638,9 @@ it('rejects an exact duplicate active request but allows after decline', functio
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
         'requested_time' => '11:00',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    expect(Appointment::count())->toBe(3);
+    expect(Appointment::count())->toBe(2);
 
     // Cancel the first (auto-confirmed) checkup: history and its released
     // hold do not block a new identical one.
@@ -643,7 +654,7 @@ it('rejects an exact duplicate active request but allows after decline', functio
         'requested_time' => '10:00',
     ])->assertRedirect(route('patient.appointments.index'));
 
-    expect(Appointment::count())->toBe(4);
+    expect(Appointment::count())->toBe(3);
 });
 
 it('treats a confirmed appointment as an active duplicate blocker', function () {
@@ -702,14 +713,14 @@ it('does not impose a one-appointment-per-day restriction', function () {
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
         'requested_time' => '10:00',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b3Post($user, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'requested_date' => $date,
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    expect(Appointment::count())->toBe(3);
+    expect(Appointment::count())->toBe(1);
 });
 
 /*
@@ -821,16 +832,16 @@ it('shows a clear empty state when the patient has no appointments', function ()
         ->assertSee('You have no appointment history yet.');
 });
 
-it('shows the request form with clinic-hours and delivery guidance', function () {
+it('shows a checkup-only request form', function () {
     [$user] = phase3b3Eligible();
 
     $this->actingAs($user)->get(route('patient.appointments.create'))
         ->assertOk()
         ->assertSee('Request an Appointment')
-        ->assertSee('do not guarantee confirmation')
-        ->assertSee('Delivery requests do not reserve a bed.')
-        ->assertSee('contact or visit the clinic directly')
-        ->assertSee('8:00 AM to 5:00 PM')
+        ->assertSee('Checkup')
+        ->assertDontSee('Delivery Request')
+        ->assertDontSee('Counseling')
+        ->assertSee('8:00 AM to before 5:00 PM')
         ->assertSee('name="appointment_type"', false)
         ->assertSee('name="requested_date"', false)
         // Phase 4: requested_time is the shared slot picker's carrier
@@ -870,10 +881,10 @@ it('creates no admission, bed, occupancy or clinical record', function () {
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'requested_date' => phase3b3FutureDate(),
         'requested_time' => '03:00',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
-    // Exactly one appointments row appeared; nothing else changed.
-    expect(Appointment::count())->toBe(1);
+    // No appointment row or related side effect was created.
+    expect(Appointment::count())->toBe(0);
 
     foreach ($tablesBefore as $table => $count) {
         expect(DB::table($table)->count(), "table {$table} must be unchanged")->toBe($count);
@@ -938,9 +949,15 @@ it('reflects a newly submitted pending request on the Admin/Staff calendar', fun
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'requested_date' => $date,
         'requested_time' => '10:00',
-    ])->assertRedirect(route('patient.appointments.index'));
+    ])->assertSessionHasErrors('appointment_type');
 
     $admin = phase3b3User('admin');
+
+    $historical = phase3b3Appointment($patient, [
+        'appointment_type' => Appointment::TYPE_COUNSELING,
+        'requested_date' => $date,
+        'requested_time' => '10:00',
+    ]);
 
     $response = $this->actingAs($admin)->get(route('appointments.index', ['view' => 'day', 'date' => $date]));
 
@@ -951,7 +968,7 @@ it('reflects a newly submitted pending request on the Admin/Staff calendar', fun
         ->assertSee('Online');
 
     // The same row is confirm-eligible through the existing staff workflow.
-    $appointment = Appointment::sole();
+    $appointment = $historical;
     $this->actingAs($admin)->from(route('appointments.index'))->patch(
         route('appointments.confirm', $appointment),
         ['confirmed_date' => $date, 'confirmed_time' => '10:00']

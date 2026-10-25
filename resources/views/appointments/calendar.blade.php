@@ -133,9 +133,7 @@
                     <select id="filter-type" name="type" onchange="document.getElementById('appointmentFilterForm').requestSubmit()"
                             class="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
                         <option value="all" {{ $typeFilter === 'all' ? 'selected' : '' }}>All Types</option>
-                        @foreach ($typeLabels as $typeValue => $typeLabel)
-                            <option value="{{ $typeValue }}" {{ $typeFilter === $typeValue ? 'selected' : '' }}>{{ $typeLabel }}</option>
-                        @endforeach
+                        <option value="{{ \App\Models\Appointment::TYPE_CHECKUP }}" {{ $typeFilter === \App\Models\Appointment::TYPE_CHECKUP ? 'selected' : '' }}>Checkup</option>
                     </select>
                 </div>
 
@@ -940,7 +938,7 @@
                 <x-modal name="walk-in-appointment" focusable max-width="lg">
                     <form method="POST" action="{{ route('appointments.walk-in.store') }}"
                           x-on:slot-picker-state="walkInSlotReady = ($event.detail.id === 'walk-in' && $event.detail.ready)"
-                          x-on:submit="if (walkIn.type !== 'delivery_request' && !walkInSlotReady) { $event.preventDefault(); return; } if (guardWalkInSchedule()) { submitting = true; } else { $event.preventDefault(); }"
+                          x-on:submit="if (!walkInSlotReady) { $event.preventDefault(); return; } if (guardWalkInSchedule()) { submitting = true; } else { $event.preventDefault(); }"
                           class="p-6">
                         @csrf
 
@@ -1001,9 +999,7 @@
                                 <label for="walkin-type" class="block text-xs font-semibold uppercase tracking-wider text-[#657083] mb-1">Appointment Type</label>
                                 <select id="walkin-type" name="appointment_type" x-model="walkIn.type" required
                                         class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-[#55B85A] focus:ring-[#55B85A]">
-                                    @foreach ($typeLabels as $typeValue => $typeLabel)
-                                        <option value="{{ $typeValue }}">{{ $typeLabel }}</option>
-                                    @endforeach
+                                    <option value="{{ \App\Models\Appointment::TYPE_CHECKUP }}">{{ \App\Models\Appointment::TYPE_LABELS[\App\Models\Appointment::TYPE_CHECKUP] }}</option>
                                 </select>
                                 @error('appointment_type')
                                     <p class="mt-1 text-xs font-medium text-red-600">{{ $message }}</p>
@@ -1023,13 +1019,9 @@
                         </div>
 
                         {{-- Phase 4 — shared 30-minute slot picker replaces the
-                             free-form walk-in time input. Delivery walk-ins
-                             stay date-only (the picker's carrier is disabled
-                             by hide-expr so no timed value submits). The
-                             endpoint response is the only slot source of
-                             truth; booked, past and clinic-closed slots are
-                             disabled by the server-computed state. --}}
-                        <div class="mt-3" x-show="walkIn.type !== 'delivery_request'">
+                             free-form walk-in time input. The endpoint response
+                             is the only slot source of truth. --}}
+                        <div class="mt-3">
                             <x-slot-picker
                                 time-name="appointment_time"
                                 date-id="walkin-date"
@@ -1038,16 +1030,11 @@
                                 picker-id="walk-in"
                                 label="Appointment Time"
                                 :required="true"
-                                hide-expr="walkIn.type === 'delivery_request'"
+                                hide-expr="false"
                             />
                             <p class="mt-1 text-xs text-[#657083]">
-                                Checkup &amp; counseling: one 30-minute slot, Monday–Sunday, 8:00 AM to 5:00 PM Philippine time. Booked, past and clinic-closed slots cannot be selected. Today ({{ $clinicToday }}) or a future date only.
+                                Checkups: one 30-minute slot, Monday–Sunday, 8:00 AM to 5:00 PM Philippine time. Booked, past and clinic-closed slots cannot be selected. Today ({{ $clinicToday }}) or a future date only.
                             </p>
-                        </div>
-
-                        <div x-show="walkIn.type === 'delivery_request'"
-                             class="mt-3 rounded-xl border border-[#E7E9E5] bg-[#FCFBF8] p-3 text-xs text-[#657083]">
-                            Delivery requests are date-only — no time slot is needed. They are accepted 24/7; confirming never reserves a bed.
                         </div>
 
                         <p x-show="scheduleError" x-text="scheduleError"
@@ -1058,7 +1045,7 @@
                         </p>
 
                         <div class="mt-5 flex flex-wrap gap-2">
-                            <button type="submit" :disabled="submitting || !walkIn.patientId || (walkIn.type !== 'delivery_request' && !walkInSlotReady)"
+                            <button type="submit" :disabled="submitting || !walkIn.patientId || !walkInSlotReady"
                                     class="rounded-lg bg-[#55B85A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#4aa04c] disabled:opacity-60"
                                     x-text="submitting ? 'Creating…' : 'Create Walk-in Appointment'"></button>
                             <button type="button" x-on:click="$dispatch('close-modal', 'walk-in-appointment')"
@@ -1171,9 +1158,7 @@
                                 return true;
                             },
                             guardWalkInSchedule() {
-                                const timeEl = this.walkIn.type === 'delivery_request'
-                                    ? null
-                                    : document.querySelector('[data-picker-id="walk-in"] [data-slot-carrier]');
+                                const timeEl = document.querySelector('[data-picker-id="walk-in"] [data-slot-carrier]');
                                 return this.checkSchedule(this.walkIn.date, timeEl ? timeEl.value : '');
                             },
                             guardConfirmSchedule() {

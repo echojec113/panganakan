@@ -278,6 +278,14 @@ it('narrows results by service type', function () {
         ->assertOk()
         ->assertSee('Checkuponly')
         ->assertDontSee('Counselonly');
+
+    // Legacy type filters are no longer offered; an old URL falls back to
+    // All Types so historical appointments remain visible.
+    $this->actingAs(phase3b2aAdmin())
+        ->get(route('appointments.index', ['date' => '2026-11-15', 'type' => 'counseling']))
+        ->assertOk()
+        ->assertSee('Checkuponly')
+        ->assertSee('Counselonly');
 });
 
 it('falls back to safe defaults for invalid view date type and status parameters', function () {

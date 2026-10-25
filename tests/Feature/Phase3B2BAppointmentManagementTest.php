@@ -511,7 +511,7 @@ it('creates a confirmed walk-in appointment for an existing patient', function (
         ->and($appointment->patient_id)->toBe($patient->id);
 });
 
-it('does not create a patient record or patient account for a walk-in', function () {
+it('rejects counseling walk-ins without creating appointments or accounts', function () {
     $patient = phase3b2bPatient();
     $admin = phase3b2bAdmin();
     $usersBefore = User::count();
@@ -524,10 +524,11 @@ it('does not create a patient record or patient account for a walk-in', function
             'appointment_date' => '2026-11-08',
             'appointment_time' => '10:00',
         ])
-        ->assertSessionHas('success');
+        ->assertSessionHasErrors('appointment_type');
 
     expect(User::count())->toBe($usersBefore)
         ->and(Patient::count())->toBe($patientsBefore)
+        ->and(Appointment::count())->toBe(0)
         ->and($patient->refresh()->user_id)->toBeNull();
 });
 
@@ -607,7 +608,7 @@ it('enforces one confirmed appointment per slot for walk-ins (Phase 2)', functio
     expect(Appointment::whereDate('confirmed_date', '2026-11-08')->count())->toBe(2);
 });
 
-it('enforces the same scheduling rules on walk-ins and permits date-only delivery walk-ins', function () {
+it('enforces checkup scheduling rules and rejects legacy types on new walk-ins', function () {
     $patient = phase3b2bPatient();
     $staff = phase3b2bStaff();
 
@@ -622,7 +623,7 @@ it('enforces the same scheduling rules on walk-ins and permits date-only deliver
         ])
         ->assertSessionHasErrors('appointment_time');
 
-    // Delivery at 23:30: allowed (24/7).
+    // Legacy request types cannot be created through routine walk-in booking.
     $this->actingAs($staff)
         ->post(route('appointments.walk-in.store'), [
             'patient_id' => $patient->id,
@@ -630,20 +631,17 @@ it('enforces the same scheduling rules on walk-ins and permits date-only deliver
             'appointment_date' => '2026-11-08',
             'appointment_time' => '23:30',
         ])
-        ->assertSessionHas('success');
+        ->assertSessionHasErrors('appointment_type');
 
-    // Delivery date-only (no time): allowed and stored confirmed without inventing a time.
+    // The type is rejected even when submitted without a time.
     $this->actingAs($staff)
         ->post(route('appointments.walk-in.store'), [
             'patient_id' => $patient->id,
             'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
             'appointment_date' => '2026-11-09',
         ])
-        ->assertSessionHas('success');
-
-    $dateOnly = Appointment::whereNull('confirmed_time')->latest('id')->first();
-    expect($dateOnly->status)->toBe(Appointment::STATUS_CONFIRMED)
-        ->and($dateOnly->appointment_type)->toBe(Appointment::TYPE_DELIVERY_REQUEST)
+        ->assertSessionHasErrors('appointment_type');
+    expect(Appointment::count())->toBe(0)
         ->and(Schema::hasTable('delivery_admissions'))->toBeFalse();
 });
 
@@ -825,6 +823,17 @@ it('renders the management UI: walk-in button, action URLs and modal forms', fun
         ->assertSee(route('appointments.cancel', $confirmed), false)
         ->assertSee('Mark Completed')
         ->assertSee('8:00 AM to 5:00 PM Philippine time');
+
+    preg_match('/<select id="walkin-type".*?<\/select>/s', $response->getContent(), $walkInTypeField);
+    expect($walkInTypeField[0] ?? '')->toContain('Checkup')
+        ->not->toContain('Counseling')
+        ->not->toContain('Delivery Request');
+
+    preg_match('/<select id="filter-type".*?<\/select>/s', $response->getContent(), $serviceTypeField);
+    expect($serviceTypeField[0] ?? '')->toContain('All Types')
+        ->toContain('Checkup')
+        ->not->toContain('Counseling')
+        ->not->toContain('Delivery Request');
 });
 
 /*
@@ -908,7 +917,7 @@ it('allows a future walk-in date and time', function () {
         ->and(Appointment::first()->status)->toBe(Appointment::STATUS_CONFIRMED);
 });
 
-it('keeps the provisional clinic-hours window for checkup and counseling', function () {
+it('keeps checkup hours and rejects new counseling bookings', function () {
     phase3b2bFreezeManila('2026-10-14 14:35:30');
     $staff = phase3b2bStaff();
     $patient = phase3b2bPatient();
@@ -924,23 +933,23 @@ it('keeps the provisional clinic-hours window for checkup and counseling', funct
         ])->assertSessionHasErrors('appointment_time');
     }
 
-    // Counseling follows the same window.
+    // Counseling is unavailable for new routine bookings.
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '07:30',
-    ])->assertSessionHasErrors('appointment_time');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_COUNSELING,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '16:30',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
-    expect(Appointment::where('appointment_type', Appointment::TYPE_COUNSELING)->count())->toBe(1);
+    expect(Appointment::where('appointment_type', Appointment::TYPE_COUNSELING)->count())->toBe(0);
 });
 
-it('allows delivery requests at any future hour including later today', function () {
+it('rejects delivery requests at any future hour', function () {
     phase3b2bFreezeManila('2026-10-14 14:35:30');
     $staff = phase3b2bStaff();
     $patient = phase3b2bPatient();
@@ -950,19 +959,19 @@ it('allows delivery requests at any future hour including later today', function
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-14',
         'appointment_time' => '23:30',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
     // 02:15 tomorrow (24/7).
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '02:15',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
-    expect(Appointment::where('appointment_type', Appointment::TYPE_DELIVERY_REQUEST)->count())->toBe(2);
+    expect(Appointment::where('appointment_type', Appointment::TYPE_DELIVERY_REQUEST)->count())->toBe(0);
 });
 
-it('allows a date-only delivery walk-in for today and rejects yesterday', function () {
+it('rejects date-only delivery walk-ins', function () {
     phase3b2bFreezeManila('2026-10-14 14:35:30');
     $staff = phase3b2bStaff();
     $patient = phase3b2bPatient();
@@ -970,17 +979,13 @@ it('allows a date-only delivery walk-in for today and rejects yesterday', functi
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-13',
-    ])->assertSessionHasErrors('appointment_date');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-14',
-    ])->assertSessionHas('success');
-
-    $dateOnly = Appointment::first();
-    expect(Appointment::count())->toBe(1)
-        ->and($dateOnly->confirmed_time)->toBeNull()
-        ->and($dateOnly->status)->toBe(Appointment::STATUS_CONFIRMED);
+    ])->assertSessionHasErrors('appointment_type');
+    expect(Appointment::count())->toBe(0);
 });
 
 it('refuses to confirm a pending appointment for a past schedule and keeps it pending', function () {
@@ -1083,19 +1088,19 @@ it('anchors the past-schedule rule to the Manila midnight boundary', function ()
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-14',
         'appointment_time' => '23:59',
-    ])->assertSessionHasErrors('appointment_date');
+    ])->assertSessionHasErrors('appointment_type');
 
     // Today (Oct 15) at the current minute, and date-only today, allowed.
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '00:00',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
     // Late-evening boundary: 23:59:30 - today's 23:59 allowed, 23:58
     // refused, tomorrow's early hour allowed.
@@ -1105,19 +1110,19 @@ it('anchors the past-schedule rule to the Manila midnight boundary', function ()
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '23:58',
-    ])->assertSessionHasErrors('appointment_time');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '23:59',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-16',
         'appointment_time' => '00:10',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 });
 
 it('keeps existing past appointments readable, in status, and workflow-actionable', function () {
@@ -1270,18 +1275,18 @@ it('rejects out-of-clinic-hours times with field-level errors and still accepts 
         'appointment_time' => '16:30',
     ])->assertSessionHas('success');
 
-    // Delivery requests bypass the slot-grid rules entirely (24/7).
+    // Delivery requests are no longer accepted through routine walk-in booking.
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '07:59',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 
     phase3b2bWalkIn($staff, $patient, [
         'appointment_type' => Appointment::TYPE_DELIVERY_REQUEST,
         'appointment_date' => '2026-10-15',
         'appointment_time' => '17:00',
-    ])->assertSessionHas('success');
+    ])->assertSessionHasErrors('appointment_type');
 });
 
 /*

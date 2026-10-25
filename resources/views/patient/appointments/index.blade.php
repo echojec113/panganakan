@@ -23,7 +23,7 @@
                 My Appointments
             </h1>
             <p class="mt-2 text-sm leading-6" style="color: var(--body-text);">
-                View your appointment requests and their statuses. Checkups are confirmed immediately when the slot is available; counseling and delivery requests need clinic confirmation.
+                View your checkup requests and their status. Checkups are confirmed immediately when the selected slot is available.
             </p>
         </div>
         <a href="{{ route('patient.appointments.create') }}"
@@ -53,7 +53,7 @@
 
         @if ($pending->isEmpty())
             <p class="rounded-2xl border bg-white px-5 py-6 text-sm" style="border-color: var(--light-border); color: var(--body-text);">
-                You have no pending appointment requests. Counseling and delivery requests awaiting clinic review appear here.
+                You have no pending appointment requests.
             </p>
         @else
             <div class="space-y-4">

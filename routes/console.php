@@ -10,6 +10,11 @@ Artisan::command('inspire', function () {
 
 Schedule::command('app:send-prenatal-reminders')->dailyAt('08:00');
 
+// Appointment reminders use a five-minute delivery grace window; the two-hour
+// reminder therefore needs a frequent check. A shared scheduler lock prevents
+// overlapping runs from processing the same appointment simultaneously.
+Schedule::command('appointments:send-reminders')->everyMinute()->withoutOverlapping(2);
+
 // Time-based clinical alerts (EDD approaching, past EDD / needs review).
 // Runs before the 08:00 reminder sweep; the command is idempotent, so a
 // re-run on the same day never duplicates an alert.

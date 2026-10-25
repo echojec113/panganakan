@@ -89,6 +89,19 @@ it('shows the dashboard to an eligible linked patient', function () {
         ->assertSee('DEPLA Family Care');
 });
 
+it('shows the other-services announcement with the exact secure Facebook link', function () {
+    [$user] = phase3aEligible();
+
+    $this->actingAs($user)->get(route('patient.portal.coming-soon'))
+        ->assertOk()
+        ->assertSee('Other Services and Announcements')
+        ->assertSee('hearing services, counseling, tuli (circumcision)')
+        ->assertSee('Check the page for current announcements and availability.')
+        ->assertSee('href="https://www.facebook.com/share/1CSM8f54dE/"', false)
+        ->assertSee('target="_blank" rel="noopener noreferrer"', false)
+        ->assertSee('View Our Facebook Page');
+});
+
 it('greets with the linked patient first name and not the middle or full name', function () {
     [$user, $patient] = phase3aEligible();
 
@@ -119,7 +132,7 @@ it('links the Appointments card to the My Appointments page (Phase 3B.3 replaced
         ->assertOk()
         ->assertSee('href="' . route('patient.appointments.index') . '"', false)
         ->assertSee('My Appointments')
-        ->assertSee('Request a checkup, counseling, or delivery appointment online')
+        ->assertSee('Request checkup appointments online and track their status.')
         // The dashboard card itself never hosts a form (requests live on
         // the dedicated create page); the only form here is still logout.
         ->assertDontSee('appointment-form')

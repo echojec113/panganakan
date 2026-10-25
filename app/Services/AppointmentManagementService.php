@@ -381,6 +381,8 @@ class AppointmentManagementService
      */
     public function createWalkIn(User $actor, int $patientId, string $appointmentType, string $date, ?string $time): Appointment
     {
+        $this->assertRoutineBookingType($appointmentType);
+
         return DB::transaction(function () use ($actor, $patientId, $appointmentType, $date, $time) {
             $patient = Patient::find($patientId);
 
@@ -469,6 +471,8 @@ class AppointmentManagementService
      */
     public function createOnlineRequest(Patient $patient, string $appointmentType, string $date, ?string $time, ?User $actor = null): Appointment
     {
+        $this->assertRoutineBookingType($appointmentType);
+
         if ($appointmentType === Appointment::TYPE_CHECKUP) {
             return $this->createAutoConfirmedCheckup($patient, $date, $time, $actor);
         }
@@ -520,6 +524,14 @@ class AppointmentManagementService
 
             return $appointment;
         });
+    }
+
+    /** Reject legacy appointment types at every new routine booking boundary. */
+    private function assertRoutineBookingType(string $appointmentType): void
+    {
+        if (! in_array($appointmentType, Appointment::ROUTINE_BOOKABLE_TYPES, true)) {
+            throw new DomainException('Routine appointment booking currently supports checkups only.');
+        }
     }
 
     /**

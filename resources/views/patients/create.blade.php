@@ -140,12 +140,13 @@
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Email Address <span class="text-red-500" aria-hidden="true">*</span></label>
                                 <input type="email" name="email"
                                     value="{{ old('email') }}"
+                                    maxlength="255" required autocomplete="email"
                                     class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A] transition"
                                     placeholder="example@email.com">
-                                <p class="text-xs text-gray-500 mt-1">Optional. Used for prenatal reminders and follow-up notifications.</p>
+                                <p class="text-xs text-gray-500 mt-1">Required. Used for the patient portal setup link and clinic follow-up notifications.</p>
                                 @error('email')<p class="text-red-500 text-xs mt-1">{{ $message }}</p>@enderror
                             </div>
 

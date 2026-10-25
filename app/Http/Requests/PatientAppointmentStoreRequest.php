@@ -52,7 +52,7 @@ class PatientAppointmentStoreRequest extends FormRequest
         ], true);
 
         return [
-            'appointment_type' => ['required', 'string', Rule::in(Appointment::TYPES)],
+            'appointment_type' => ['required', 'string', Rule::in(Appointment::ROUTINE_BOOKABLE_TYPES)],
             'requested_date' => ['required', 'string', 'date_format:Y-m-d'],
             'requested_time' => $requiresTime
                 ? array_merge(['required', 'string', 'date_format:H:i'], AppointmentConfirmRequest::clinicHoursRules())
@@ -105,7 +105,7 @@ class PatientAppointmentStoreRequest extends FormRequest
     {
         return [
             'appointment_type.required' => 'Choose the appointment type.',
-            'appointment_type.in' => 'Choose a valid appointment type.',
+            'appointment_type.in' => 'Routine appointment booking currently supports checkups only.',
             'requested_date.required' => 'Choose your preferred appointment date.',
             'requested_date.date_format' => 'The preferred date must be a valid date (YYYY-MM-DD).',
             'requested_time.required' => 'A preferred time is required for checkup and counseling appointments.',

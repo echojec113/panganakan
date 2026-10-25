@@ -9,6 +9,7 @@ use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\User;
 use App\Services\AppointmentManagementService;
+use App\Services\AppointmentBookingEmailService;
 use App\Services\ClinicAvailabilityService;
 use App\Services\SystemNotificationService;
 use Carbon\Carbon;
@@ -63,6 +64,7 @@ class PatientAppointmentController extends Controller
 {
     public function __construct(
         private readonly AppointmentManagementService $service,
+        private readonly AppointmentBookingEmailService $bookingEmails,
         private readonly SystemNotificationService $notifications,
         private readonly ClinicAvailabilityService $availability,
     ) {
@@ -211,6 +213,11 @@ class PatientAppointmentController extends Controller
             // withInput preserves the typed schedule across the redirect.
             return back()->withInput()->withErrors(['appointment' => $exception->getMessage()]);
         }
+
+        // Send the patient an immediate receipt after the booking transaction
+        // commits. The message distinguishes a confirmed checkup from a
+        // request awaiting clinic review; transport failures are logged only.
+        $this->bookingEmails->sendReceipt($appointment);
 
         // Notifications fire only after the booking transaction committed.
         if ($appointment->status === Appointment::STATUS_CONFIRMED) {

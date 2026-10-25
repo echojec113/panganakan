@@ -541,7 +541,7 @@
                 </span>
                 <span class="portal-card-title">My Appointments</span>
                 <span class="portal-card-body">
-                    Request a checkup, counseling, or delivery appointment online and track its status.
+                    Request checkup appointments online and track their status.
                 </span>
                 <span class="portal-card-action">
                     Open My Appointments &rarr;
@@ -717,5 +717,22 @@
             </section>
         </div>
     </div>
+
+    <section class="portal-widget mt-6" aria-labelledby="portal-other-services-title">
+        <div class="portal-widget-header">
+            <span class="portal-widget-header-icon" aria-hidden="true">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c1.657 0 3-1.343 3-3S13.657 2 12 2 9 3.343 9 5s1.343 3 3 3zm0 2c-4.418 0-8 2.239-8 5v2h16v-2c0-2.761-3.582-5-8-5z"></path>
+                </svg>
+            </span>
+            <h2 id="portal-other-services-title" class="portal-heading portal-widget-title">Other Services and Announcements</h2>
+        </div>
+        <p class="portal-widget-empty">
+            Looking for other clinic services? Depla Family Care Maternity Clinic &amp; Lying-In also shares announcements about services such as hearing services, counseling, tuli (circumcision), and other available services on our Facebook page. Please visit our Facebook page for the latest service announcements and information. Check the page for current announcements and availability.
+        </p>
+        <a class="portal-widget-cta" href="https://www.facebook.com/share/1CSM8f54dE/" target="_blank" rel="noopener noreferrer" aria-label="View Depla Family Care Maternity Clinic &amp; Lying-In Facebook page (opens in a new tab)">
+            View Our Facebook Page
+        </a>
+    </section>
 </div>
 @endsection

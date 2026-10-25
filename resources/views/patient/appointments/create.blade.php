@@ -3,7 +3,7 @@
      patient identity, source = online and status = pending are assigned
      SERVER-SIDE (PatientAppointmentController + AppointmentManagementService)
      — no patient_id, status, reviewer or confirmed-schedule field exists
-     in this form. Client script is convenience only (type-conditional
+    in this form. Client script is convenience only (slot picker +
      time hints + double-submit guard); the server is authoritative for
      every rule. Alpine is provided by the shared layout (resources/js/app.js). --}}
 @extends('patient.layout')
@@ -11,17 +11,13 @@
 @php
     $typeLabels = [
         \App\Models\Appointment::TYPE_CHECKUP => 'Checkup',
-        \App\Models\Appointment::TYPE_COUNSELING => 'Counseling',
-        \App\Models\Appointment::TYPE_DELIVERY_REQUEST => 'Delivery Request',
     ];
 @endphp
 
 @section('content')
     {{-- Alpine hides x-cloak elements only after it boots; the compiled
-         stylesheet ships no [x-cloak] rule (the clinic calendar lives
-         with the flash), so this page carries its own one-line rule to
-         keep the delivery notice and required-time asterisk hidden on
-         first paint for the default Checkup type. --}}
+         stylesheet ships no [x-cloak] rule, so retain the local rule for
+         conditional form elements. --}}
     <style>[x-cloak] { display: none !important; }</style>
 
     <div class="mb-6">
@@ -37,7 +33,7 @@
             Request an Appointment
         </h1>
         <p class="mt-2 text-sm leading-6" style="color: var(--body-text);">
-            Choose an appointment type and your preferred schedule. Checkups are confirmed immediately when your chosen slot is available; counseling and delivery requests are reviewed by the clinic.
+            Choose a checkup and your preferred schedule. Checkups are confirmed immediately when your chosen slot is available.
         </p>
     </header>
 
@@ -47,11 +43,7 @@
          role="note">
         <p class="font-semibold">Checkups are confirmed immediately when your selected slot is still available.</p>
         <p class="mt-2">
-            Counseling and delivery requests are reviewed by the clinic and do not guarantee confirmation.
-        </p>
-        <p class="mt-2">
-            Checkup and counseling appointments are available Monday&ndash;Sunday, 8:00 AM to before 5:00 PM (Philippine time, provisional).
-            Delivery requests are accepted any day, at any time, and may be date-only.
+            Checkups are available Monday&ndash;Sunday, 8:00 AM to before 5:00 PM (Philippine time, provisional).
         </p>
     </div>
 
@@ -79,9 +71,7 @@
                   submitting: false,
                   slotReady: false,
                   type: '{{ old('appointment_type', \App\Models\Appointment::TYPE_CHECKUP) }}',
-                  get requiresTime() {
-                      return this.type !== '{{ \App\Models\Appointment::TYPE_DELIVERY_REQUEST }}';
-                  }
+                  get requiresTime() { return true; }
               }"
               x-on:slot-picker-state="slotReady = ($event.detail.id === 'book' && $event.detail.ready)"
               @submit="if (requiresTime && !slotReady) { $event.preventDefault(); return; } submitting = true"
@@ -94,7 +84,7 @@
                     Appointment Type <span class="text-red-600" aria-hidden="true">*</span>
                 </legend>
 
-                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Appointment Type">
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-1" role="radiogroup" aria-label="Appointment Type">
                     @foreach ($typeLabels as $value => $label)
                         <label class="flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm font-medium transition"
                                :style="type === '{{ $value }}'
@@ -118,21 +108,9 @@
                 @enderror
 
                 <p id="type-hint" class="mt-2 text-xs" style="color: var(--body-text);">
-                    Checkup and counseling need a preferred time from the available clinic slots. Delivery requests are 24/7 and are date-only.
+                    Choose an available preferred time for your checkup.
                 </p>
             </fieldset>
-
-            {{-- ═══ Delivery request notice — shown only for Delivery Request. --}}
-            <div x-show="type === '{{ \App\Models\Appointment::TYPE_DELIVERY_REQUEST }}'"
-                 x-cloak
-                 class="rounded-xl border px-4 py-3 text-sm leading-6"
-                 style="border-color: #FDE68A; background: #FFFBEB; color: #92400E;">
-                <p class="font-semibold">Delivery requests do not reserve a bed.</p>
-                <p class="mt-1">
-                    A delivery request does not create an admission or guarantee bed availability.
-                    For urgent concerns or active labor, contact or visit the clinic directly rather than waiting for online confirmation.
-                </p>
-            </div>
 
             {{-- ═══ Preferred Date ═══ --}}
             <div class="max-w-sm">
@@ -158,8 +136,6 @@
             </div>
 
             {{-- ═══ Preferred Time — shared 30-minute slot picker (Phase 4).
-                 Hidden entirely for Delivery Requests (date-only); the
-                 hidden carrier is disabled so no timed value is submitted.
                  The endpoint response is the only slot source of truth. --}}
             <div x-show="requiresTime" x-cloak>
                 <x-slot-picker
@@ -177,9 +153,6 @@
                     Booked, past and clinic-closed times cannot be selected.
                     <span x-show="type === '{{ \App\Models\Appointment::TYPE_CHECKUP }}'">
                         Selecting a time does not reserve it — your checkup is confirmed and the slot reserved only when you submit and the slot is still available.
-                    </span>
-                    <span x-show="type !== '{{ \App\Models\Appointment::TYPE_CHECKUP }}'" x-cloak>
-                        Submitting a request does not reserve the slot — the clinic confirms your schedule.
                     </span>
                 </p>
             </div>
