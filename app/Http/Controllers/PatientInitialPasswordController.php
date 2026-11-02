@@ -69,9 +69,12 @@ class PatientInitialPasswordController extends Controller
             // the new password, hash, or any session credential.
             AuditLog::create([
                 'user_id' => $user->id,
+                'actor_name' => $user->name,
                 'patient_id' => $this->linkedPatientId($user),
                 'action' => 'PATIENT_INITIAL_PASSWORD_CHANGED',
                 'module' => 'PATIENT',
+                'record_type' => 'USER',
+                'record_id' => $user->id,
                 'description' => sprintf(
                     'Patient login account (user ID %d) completed the mandatory initial password change.',
                     $user->id

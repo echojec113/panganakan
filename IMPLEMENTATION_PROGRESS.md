@@ -1,5 +1,18 @@
 # Implementation Progress
 
+## Ultrasound report uploads are image-only
+
+- Changed ultrasound report uploads on both create and edit to accept only image files: JPG, JPEG, JFIF, PNG, or WebP, with the existing 5 MB maximum. Server validation requires a real image and restricts allowed image formats; the browser file picker and helper text now match.
+- Added immediate browser-side checks on file selection and drag-and-drop: unsupported extensions/MIME types and files over 5 MB are rejected, the selected file is cleared, and an inline accessible error is shown before the user submits the form.
+- New uploads are stored in the existing `report_image` field. Existing PDF records remain viewable/removable for backward compatibility, but PDFs can no longer be uploaded or substituted for an image.
+- Added feature coverage for valid image submissions, PDF rejection on create/edit, edits without a replacement image, and live validation markup on both forms.
+
+### Defense notes
+
+- Browser `accept` hints improve the user experience but are not a security boundary; backend image and format validation remains authoritative.
+- Client-side checks provide fast feedback for ordinary users; Laravel still independently verifies image content, allowed formats, and size on submission.
+- Legacy PDF display/removal is preserved to avoid hiding or orphaning already stored reports while enforcing the requested image-only upload policy for new changes.
+
 ## Automatic patient portal account setup
 
 - Patient registration now requires a valid email, trims and lower-cases it, and provisions the portal account automatically after the patient record is saved.
@@ -42,3 +55,19 @@
 - `Appointment::TYPES` still describes values that may exist in stored history; the new `ROUTINE_BOOKABLE_TYPES` explicitly defines current booking policy. This avoids breaking calendar filters, historical records, and legacy lifecycle transitions.
 - The request validation gives staff/patients field-level feedback, while the service guard prevents direct callers from bypassing the policy. Prenatal follow-up creation remains outside these routine booking entry points.
 - The Facebook card is informational only. It does not claim all mentioned services are currently offered or available on a particular day.
+
+## Centralized audit logging coverage
+
+- Extended the existing `audit_logs` structure with an actor-name snapshot and generic affected-record type/ID; system-generated records can now use a null user ID instead of the unsafe fallback to user ID 1. User deletion preserves audit rows and actor labels.
+- Restored patient, prenatal visit, and referral workflows now record `RESTORE`; patient restoration and its cascade log are transactionally consistent. Console reconciliation identifies itself as a system process.
+- Added record/actor context to audit writes across patient and clinical records, appointments, referrals, account lifecycle, pregnancy history, and clinic-availability workflows. Added profile/password-change and password-reset audit events. Online appointment requests that persist pending records now receive the service-owned lifecycle audit.
+- Updated the admin-only Audit Logs page to show the captured actor, expose `RESTORE` and stored action/module values, validate filters, keep filter parameters through pagination, and order by newest timestamp and ID.
+- Added coverage for patient CREATE/UPDATE/DELETE/RESTORE, restoration rollback, referral/prenatal restoration, RESTORE filtering/pagination/access, medical-history and prenatal-visit changes, birth-plan changes, ultrasound creation/update, password update/reset, and one-event appointment transitions. Existing appointment, referral, staff, pregnancy-outcome, clinic-availability, and account-lifecycle audit assertions remain in place.
+- Added the mutation-to-audit/test mapping and documented the intentionally excluded notification/reminder delivery state in [docs/AUDIT_LOG_COVERAGE.md](./docs/AUDIT_LOG_COVERAGE.md).
+
+### Defense notes
+
+- Audit context was added to the existing model/helper/table rather than introducing a second audit pipeline. Record IDs and actor snapshots improve traceability without copying sensitive patient narratives into audit descriptions.
+- `user_id` is nullable only to accurately represent automated work and preserve history after user deletion; authenticated actor IDs remain linked where available.
+- Restore and transactional service workflows write audit rows only after their corresponding successful state changes, within their transaction. Notifications and reminder dedupe state remain operational tracking rather than separate clinical decisions.
+- Configurable risk thresholds/model settings are not presented as audited because the application has no corresponding mutation UI/workflow; clinical behavior and thresholds were not changed.

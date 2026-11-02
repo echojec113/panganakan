@@ -200,13 +200,15 @@ class PatientAccountCreationService
             // password, hash, token or session credential.
             AuditLog::create([
                 'user_id' => $actor->id,
+                'actor_name' => $actor->name,
                 'patient_id' => $locked->id,
                 'action' => 'PATIENT_ACCOUNT_CREATED',
                 'module' => 'PATIENT',
+                'record_type' => 'USER',
+                'record_id' => $user->id,
                 'description' => sprintf(
-                    'Patient login account (user ID %d) created for %s (patient ID %d).',
+                    'Patient login account (user ID %d) created for patient ID %d.',
                     $user->id,
-                    $this->patientLabel($locked),
                     $locked->id
                 ),
             ]);

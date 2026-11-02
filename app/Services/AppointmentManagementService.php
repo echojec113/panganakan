@@ -477,7 +477,7 @@ class AppointmentManagementService
             return $this->createAutoConfirmedCheckup($patient, $date, $time, $actor);
         }
 
-        return DB::transaction(function () use ($patient, $appointmentType, $date, $time) {
+        return DB::transaction(function () use ($patient, $appointmentType, $date, $time, $actor) {
             $time = $this->validateSchedule($appointmentType, $date, $time);
 
             // Phase 2: a pending request may target a slot another
@@ -521,6 +521,14 @@ class AppointmentManagementService
             // decline_reason / cancellation_reason intentionally left NULL -
             // they belong to the staff review workflow, never to the patient.
             $appointment->save();
+
+            $this->audit($actor, $appointment, 'ONLINE_APPOINTMENT_REQUESTED', null, Appointment::STATUS_PENDING, sprintf(
+                'Online appointment request #%d for patient ID %d submitted for %s%s.',
+                $appointment->id,
+                $patient->id,
+                $date,
+                $time !== null ? ' at ' . $time : ''
+            ));
 
             return $appointment;
         });
@@ -1807,18 +1815,21 @@ class AppointmentManagementService
      * UPPER_SNAKE action, module label, actor user_id, patient_id, free-text
      * description. Never records a password, hash or session credential.
      */
-    private function audit(User $actor, Appointment $appointment, string $action, ?string $previousStatus, string $newStatus, string $description): void
+    private function audit(?User $actor, Appointment $appointment, string $action, ?string $previousStatus, string $newStatus, string $description): void
     {
         $statusPart = $previousStatus !== null
             ? sprintf(' Status: %s -> %s.', $previousStatus, $newStatus)
             : sprintf(' Status: %s.', $newStatus);
 
         AuditLog::create([
-            'user_id' => $actor->id,
+            'user_id' => $actor?->id,
+            'actor_name' => $actor?->name ?? 'System',
             'patient_id' => $appointment->patient_id,
             'action' => $action,
             'module' => 'APPOINTMENT',
             'description' => $description . $statusPart,
+            'record_type' => 'APPOINTMENT',
+            'record_id' => $appointment->id,
         ]);
     }
 }

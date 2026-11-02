@@ -139,7 +139,10 @@ class PregnancyOutcomeController extends Controller
         $this->logAction(
             'UPDATE',
             'PATIENT',
-            'Recorded follow-up observation for patient #' . $patient->id . ': ' . $status
+            'Recorded follow-up observation for patient #' . $patient->id . ': ' . $status . '.',
+            'PATIENT',
+            (int) $patient->id,
+            (int) $patient->id
         );
 
         return redirect()->route('pregnancy-outcomes.index')

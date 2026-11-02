@@ -179,9 +179,12 @@ class PatientSetupTokenService
 
             AuditLog::create([
                 'user_id' => $locked->id,
+                'actor_name' => $locked->name,
                 'patient_id' => $patientId,
                 'action' => 'PATIENT_SETUP_COMPLETED',
                 'module' => 'PATIENT',
+                'record_type' => 'USER',
+                'record_id' => $locked->id,
                 'description' => sprintf(
                     'Patient portal first-time password setup completed for user ID %d (patient ID %s).',
                     $locked->id,

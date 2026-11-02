@@ -57,9 +57,16 @@ test('storing a prenatal visit with diabetes Yes updates the existing Medical Hi
     $this->actingAs($user)->post(route('prenatal-visits.store'), pvPayload(['patient_id' => $patient->id, 'diabetes' => '1']));
 
     $history = MedicalHistory::where('patient_id', $patient->id)->first();
+    $visit = PrenatalVisit::where('patient_id', $patient->id)->latest('id')->firstOrFail();
 
     expect($history->diabetes)->toBe(1);
-    expect($history->anemia)->toBe(0);
+    expect($history->anemia)->toBe(0)
+        ->and(AuditLog::where('action', 'CREATE')
+            ->where('module', 'PRENATAL_VISIT')
+            ->where('record_type', 'PRENATAL_VISIT')
+            ->where('record_id', $visit->id)
+            ->where('user_id', $user->id)
+            ->count())->toBe(1);
 });
 
 test('storing a prenatal visit with anemia Yes updates the existing Medical History anemia to true', function () {
@@ -112,7 +119,7 @@ test('stores a prenatal visit with confirmed diabetes and writes a MEDICAL_HISTO
 
     expect($audit)->not->toBeNull();
     expect($audit->description)->toContain('diabetes');
-    expect($audit->description)->toContain('updated from prenatal visit ID');
+    expect($audit->description)->toContain('updated from prenatal visit #');
 });
 
 test('does not write a sync audit entry when the Medical History is missing', function () {
@@ -158,7 +165,13 @@ test('updating a prenatal visit to diabetes Yes syncs the Medical History value'
 
     $history = MedicalHistory::where('patient_id', $patient->id)->first();
 
-    expect($history->diabetes)->toBe(1);
+    expect($history->diabetes)->toBe(1)
+        ->and(AuditLog::where('action', 'UPDATE')
+            ->where('module', 'PRENATAL_VISIT')
+            ->where('record_type', 'PRENATAL_VISIT')
+            ->where('record_id', $visit->id)
+            ->where('user_id', $user->id)
+            ->count())->toBe(1);
 });
 
 test('updating a prenatal visit from diabetes Yes to No does not clear the Medical History value', function () {

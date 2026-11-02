@@ -119,15 +119,16 @@
 
             <select name="action" class="audit-select audit-select-fixed w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
                 <option value="">All Actions</option>
-                <option value="CREATE" {{ request('action') == 'CREATE' ? 'selected' : '' }}>Create</option>
-                <option value="UPDATE" {{ request('action') == 'UPDATE' ? 'selected' : '' }}>Update</option>
-                <option value="DELETE" {{ request('action') == 'DELETE' ? 'selected' : '' }}>Delete</option>
+                @foreach($actions as $action)
+                    <option value="{{ $action }}" {{ request('action') === $action ? 'selected' : '' }}>{{ str($action)->replace('_', ' ')->title() }}</option>
+                @endforeach
             </select>
 
             <select name="module" class="audit-select audit-select-fixed w-full rounded-lg border px-4 py-2 text-sm md:w-auto focus:ring-2 focus:ring-[#55B85A] focus:border-[#55B85A]">
                 <option value="">All Modules</option>
-                <option value="STAFF" {{ request('module') == 'STAFF' ? 'selected' : '' }}>Staff</option>
-                <option value="PATIENT" {{ request('module') == 'PATIENT' ? 'selected' : '' }}>Patient</option>
+                @foreach($modules as $module)
+                    <option value="{{ $module }}" {{ request('module') === $module ? 'selected' : '' }}>{{ str($module)->replace('_', ' ')->title() }}</option>
+                @endforeach
             </select>
 
             <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-xl bg-[#55B85A] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#4aa04c] focus:outline-none focus:ring-2 focus:ring-[#55B85A] focus:ring-offset-2 whitespace-nowrap">
@@ -162,7 +163,7 @@
                                     <div class="audit-avatar flex h-8 w-8 items-center justify-center rounded-full font-bold">
                                         {{ strtoupper(substr($log->user->name ?? 'A', 0, 1)) }}
                                     </div>
-                                    <span class="audit-name">{{ $log->user->name ?? 'Unknown' }}</span>
+                                    <span class="audit-name">{{ $log->actor_name ?? $log->user?->name ?? 'Unknown' }}</span>
                                 </td>
 
                                 <td data-label="Action" class="px-4 md:px-6 py-4">

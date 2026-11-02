@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Patient;
+use App\Models\AuditLog;
 use App\Models\Ultrasound;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -23,6 +24,22 @@ function fwaFeatureStaff(): User
     return User::factory()->create(['role' => 'staff']);
 }
 
+function fwaFeatureImage(): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent(
+        'report.png',
+        base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/r9sAAAAASUVORK5CYII=')
+    );
+}
+
+function fwaFeatureJfif(): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent(
+        'report.jfif',
+        base64_decode('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AT//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AT//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Al//xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/IT//2Q==')
+    );
+}
+
 function fwaFeaturePayload(Patient $patient, array $overrides = []): array
 {
     return array_merge([
@@ -35,7 +52,7 @@ function fwaFeaturePayload(Patient $patient, array $overrides = []): array
         'presentation' => 'Cephalic',
         'amniotic_fluid' => 'Normal',
         'placenta_position' => 'Posterior',
-        'report_file' => UploadedFile::fake()->create('report.pdf', 100, 'application/pdf'),
+        'report_file' => fwaFeatureImage(),
         'remarks' => 'FWA regression record',
     ], $overrides);
 }
@@ -68,6 +85,38 @@ it('renders both assessment panels with the live config on ultrasound create', f
     expect($html)->toContain('data-fetal-assessment-live');
     expect(substr_count($html, 'data-assessment="fwa" data-status'))->toBe(1);
     expect(substr_count($html, 'data-assessment="fhr" data-status'))->toBe(1);
+});
+
+it('renders immediate image type and size validation on create and edit', function () {
+    $patient = fwaFeaturePatient();
+    $ultrasound = Ultrasound::create([
+        'patient_id' => $patient->id,
+        'scan_date' => today()->toDateString(),
+        'gestational_age_scan' => 20,
+        'estimated_fetal_weight' => 1500,
+        'fetal_heartbeat' => 'Normal 120-160',
+        'fetal_movement' => 'Active',
+        'presentation' => 'Cephalic',
+        'amniotic_fluid' => 'Normal',
+        'placenta_position' => 'Posterior',
+        'remarks' => 'Upload validation UI test',
+    ]);
+
+    foreach ([
+        route('ultrasound.create', $patient->id),
+        route('ultrasound.edit', $ultrasound->id),
+    ] as $url) {
+        $html = $this->actingAs(fwaFeatureStaff())->get($url)
+            ->assertOk()
+            ->getContent();
+
+        expect($html)
+            ->toContain('accept=".jpg,.jpeg,.jfif,.png,.webp"')
+            ->toContain('id="fileUploadError"')
+            ->toContain('Please choose a JPG, JPEG, JFIF, PNG, or WebP image.')
+            ->toContain('Image size must not exceed 5MB.')
+            ->toContain('const maxFileSize = 5 * 1024 * 1024');
+    }
 });
 
 it('embeds config-only recommendation text for live client updates', function () {
@@ -173,7 +222,12 @@ it('stores previously blocked weights unchanged on create', function () {
     expect($saved)->not->toBeNull();
     expect((float) $saved->estimated_fetal_weight)->toBe(1800.0);
     expect((float) $saved->gestational_age_scan)->toBe(32.7);
-    expect($saved->fetal_heartbeat)->toBe('Normal 120-160');
+    expect($saved->fetal_heartbeat)->toBe('Normal 120-160')
+        ->and(AuditLog::where('action', 'CREATE')
+            ->where('module', 'ULTRASOUND')
+            ->where('record_type', 'ULTRASOUND')
+            ->where('record_id', $saved->id)
+            ->count())->toBe(1);
 
     $low = $this->actingAs(fwaFeatureStaff())
         ->post(route('ultrasound.store'), fwaFeaturePayload($patient, [
@@ -190,6 +244,64 @@ it('stores previously blocked weights unchanged on create', function () {
         ]));
     $high->assertSessionHasNoErrors();
     expect((float) Ultrasound::latest('id')->first()->estimated_fetal_weight)->toBe(3500.0);
+});
+
+it('accepts ultrasound images but rejects PDFs on create', function () {
+    $patient = fwaFeaturePatient();
+
+    $this->actingAs(fwaFeatureStaff())
+        ->post(route('ultrasound.store'), fwaFeaturePayload($patient, [
+            'report_file' => UploadedFile::fake()->create('report.pdf', 100, 'application/pdf'),
+        ]))
+        ->assertSessionHasErrors('report_file');
+
+    expect(Ultrasound::count())->toBe(0);
+});
+
+it('accepts valid JFIF ultrasound images on create', function () {
+    $patient = fwaFeaturePatient();
+
+    $this->actingAs(fwaFeatureStaff())
+        ->post(route('ultrasound.store'), fwaFeaturePayload($patient, [
+            'report_file' => fwaFeatureJfif(),
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect(Ultrasound::latest('id')->first()->report_image)->not->toBeNull();
+});
+
+it('rejects PDF replacement uploads while allowing an edit without a new image', function () {
+    $patient = fwaFeaturePatient();
+    $ultrasound = Ultrasound::create([
+        'patient_id' => $patient->id,
+        'scan_date' => today()->toDateString(),
+        'gestational_age_scan' => 20,
+        'estimated_fetal_weight' => 1500,
+        'fetal_heartbeat' => 'Normal 120-160',
+        'fetal_movement' => 'Active',
+        'presentation' => 'Cephalic',
+        'amniotic_fluid' => 'Normal',
+        'placenta_position' => 'Posterior',
+        'remarks' => 'Before update',
+    ]);
+
+    $this->actingAs(fwaFeatureStaff())
+        ->put(route('ultrasound.update', $ultrasound->id), fwaFeaturePayload($patient, [
+            'report_file' => UploadedFile::fake()->create('report.pdf', 100, 'application/pdf'),
+        ]))
+        ->assertSessionHasErrors('report_file');
+
+    $this->actingAs(fwaFeatureStaff())
+        ->put(route('ultrasound.update', $ultrasound->id), fwaFeaturePayload($patient, [
+            'report_file' => null,
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect(AuditLog::where('action', 'UPDATE')
+        ->where('module', 'ULTRASOUND')
+        ->where('record_type', 'ULTRASOUND')
+        ->where('record_id', $ultrasound->id)
+        ->count())->toBe(1);
 });
 
 it('updates previously blocked weights unchanged on update', function () {

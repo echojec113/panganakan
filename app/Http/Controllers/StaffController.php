@@ -68,7 +68,9 @@ class StaffController extends Controller
 $this->logAction(
     'CREATE',
     'STAFF',
-    'Created staff: ' . $staff->name
+    'Created staff account #' . $staff->id . '.',
+    'USER',
+    (int) $staff->id
 );
 
 try {
@@ -117,7 +119,9 @@ public function update(StaffProfileRequest $request, User $staff)
     $this->logAction(
         'UPDATE',
         'STAFF',
-        'Updated staff: ' . $staff->name
+        'Updated staff account #' . $staff->id . '.',
+        'USER',
+        (int) $staff->id
     );
 
     return redirect()->route('staff.index')->with('success', 'Staff updated.');
@@ -128,13 +132,15 @@ public function destroy(User $staff)
     $this->checkAdmin();
     abort_unless($staff->role === 'staff', 404);
 
-    $name = $staff->name;
+    $staffId = (int) $staff->id;
     $staff->delete();
 
     $this->logAction(
         'ARCHIVE',
         'STAFF',
-        'Staff account deactivated: ' . $name
+        'Staff account deactivated: ' . $staff->name,
+        'USER',
+        $staffId
     );
 
     return redirect()->route('staff.index')->with('success', 'Staff account deactivated successfully.');
@@ -153,7 +159,9 @@ public function resetAccount(User $staff)
         $this->logAction(
             'PASSWORD_RESET_REQUESTED',
             'STAFF',
-            'Admin requested password reset for staff: '.$staff->name.' (ID: '.$staff->id.')'
+            'Admin requested password reset for staff account #' . $staff->id . '.',
+            'USER',
+            (int) $staff->id
         );
 
         return redirect()->route('staff.index')
@@ -177,13 +185,14 @@ public function restore($id)
         ->where('role', 'staff')
         ->findOrFail($id);
 
-    $name = $staff->name;
     $staff->restore();
 
     $this->logAction(
         'RESTORE',
         'STAFF',
-        'Staff account reactivated: ' . $name
+        'Staff account reactivated: ' . $staff->name,
+        'USER',
+        (int) $staff->id
     );
 
     return redirect()->route('staff.index')->with('success', 'Staff account reactivated successfully.');

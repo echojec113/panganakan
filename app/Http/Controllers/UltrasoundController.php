@@ -66,7 +66,7 @@ class UltrasoundController extends Controller
     'estimated_fetal_weight' => 'required|numeric|min:200|max:5000',
 
     // File & Remarks
-    'report_file' => 'required|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+    'report_file' => 'required|image|mimes:jpg,jpeg,jfif,png,webp|max:5120',
     'remarks' => 'required|string|max:1000',
 ], [
             // Custom error messages
@@ -80,8 +80,9 @@ class UltrasoundController extends Controller
             'gestational_age_scan.max' => 'Gestational age cannot exceed 42 weeks',
             'estimated_fetal_weight.min' => 'Estimated fetal weight must be at least 200 grams',
             'estimated_fetal_weight.max' => 'Estimated fetal weight cannot exceed 5000 grams',
-            'report_file.max' => 'File size must not exceed 5MB',
-            'report_file.mimes' => 'File must be PDF, JPG, JPEG, PNG, or WebP format',
+            'report_file.image' => 'The ultrasound report must be an image.',
+            'report_file.max' => 'Image size must not exceed 5MB',
+            'report_file.mimes' => 'Image must be JPG, JPEG, JFIF, PNG, or WebP format',
             'remarks.max' => 'Remarks cannot exceed 1000 characters',
             'patient_id.required' => 'Patient is required.',
 'scan_date.required' => 'Scan date is required.',
@@ -134,15 +135,9 @@ class UltrasoundController extends Controller
         $reportFile = null;
 
         if ($request->hasFile('report_file')) {
-            $file = $request->file('report_file');
             $storedPath = $this->storeReportFile($request, $patient);
 
-            // Route by MIME type, never by trusting the original filename.
-            if ($this->isImageFile($file)) {
-                $reportImage = $storedPath;
-            } else {
-                $reportFile = $storedPath;
-            }
+            $reportImage = $storedPath;
         }
 
         // ======================
@@ -167,7 +162,10 @@ class UltrasoundController extends Controller
         $this->logAction(
             'CREATE',
             'ULTRASOUND',
-            'Added ultrasound for patient: ' . $patient->first_name . ' ' . $patient->last_name
+            'Created ultrasound record #' . $ultrasound->id . ' for patient #' . $patient->id . '.',
+            'ULTRASOUND',
+            (int) $ultrasound->id,
+            (int) $patient->id
         );
 
         // Auto-recalculate incomplete prenatal visits
@@ -258,7 +256,7 @@ class UltrasoundController extends Controller
     'gestational_age_scan' => 'required|numeric|min:4|max:42',
     'estimated_fetal_weight' => 'required|numeric|min:200|max:5000',
 
-    'report_file' => 'nullable|file|mimes:pdf,jpg,jpeg,png,webp|max:5120',
+    'report_file' => 'nullable|image|mimes:jpg,jpeg,jfif,png,webp|max:5120',
     'remarks' => 'required|string|max:1000',
 ], [
             'scan_date.before_or_equal' => 'Scan date cannot be in the future',
@@ -271,8 +269,9 @@ class UltrasoundController extends Controller
             'gestational_age_scan.max' => 'Gestational age cannot exceed 42 weeks',
             'estimated_fetal_weight.min' => 'Estimated fetal weight must be at least 200 grams',
             'estimated_fetal_weight.max' => 'Estimated fetal weight cannot exceed 5000 grams',
-            'report_file.max' => 'File size must not exceed 5MB',
-            'report_file.mimes' => 'File must be PDF, JPG, JPEG, PNG, or WebP format',
+            'report_file.image' => 'The ultrasound report must be an image.',
+            'report_file.max' => 'Image size must not exceed 5MB',
+            'report_file.mimes' => 'Image must be JPG, JPEG, JFIF, PNG, or WebP format',
             'remarks.max' => 'Remarks cannot exceed 1000 characters',
             'scan_date.required' => 'Scan date is required.',
             'fetal_heartbeat.required' => 'Fetal heartbeat is required.',
@@ -313,20 +312,15 @@ class UltrasoundController extends Controller
         // FILE HANDLING
         // ======================
         $replacedImage = false;
-        $replacedPdf = false;
 
         if ($request->hasFile('report_file')) {
-            $file = $request->file('report_file');
-            $column = $this->isImageFile($file) ? 'report_image' : 'report_file';
-
-            // Delete the previous file of the same type only, keeping the other.
-            if ($ultrasound->{$column} && \Storage::disk('public')->exists($ultrasound->{$column})) {
-                \Storage::disk('public')->delete($ultrasound->{$column});
+            // Replace the previous image while retaining any legacy PDF report.
+            if ($ultrasound->report_image && \Storage::disk('public')->exists($ultrasound->report_image)) {
+                \Storage::disk('public')->delete($ultrasound->report_image);
             }
 
-            $ultrasound->{$column} = $this->storeReportFile($request, $patient);
-            $replacedImage = $column === 'report_image';
-            $replacedPdf = $column === 'report_file';
+            $ultrasound->report_image = $this->storeReportFile($request, $patient);
+            $replacedImage = true;
         }
 
         // ======================
@@ -334,14 +328,14 @@ class UltrasoundController extends Controller
         // ======================
         // The edit form marks existing files for removal via remove_image /
         // remove_pdf. The physical file is deleted only here, on a successful
-        // save. If a fresh replacement was just uploaded for a type, that
-        // upload wins and the X only cancels the already-replaced old file.
+        // save. If a fresh image replacement was just uploaded, that upload
+        // wins and the X only cancels the already-replaced old image.
         if ($request->boolean('remove_image') && !$replacedImage) {
             $this->deleteUltrasoundFile($ultrasound->report_image);
             $ultrasound->report_image = null;
         }
 
-        if ($request->boolean('remove_pdf') && !$replacedPdf) {
+        if ($request->boolean('remove_pdf')) {
             $this->deleteUltrasoundFile($ultrasound->report_file);
             $ultrasound->report_file = null;
         }
@@ -365,7 +359,10 @@ class UltrasoundController extends Controller
         $this->logAction(
             'UPDATE',
             'ULTRASOUND',
-            'Updated ultrasound for patient: ' . $patient->first_name . ' ' . $patient->last_name
+            'Updated ultrasound record #' . $ultrasound->id . '.',
+            'ULTRASOUND',
+            (int) $ultrasound->id,
+            (int) $ultrasound->patient_id
         );
 
         // Auto-recalculate incomplete prenatal visits
@@ -378,7 +375,7 @@ class UltrasoundController extends Controller
     public function destroy($id)
     {
         $ultrasound = Ultrasound::findOrFail($id);
-        $patientName = $ultrasound->patient->first_name . ' ' . $ultrasound->patient->last_name;
+        $patientId = (int) $ultrasound->patient_id;
         
         // Delete files if they exist
         foreach (['report_image', 'report_file'] as $column) {
@@ -391,7 +388,10 @@ class UltrasoundController extends Controller
         $this->logAction(
             'DELETE',
             'ULTRASOUND',
-            'Deleted ultrasound for patient: ' . $patientName
+            'Deleted ultrasound record #' . $ultrasound->id . '.',
+            'ULTRASOUND',
+            (int) $ultrasound->id,
+            $patientId
         );
         
         return redirect()->route('patients.show', $ultrasound->patient_id)
@@ -399,12 +399,12 @@ class UltrasoundController extends Controller
     }
 
     /**
-     * Stream an ultrasound report file (image or PDF) inline to authorized users.
+     * Stream an ultrasound report file (image or legacy PDF) to authorized users.
      *
      * The route sits inside the auth group (admin and staff only) and the type
      * whitelist prevents access to arbitrary filesystem paths.
      *
-     * @param string $type 'image' | 'pdf'
+     * @param string $type 'image' | 'pdf' (PDFs are retained for legacy records)
      */
     public function file($id, string $type)
     {
@@ -431,14 +431,6 @@ class UltrasoundController extends Controller
         $fileName = time() . '_' . $patient->id . '_' . $request->scan_date . '_' . Str::random(6) . '.' . $file->getClientOriginalExtension();
 
         return $file->storeAs('ultrasounds', $fileName, 'public');
-    }
-
-    /**
-     * Determine whether an upload is an image by MIME type.
-     */
-    private function isImageFile(\Illuminate\Http\UploadedFile $file): bool
-    {
-        return str_starts_with((string) $file->getMimeType(), 'image/');
     }
 
     /**

@@ -179,6 +179,15 @@ class PatientController extends Controller
     // partially-restored patient.
     DB::transaction(function () use ($patient) {
         $patient->restore(); // 🔥 triggers cascade restore
+
+        $this->logAction(
+            'RESTORE',
+            'PATIENT',
+            'Restored patient record #' . $patient->id . '.',
+            'PATIENT',
+            (int) $patient->id,
+            (int) $patient->id
+        );
     });
 
     return redirect()->route('patients.index')
@@ -286,7 +295,10 @@ class PatientController extends Controller
     $this->logAction(
         'CREATE',
         'PATIENT',
-        'Added patient: ' . $patient->first_name . ' ' . $patient->last_name
+        'Created patient record #' . $patient->id . '.',
+        'PATIENT',
+        (int) $patient->id,
+        (int) $patient->id
     );
 
     $actor = $request->user();
@@ -1446,7 +1458,10 @@ if ((int) $request->para === 0 && (int) $request->previous_cs === 1) {
 $this->logAction(
     'UPDATE',
     'PATIENT',
-    'Updated patient: ' . $patient->first_name . ' ' . $patient->last_name
+    'Updated patient record #' . $patient->id . '.',
+    'PATIENT',
+    (int) $patient->id,
+    (int) $patient->id
 );
 
     return redirect()->route('patients.index')
@@ -1460,20 +1475,21 @@ $this->logAction(
 {
     $patient = \App\Models\Patient::findOrFail($id);
 
-    $name = $patient->first_name . ' ' . $patient->last_name;
-
     // One transaction across the parent soft delete, every cascade delete
     // fired by Patient's deleting model event, and the audit entry, so a
     // mid-cascade failure leaves no partially-archived patient behind and
     // no audit row claims an archive that was rolled back.
-    DB::transaction(function () use ($patient, $name) {
+    DB::transaction(function () use ($patient) {
         $patient->delete();
 
         // ✅ AUDIT LOG
         $this->logAction(
             'DELETE',
             'PATIENT',
-            'Deleted patient: ' . $name
+            'Archived patient record #' . $patient->id . '.',
+            'PATIENT',
+            (int) $patient->id,
+            (int) $patient->id
         );
     });
 
@@ -1539,8 +1555,11 @@ public function markDelivered(Request $request, $id)
     $this->logAction(
         'UPDATE',
         'PATIENT',
-        'Recorded confirmed delivery outcome for ' . $patient->first_name . ' ' . $patient->last_name
-            . ' with ' . count($babiesData) . ' ' . $babyLabel . '.'
+        'Recorded confirmed delivery outcome for patient #' . $patient->id
+            . ' with ' . count($babiesData) . ' ' . $babyLabel . '.',
+        'PATIENT',
+        (int) $patient->id,
+        (int) $patient->id
     );
 
     return redirect()->route('patients.delivered')
@@ -1708,7 +1727,10 @@ public function updateBaby(Request $request, $id)
     $this->logAction(
         'UPDATE',
         'BABY',
-        'Updated baby information: ' . $baby->full_name
+        'Updated baby record #' . $baby->id . ' for patient #' . $baby->patient_id . '.',
+        'BABY',
+        (int) $baby->id,
+        (int) $baby->patient_id
     );
 
     return response()->json([

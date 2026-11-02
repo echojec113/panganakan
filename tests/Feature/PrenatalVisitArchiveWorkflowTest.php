@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PatientController;
+use App\Models\AuditLog;
 use App\Models\Patient;
 use App\Models\PrenatalVisit;
 use App\Models\User;
@@ -98,6 +99,14 @@ it('restores an individually archived visit without deleting it', function () {
         'patient_id' => $patient->id,
         'deleted_at' => null,
     ]);
+
+    expect(AuditLog::where('action', 'RESTORE')
+        ->where('module', 'PRENATAL_VISIT')
+        ->where('record_type', 'PRENATAL_VISIT')
+        ->where('record_id', $visit->id)
+        ->where('patient_id', $patient->id)
+        ->where('user_id', $user->id)
+        ->count())->toBe(1);
 
     $this->actingAs($user)
         ->get(route('prenatal-visits.index'))

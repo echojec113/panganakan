@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Models\AuditLog;
 use Illuminate\Support\Facades\Hash;
 
 test('password can be updated', function () {
@@ -20,6 +21,10 @@ test('password can be updated', function () {
         ->assertRedirect('/profile');
 
     $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
+    expect(AuditLog::where('action', 'PASSWORD_CHANGED')
+        ->where('record_type', 'USER')
+        ->where('record_id', $user->id)
+        ->count())->toBe(1);
 });
 
 test('correct password must be provided to update password', function () {
@@ -37,4 +42,6 @@ test('correct password must be provided to update password', function () {
     $response
         ->assertSessionHasErrorsIn('updatePassword', 'current_password')
         ->assertRedirect('/profile');
+
+    expect(AuditLog::where('action', 'PASSWORD_CHANGED')->count())->toBe(0);
 });

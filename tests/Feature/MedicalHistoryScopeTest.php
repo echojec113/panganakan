@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\MedicalHistory;
 use App\Models\Patient;
 use App\Models\PrenatalVisit;
@@ -68,7 +69,13 @@ it('stores a medical history with booleans normalized and other_specify null whe
     expect($history->diabetes)->toBe(1);
     expect($history->anemia)->toBe(0);
     expect($history->severe_headache)->toBe(0);
-    expect($history->other_specify)->toBeNull();
+    expect($history->other_specify)->toBeNull()
+        ->and(AuditLog::where('action', 'CREATE')
+            ->where('module', 'MEDICAL_HISTORY')
+            ->where('record_type', 'MEDICAL_HISTORY')
+            ->where('record_id', $history->id)
+            ->where('user_id', $user->id)
+            ->count())->toBe(1);
 });
 
 it('rejects a medical history for a patient id that does not exist', function () {
@@ -141,7 +148,13 @@ it('preserves the original patient_id on update even if a different id is posted
     $history->refresh();
 
     expect($history->patient_id)->toBe($patient->id);
-    expect($history->diabetes)->toBe(1);
+    expect($history->diabetes)->toBe(1)
+        ->and(AuditLog::where('action', 'UPDATE')
+            ->where('module', 'MEDICAL_HISTORY')
+            ->where('record_type', 'MEDICAL_HISTORY')
+            ->where('record_id', $history->id)
+            ->where('user_id', $user->id)
+            ->count())->toBe(1);
 });
 
 it('clears other_specify on update when the other checkbox is unchecked', function () {

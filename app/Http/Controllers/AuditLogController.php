@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AuditLogController extends Controller
 {
@@ -18,25 +19,54 @@ class AuditLogController extends Controller
     {
         $this->checkAdmin();
 
-        $query = AuditLog::with('user')->latest();
+        $validated = $request->validate([
+            'action' => ['nullable', 'string', 'max:100'],
+            'module' => ['nullable', 'string', 'max:100'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
 
-        // 🔍 FILTER: action
-        if ($request->action) {
-            $query->where('action', $request->action);
+        $actions = collect([
+            'CREATE',
+            'UPDATE',
+            'DELETE',
+            'ARCHIVE',
+            'RESTORE',
+            'CONFIRM',
+            'DECLINE',
+            'CANCEL',
+            'COMPLETE',
+            'RESCHEDULE',
+        ])->merge(AuditLog::query()->distinct()->orderBy('action')->pluck('action'))
+            ->unique()
+            ->sort()
+            ->values();
+        $modules = AuditLog::query()
+            ->distinct()
+            ->orderBy('module')
+            ->pluck('module');
+
+        $request->validate([
+            'action' => ['nullable', Rule::in($actions->all())],
+            'module' => ['nullable', Rule::in($modules->all())],
+        ]);
+
+        $query = AuditLog::with('user')->orderByDesc('created_at')->orderByDesc('id');
+
+        if (! empty($validated['action'])) {
+            $query->where('action', $validated['action']);
         }
 
-        // 🔍 FILTER: module
-        if ($request->module) {
-            $query->where('module', $request->module);
+        if (! empty($validated['module'])) {
+            $query->where('module', $validated['module']);
         }
 
-        // 🔍 SEARCH
-        if ($request->search) {
-            $query->where('description', 'like', '%' . $request->search . '%');
+        if (! empty($validated['search'])) {
+            $query->where('description', 'like', '%' . $validated['search'] . '%');
         }
 
-        $logs = $query->paginate(10);
+        $logs = $query->paginate(10)->withQueryString();
 
-        return view('audit_logs.index', compact('logs'));
+        return view('audit_logs.index', compact('logs', 'actions', 'modules'));
     }
 }

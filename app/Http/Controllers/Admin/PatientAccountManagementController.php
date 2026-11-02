@@ -237,9 +237,12 @@ class PatientAccountManagementController extends Controller
 
             AuditLog::create([
                 'user_id' => $actor->id,
+                'actor_name' => $actor->name,
                 'patient_id' => $account->patientAccount()->value('id'),
                 'action' => 'PATIENT_ACCOUNT_DEACTIVATED',
                 'module' => 'PATIENT',
+                'record_type' => 'USER',
+                'record_id' => $account->id,
                 // ID-only: never the email, the name or any clinical value.
                 'description' => sprintf(
                     'Admin deactivated patient portal account (user ID %d).',
@@ -293,9 +296,12 @@ class PatientAccountManagementController extends Controller
 
             AuditLog::create([
                 'user_id' => $actor->id,
+                'actor_name' => $actor->name,
                 'patient_id' => $account->patientAccount()->value('id'),
                 'action' => 'PATIENT_ACCOUNT_REACTIVATED',
                 'module' => 'PATIENT',
+                'record_type' => 'USER',
+                'record_id' => $account->id,
                 'description' => sprintf(
                     'Admin reactivated patient portal account (user ID %d).',
                     $account->id

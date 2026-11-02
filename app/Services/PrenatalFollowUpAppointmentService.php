@@ -365,10 +365,13 @@ class PrenatalFollowUpAppointmentService
     {
         AuditLog::create([
             'user_id' => $actor->id,
+            'actor_name' => $actor->name,
             'patient_id' => $appointment->patient_id,
             'action' => $action,
             'module' => 'APPOINTMENT',
             'description' => $description . ' Status: ' . $appointment->status . '.',
+            'record_type' => 'APPOINTMENT',
+            'record_id' => $appointment->id,
         ]);
     }
 

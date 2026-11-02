@@ -97,7 +97,7 @@ class ReconcilePregnancyHistoryLinks extends Command
                         $plan,
                         $anchor,
                         $owner,
-                        $owner,
+                        null,
                         null
                     ))
                 );

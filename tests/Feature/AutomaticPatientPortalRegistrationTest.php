@@ -1,6 +1,7 @@
 <?php
 
 use App\Mail\PatientAccountSetupMail;
+use App\Models\AuditLog;
 use App\Models\Patient;
 use App\Models\User;
 use App\Services\PatientAccountCreationService;
@@ -73,6 +74,15 @@ it('normalizes registration email and automatically provisions a portal account 
         ->and($patient->user_id)->toBe($account->id)
         ->and($account->email)->toBe('ana.registration@example.test')
         ->and($account->must_change_password)->toBeTrue();
+
+    $patientAudit = AuditLog::where('action', 'CREATE')
+        ->where('module', 'PATIENT')
+        ->where('record_type', 'PATIENT')
+        ->where('record_id', $patient->id)
+        ->sole();
+    expect($patientAudit->user_id)->toBe($staff->id)
+        ->and($patientAudit->actor_name)->toBe($staff->name)
+        ->and($patientAudit->patient_id)->toBe($patient->id);
 
     Mail::assertSent(PatientAccountSetupMail::class, function (PatientAccountSetupMail $mail): bool {
         return $mail->hasTo('ana.registration@example.test')

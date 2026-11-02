@@ -98,6 +98,13 @@ it('restores an archived referral back to the active list', function () {
 
     $this->assertDatabaseHas('referrals', ['id' => $referral->id, 'deleted_at' => null]);
 
+    expect(AuditLog::where('action', 'RESTORE')
+        ->where('module', 'REFERRAL')
+        ->where('record_type', 'REFERRAL')
+        ->where('record_id', $referral->id)
+        ->where('user_id', $user->id)
+        ->count())->toBe(1);
+
     $this->actingAs($user)
         ->get(route('referrals.index'))
         ->assertOk()
@@ -183,5 +190,5 @@ it('records an ARCHIVE REFERRAL audit entry when a referral is archived', functi
     expect($audit)->not->toBeNull()
         ->and($audit->user_id)->toBe($user->id)
         ->and($audit->description)->toContain('referral #' . $referral->id)
-        ->and($audit->description)->toContain('patient ID: ' . $patient->id);
+        ->and($audit->description)->toContain('patient #' . $patient->id);
 });

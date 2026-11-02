@@ -114,7 +114,10 @@ class BirthPlanController extends Controller
 $this->logAction(
     'CREATE',
     'BIRTH_PLAN',
-    'Created birth plan for patient ID: ' . $request->patient_id
+    'Created birth plan record #' . $birthPlan->id . ' for patient #' . $birthPlan->patient_id . '.',
+    'BIRTH_PLAN',
+    (int) $birthPlan->id,
+    (int) $birthPlan->patient_id
 );
 
         // Auto-recalculate incomplete prenatal visits
@@ -186,7 +189,10 @@ $this->logAction(
 $this->logAction(
     'UPDATE',
     'BIRTH_PLAN',
-    'Updated birth plan for patient ID: ' . $birthPlan->patient_id
+    'Updated birth plan record #' . $birthPlan->id . '.',
+    'BIRTH_PLAN',
+    (int) $birthPlan->id,
+    (int) $birthPlan->patient_id
 );
 
     // Auto-recalculate incomplete prenatal visits
@@ -209,7 +215,10 @@ $this->logAction(
     $this->logAction(
         'DELETE',
         'BIRTH_PLAN',
-        'Deleted birth plan for patient ID: ' . $patient_id
+        'Deleted birth plan record #' . $birthPlan->id . '.',
+        'BIRTH_PLAN',
+        (int) $birthPlan->id,
+        (int) $patient_id
     );
 
     return redirect()->route('patients.show',$patient_id)

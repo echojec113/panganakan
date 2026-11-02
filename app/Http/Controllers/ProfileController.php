@@ -34,6 +34,14 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        $this->logAction(
+            'UPDATE',
+            'USER',
+            'Updated profile for user #' . $request->user()->id . '.',
+            'USER',
+            (int) $request->user()->id
+        );
+
         return Redirect::route('profile.edit')
             ->with('status', 'profile-updated');
     }
@@ -76,6 +84,14 @@ class ProfileController extends Controller
         $user->profile_photo_path = $newPhotoPath;
         $user->save();
 
+        $this->logAction(
+            'UPDATE',
+            'USER',
+            'Updated profile photo for user #' . $user->id . '.',
+            'USER',
+            (int) $user->id
+        );
+
         /*
          * Remove the previous profile photo after the new one
          * has successfully been stored and attached to the user.
@@ -107,6 +123,14 @@ class ProfileController extends Controller
 
         $user->profile_photo_path = null;
         $user->save();
+
+        $this->logAction(
+            'UPDATE',
+            'USER',
+            'Removed profile photo for user #' . $user->id . '.',
+            'USER',
+            (int) $user->id
+        );
 
         return Redirect::route('profile.edit')
             ->with('status', 'profile-photo-removed');

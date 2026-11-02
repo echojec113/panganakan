@@ -191,9 +191,9 @@ class PatientAppointmentController extends Controller
      * Phase 3B.4: once the createOnlineRequest() transaction has committed
      * (the service has returned normally), every active Admin/Staff
      * account is notified of the new ONLINE request. Walk-in creation is
-     * a separate clinic-side path and never reaches this controller. No
-     * audit entry is written here (online requests stay unaudited, as in
-     * Phase 3B.3) and the patient is not notified about their own
+     * a separate clinic-side path and never reaches this controller. The
+     * service writes the audit entry in the booking transaction; this
+     * controller does not add a duplicate. The patient is not notified about their own
      * submission — the success redirect already confirms receipt.
      */
     public function store(PatientAppointmentStoreRequest $request): RedirectResponse

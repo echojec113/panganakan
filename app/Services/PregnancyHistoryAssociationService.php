@@ -131,8 +131,8 @@ class PregnancyHistoryAssociationService
      *
      * Audit rows use record IDs only - never patient names or any other
      * identifying detail. `verified_by` records the acting staff member
-     * when one exists (account creation); console reconciliation passes
-     * null because no staff verifier identity is reliably available.
+     * when one exists (account creation); console reconciliation records
+     * an explicit System actor because no authenticated user is present.
      *
      * @return list<int> the episode IDs newly linked
      */
@@ -140,7 +140,7 @@ class PregnancyHistoryAssociationService
         array $plan,
         Patient $anchor,
         User $ownerAccount,
-        User $auditActor,
+        ?User $auditActor,
         ?int $verifiedBy = null
     ): array {
         $created = [];
@@ -154,10 +154,13 @@ class PregnancyHistoryAssociationService
             $link->save();
 
             AuditLog::create([
-                'user_id' => $auditActor->getKey(),
+                'user_id' => $auditActor?->getKey(),
+                'actor_name' => $auditActor?->name ?? 'System (depla:reconcile-pregnancy-history)',
                 'patient_id' => $episodeId,
                 'action' => 'PREGNANCY_HISTORY_LINKED',
                 'module' => 'PATIENT',
+                'record_type' => 'USER_PREGNANCY_LINK',
+                'record_id' => $link->getKey(),
                 'description' => $verifiedBy === null
                     ? sprintf(
                         'Verified pregnancy history link auto-associated by console reconciliation: login user ID %d <- pregnancy episode ID %d (same four-field identity as patient ID %d).',

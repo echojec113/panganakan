@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 
@@ -20,9 +21,19 @@ class PasswordController extends Controller
             'password' => ['required', Password::defaults(), 'confirmed'],
         ]);
 
-        $request->user()->update([
-            'password' => Hash::make($validated['password']),
-        ]);
+        DB::transaction(function () use ($request, $validated): void {
+            $request->user()->update([
+                'password' => Hash::make($validated['password']),
+            ]);
+
+            $this->logAction(
+                'PASSWORD_CHANGED',
+                'USER',
+                'Authenticated user #' . $request->user()->id . ' changed their password.',
+                'USER',
+                (int) $request->user()->id
+            );
+        });
 
         return back()->with('status', 'password-updated');
     }

@@ -39,10 +39,14 @@ class UltrasoundPresentationRegressionTest extends TestCase
         });
         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->string('actor_name')->nullable();
+            $table->unsignedBigInteger('patient_id')->nullable();
             $table->string('action');
             $table->string('module');
             $table->text('description');
+            $table->string('record_type')->nullable();
+            $table->unsignedBigInteger('record_id')->nullable();
             $table->timestamps();
         });
 

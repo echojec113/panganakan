@@ -87,7 +87,10 @@ class MedicalHistoryController extends Controller
         $this->logAction(
             'CREATE',
             'MEDICAL_HISTORY',
-            'Added medical history for patient ID: ' . $validated['patient_id']
+            'Created medical history record #' . $history->id . '.',
+            'MEDICAL_HISTORY',
+            (int) $history->id,
+            (int) $history->patient_id
         );
 
         // Recalculate only ASSESSMENT INCOMPLETE visits; finalized visits are preserved.
@@ -128,7 +131,10 @@ class MedicalHistoryController extends Controller
         $this->logAction(
             'UPDATE',
             'MEDICAL_HISTORY',
-            'Updated medical history for patient ID: ' . $history->patient_id
+            'Updated medical history record #' . $history->id . '.',
+            'MEDICAL_HISTORY',
+            (int) $history->id,
+            (int) $history->patient_id
         );
 
         // Recalculate only ASSESSMENT INCOMPLETE visits; finalized visits are preserved.

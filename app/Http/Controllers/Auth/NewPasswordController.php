@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
@@ -75,10 +76,22 @@ class NewPasswordController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {
-                $user->forceFill([
-                    'password' => Hash::make($request->password),
-                    'remember_token' => Str::random(60),
-                ])->save();
+                DB::transaction(function () use ($user, $request): void {
+                    $user->forceFill([
+                        'password' => Hash::make($request->password),
+                        'remember_token' => Str::random(60),
+                    ])->save();
+
+                    \App\Models\AuditLog::create([
+                        'user_id' => $user->id,
+                        'actor_name' => $user->name,
+                        'action' => 'PASSWORD_RESET',
+                        'module' => 'USER',
+                        'record_type' => 'USER',
+                        'record_id' => $user->id,
+                        'description' => 'User #' . $user->id . ' completed a password reset using a valid reset link.',
+                    ]);
+                });
 
                 event(new PasswordReset($user));
             }

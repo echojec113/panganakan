@@ -521,7 +521,8 @@ test('reconciliation --apply creates the missing verified links with ID-only aud
 
     $audit = AuditLog::where('action', 'PREGNANCY_HISTORY_LINKED')->first();
     expect($audit)->not->toBeNull()
-        ->and($audit->user_id)->toBe($owner->id)
+        ->and($audit->user_id)->toBeNull()
+        ->and($audit->actor_name)->toBe('System (depla:reconcile-pregnancy-history)')
         ->and($audit->description)
         ->toContain('console reconciliation')
         ->toContain('user ID ' . $owner->id)

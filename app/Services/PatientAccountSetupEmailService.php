@@ -35,9 +35,12 @@ class PatientAccountSetupEmailService
             try {
                 AuditLog::create([
                     'user_id' => $actor->id,
+                    'actor_name' => $actor->name,
                     'patient_id' => $user->patientAccount()->value('id'),
                     'action' => 'PATIENT_SETUP_EMAIL_FAILED',
                     'module' => 'PATIENT',
+                    'record_type' => 'USER',
+                    'record_id' => $user->id,
                     'description' => sprintf(
                         'Patient portal setup email for user ID %d could not be sent (%s). The account remains pending setup.',
                         $user->id,
@@ -58,9 +61,12 @@ class PatientAccountSetupEmailService
         if ($auditResend) {
             AuditLog::create([
                 'user_id' => $actor->id,
+                'actor_name' => $actor->name,
                 'patient_id' => $user->patientAccount()->value('id'),
                 'action' => 'PATIENT_SETUP_EMAIL_RESENT',
                 'module' => 'PATIENT',
+                'record_type' => 'USER',
+                'record_id' => $user->id,
                 'description' => sprintf(
                     'Patient portal setup email resent for user ID %d. The previous setup link was invalidated.',
                     $user->id

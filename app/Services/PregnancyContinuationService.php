@@ -168,9 +168,12 @@ class PregnancyContinuationService
             // credential material, never auth()->id() ?? 1.
             AuditLog::create([
                 'user_id' => $actor->id,
+                'actor_name' => $actor->name,
                 'patient_id' => $new->id,
                 'action' => 'CREATE',
                 'module' => 'PATIENT',
+                'record_type' => 'PATIENT',
+                'record_id' => $new->id,
                 'description' => $userId !== null
                     ? sprintf(
                         'Started new pregnancy record (patient ID %d) continuing from delivered pregnancy (patient ID %d). Login account (user ID %d) transferred to the new episode; verified history links recorded for both episodes.',

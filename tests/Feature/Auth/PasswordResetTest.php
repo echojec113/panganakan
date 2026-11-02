@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\DB;
@@ -77,6 +78,14 @@ test('password can be reset with valid token', function () {
         $response
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('login'));
+
+        $audit = AuditLog::where('action', 'PASSWORD_RESET')
+            ->where('module', 'USER')
+            ->where('record_type', 'USER')
+            ->where('record_id', $user->id)
+            ->sole();
+        expect($audit->user_id)->toBe($user->id)
+            ->and($audit->actor_name)->toBe($user->name);
 
         return true;
     });

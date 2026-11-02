@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Baby;
+use App\Models\AuditLog;
 use App\Models\BirthPlan;
 use App\Models\MedicalHistory;
 use App\Models\Patient;
@@ -111,6 +112,74 @@ it('restores an archived patient without HTTP 500', function () {
         'id' => $patient->id,
         'deleted_at' => null,
     ]);
+
+    $restoreLog = AuditLog::where('action', 'RESTORE')
+        ->where('module', 'PATIENT')
+        ->where('record_type', 'PATIENT')
+        ->where('record_id', $patient->id)
+        ->sole();
+
+    expect($restoreLog->user_id)->toBe($staff->id)
+        ->and($restoreLog->actor_name)->toBe($staff->name)
+        ->and($restoreLog->patient_id)->toBe($patient->id)
+        ->and($restoreLog->description)->toContain('Restored patient record #' . $patient->id);
+
+    expect(AuditLog::where('action', 'DELETE')
+        ->where('module', 'PATIENT')
+        ->where('record_id', $patient->id)
+        ->count())->toBe(1);
+});
+
+it('filters audit logs by RESTORE and preserves filters through pagination for admins only', function () {
+    $admin = User::factory()->create(['role' => 'admin']);
+
+    foreach (range(1, 11) as $index) {
+        AuditLog::create([
+            'user_id' => $admin->id,
+            'actor_name' => $admin->name,
+            'action' => 'RESTORE',
+            'module' => 'PATIENT',
+            'record_type' => 'PATIENT',
+            'record_id' => $index,
+            'description' => 'Restore audit fixture ' . $index,
+        ]);
+    }
+
+    AuditLog::create([
+        'user_id' => $admin->id,
+        'actor_name' => $admin->name,
+        'action' => 'APPOINTMENT_CONFIRMED',
+        'module' => 'APPOINTMENT',
+        'record_type' => 'APPOINTMENT',
+        'record_id' => 99,
+        'description' => 'A stored action outside the standard action list.',
+    ]);
+
+    $response = $this->actingAs($admin)->get(route('audit-logs.index', [
+        'action' => 'RESTORE',
+        'module' => 'PATIENT',
+        'search' => 'Restore audit fixture',
+    ]));
+
+    $response->assertOk()
+        ->assertSee('value="RESTORE" selected', false)
+        ->assertSee('Restore', false)
+        ->assertSee('action=RESTORE', false)
+        ->assertSee('module=PATIENT', false)
+        ->assertSee('search=Restore', false);
+    expect($response->viewData('logs')->total())->toBe(11)
+        ->and($response->viewData('logs')->count())->toBe(10)
+        ->and($response->viewData('logs')->first()->id)->toBe(
+            AuditLog::where('action', 'RESTORE')->max('id')
+        );
+
+    $this->actingAs($admin)->get(route('audit-logs.index', ['action' => 'APPOINTMENT_CONFIRMED']))
+        ->assertOk()
+        ->assertSee('value="APPOINTMENT_CONFIRMED" selected', false)
+        ->assertSee('Appointment Confirmed', false);
+
+    $staff = archiveRestoreLifecycleStaff();
+    $this->actingAs($staff)->get(route('audit-logs.index'))->assertForbidden();
 });
 
 it('soft-deletes baby records during patient archival instead of hard-deleting them', function () {
@@ -229,6 +298,10 @@ it('rolls back the entire restore when a cascade step fails', function () {
     $this->assertSoftDeleted('babies', ['id' => $records['babyTwo']->id]);
     $this->assertSoftDeleted('birth_plans', ['id' => $records['birthPlan']->id]);
     $this->assertSoftDeleted('medical_histories', ['id' => $records['medicalHistory']->id]);
+    expect(AuditLog::where('action', 'RESTORE')
+        ->where('module', 'PATIENT')
+        ->where('record_id', $patient->id)
+        ->count())->toBe(0);
 });
 
 it('creates no duplicate related records across archive and restore cycles', function () {

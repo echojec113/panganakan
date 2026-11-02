@@ -279,14 +279,15 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                     </svg>
                                     <p class="text-sm text-gray-500">Click to upload new report or drag and drop</p>
-                                    <p class="text-xs text-gray-400 mt-1">PDF, JPG, JPEG, PNG, WebP (Max 5MB)</p>
+                                    <p class="text-xs text-gray-400 mt-1">JPG, JPEG, JFIF, PNG, or WebP image (Max 5MB)</p>
                                 </div>
-                                <input type="file" name="report_file" id="report_file" class="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                                <input type="file" name="report_file" id="report_file" class="hidden" accept=".jpg,.jpeg,.jfif,.png,.webp">
                             </label>
                         </div>
                         @error('report_file')
                             <p class="text-sm text-red-600 mt-1 break-words">{{ $message }}</p>
                         @enderror
+                        <p id="fileUploadError" class="hidden text-sm text-red-600 mt-1 break-words" role="alert" aria-live="polite"></p>
                         <div id="imagePreviewWrap" class="hidden mt-3">
                             <img id="imagePreview" alt="Ultrasound image preview" class="max-h-64 max-w-full rounded-lg border border-gray-200">
                         </div>
@@ -353,6 +354,9 @@
             const imagePreviewWrap = document.getElementById('imagePreviewWrap');
             const removeFileBtn = document.getElementById('removeFileBtn');
             const reportDropZone = document.getElementById('reportDropZone');
+            const fileUploadError = document.getElementById('fileUploadError');
+            const allowedImageExtensions = ['jpg', 'jpeg', 'jfif', 'png', 'webp'];
+            const maxFileSize = 5 * 1024 * 1024;
 
             function clearFileSelection() {
                 fileInput.value = '';
@@ -360,6 +364,14 @@
                 imagePreview.src = '';
                 imagePreviewWrap.classList.add('hidden');
                 fileInfo.classList.add('hidden');
+                fileUploadError.textContent = '';
+                fileUploadError.classList.add('hidden');
+            }
+
+            function rejectFile(message) {
+                clearFileSelection();
+                fileUploadError.textContent = message;
+                fileUploadError.classList.remove('hidden');
             }
 
             function renderSelectedFile(file) {
@@ -368,20 +380,29 @@
                     return;
                 }
 
+                const extension = file.name.split('.').pop().toLowerCase();
+                if (!allowedImageExtensions.includes(extension)
+                    || (file.type && !file.type.startsWith('image/'))) {
+                    rejectFile('Please choose a JPG, JPEG, JFIF, PNG, or WebP image.');
+                    return;
+                }
+
+                if (file.size > maxFileSize) {
+                    rejectFile('Image size must not exceed 5MB.');
+                    return;
+                }
+
+                fileUploadError.textContent = '';
+                fileUploadError.classList.add('hidden');
                 const fileSize = (file.size / 1024 / 1024).toFixed(2);
 
-                if (file.type.startsWith('image/')) {
-                    fileName.textContent = `${file.name} (${fileSize} MB)`;
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        imagePreview.src = e.target.result;
-                        imagePreviewWrap.classList.remove('hidden');
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    fileName.textContent = file.name;
-                    imagePreviewWrap.classList.add('hidden');
-                }
+                fileName.textContent = `${file.name} (${fileSize} MB)`;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreviewWrap.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
                 fileInfo.classList.remove('hidden');
             }
 
@@ -421,8 +442,11 @@
                     this.classList.remove('border-blue-400', 'bg-blue-50');
                     const files = e.dataTransfer && e.dataTransfer.files;
                     if (files && files.length) {
-                        fileInput.files = files;
                         renderSelectedFile(files[0]);
+                        if (!fileUploadError.classList.contains('hidden')) {
+                            return;
+                        }
+                        fileInput.files = files;
                     }
                 });
             }

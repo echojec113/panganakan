@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Patient;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Support\Facades\Schema;
 
@@ -44,8 +45,8 @@ function philhealthPayload(array $overrides = []): array
         'para' => 1,
         'previous_cs' => '0',
         'miscarriage' => 0,
-        'lmp' => '2025-01-01',
-        'edd' => '2025-10-08',
+        'lmp' => today()->subWeeks(20)->toDateString(),
+        'edd' => today()->addWeeks(20)->toDateString(),
     ], $overrides);
 }
 
@@ -69,6 +70,11 @@ it('stores a null philhealth number when a non-member submits a number', functio
     expect($patient)->not->toBeNull();
     expect($patient->philhealth_member)->toBe(0);
     expect($patient->philhealth_number)->toBeNull();
+    expect(AuditLog::where('action', 'CREATE')
+        ->where('module', 'PATIENT')
+        ->where('record_type', 'PATIENT')
+        ->where('record_id', $patient->id)
+        ->count())->toBe(1);
 });
 
 it('clears the philhealth number when an existing member is changed to a non-member', function () {
@@ -89,6 +95,12 @@ it('clears the philhealth number when an existing member is changed to a non-mem
 
     expect($patient->philhealth_member)->toBe(0);
     expect($patient->philhealth_number)->toBeNull();
+    expect(AuditLog::where('action', 'UPDATE')
+        ->where('module', 'PATIENT')
+        ->where('record_type', 'PATIENT')
+        ->where('record_id', $patient->id)
+        ->where('user_id', $user->id)
+        ->count())->toBe(1);
 });
 
 it('preserves the philhealth number when the patient remains a member', function () {

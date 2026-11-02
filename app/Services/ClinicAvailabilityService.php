@@ -1333,10 +1333,13 @@ class ClinicAvailabilityService
     {
         AuditLog::create([
             'user_id' => $actor->id,
+            'actor_name' => $actor->name,
             'patient_id' => null,
             'action' => $action,
             'module' => 'CLINIC_UNAVAILABILITY',
             'description' => $description,
+            'record_type' => 'CLINIC_UNAVAILABILITY',
+            'record_id' => $closure->id,
         ]);
     }
 

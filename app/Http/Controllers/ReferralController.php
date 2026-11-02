@@ -11,6 +11,7 @@ use App\Services\ReferralFollowThroughService;
 use App\Services\SystemNotificationService;
 use DomainException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -438,14 +439,17 @@ public function analytics(Request $request)
 
         // Audit log
         $description = $prenatalVisitId
-            ? 'Created referral #' . $referral->id . ' for patient: ' . $patient->first_name . ' ' . $patient->last_name
+            ? 'Created referral #' . $referral->id . ' for patient #' . $patient->id
                 . ' linked to PrenatalVisit #' . $referral->prenatal_visit_id
-            : 'Created referral for patient: ' . $patient->first_name . ' ' . $patient->last_name;
+            : 'Created referral #' . $referral->id . ' for patient #' . $patient->id . '.';
 
         $this->logAction(
             'CREATE',
             'REFERRAL',
-            $description
+            $description,
+            'REFERRAL',
+            (int) $referral->id,
+            (int) $referral->patient_id
         );
 
         // Notify all active clinic users (admins + staff) that a new pending
@@ -483,8 +487,10 @@ public function analytics(Request $request)
         $this->logAction(
             'UPDATE',
             'REFERRAL',
-            'Completed referral #' . $referral->id . ' for patient: ' . $referral->patient->first_name . ' ' . $referral->patient->last_name
-                . ' (Pending -> Completed)'
+            'Completed referral #' . $referral->id . ' for patient #' . $referral->patient_id . ' (Pending -> Completed).',
+            'REFERRAL',
+            (int) $referral->id,
+            (int) $referral->patient_id
         );
 
         $this->notifications->notifyReferralClosed($referral);
@@ -582,9 +588,12 @@ public function analytics(Request $request)
         $this->logAction(
             'UPDATE',
             'REFERRAL',
-            'Recorded refusal for referral #' . $referral->id . ' for patient: ' . $referral->patient->first_name . ' ' . $referral->patient->last_name
+            'Recorded refusal for referral #' . $referral->id . ' for patient #' . $referral->patient_id
                 . ' (Pending -> Refused)' . ($referral->waiver_signed ? ' — physical waiver signed/recorded' : ' — no waiver signed')
-                . ($storedImagePath !== null ? ' — supporting image attached' : '')
+                . ($storedImagePath !== null ? ' — supporting image attached' : ''),
+            'REFERRAL',
+            (int) $referral->id,
+            (int) $referral->patient_id
         );
 
         $this->notifications->notifyReferralClosed($referral);
@@ -642,8 +651,11 @@ public function analytics(Request $request)
         $this->logAction(
             'UPDATE',
             'REFERRAL',
-            'Cancelled referral #' . $referral->id . ' for patient: ' . $referral->patient->first_name . ' ' . $referral->patient->last_name
-                . ' (Pending -> Cancelled)'
+            'Cancelled referral #' . $referral->id . ' for patient #' . $referral->patient_id
+                . ' (Pending -> Cancelled).',
+            'REFERRAL',
+            (int) $referral->id,
+            (int) $referral->patient_id
         );
 
         $this->notifications->notifyReferralClosed($referral);
@@ -729,7 +741,10 @@ public function analytics(Request $request)
         $this->logAction(
             'ARCHIVE',
             'REFERRAL',
-            'Archived referral #' . $referral->id . ' for patient ID: ' . $referral->patient_id
+            'Archived referral #' . $referral->id . ' for patient #' . $referral->patient_id . '.',
+            'REFERRAL',
+            (int) $referral->id,
+            (int) $referral->patient_id
         );
 
         return redirect()->route('referrals.index')
@@ -760,7 +775,18 @@ public function analytics(Request $request)
             ->whereHas('patient')
             ->findOrFail($id);
 
-        $referral->restore();
+        DB::transaction(function () use ($referral): void {
+            $referral->restore();
+
+            $this->logAction(
+                'RESTORE',
+                'REFERRAL',
+                'Restored referral record #' . $referral->id . '.',
+                'REFERRAL',
+                (int) $referral->id,
+                (int) $referral->patient_id
+            );
+        });
 
         return redirect()->route('referrals.index')
             ->with('success', 'Referral restored successfully.');

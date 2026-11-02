@@ -254,7 +254,18 @@ class PrenatalVisitController extends Controller
             ->whereHas('patient')
             ->findOrFail($id);
 
-        $visit->restore();
+        DB::transaction(function () use ($visit): void {
+            $visit->restore();
+
+            $this->logAction(
+                'RESTORE',
+                'PRENATAL_VISIT',
+                'Restored prenatal visit record #' . $visit->id . '.',
+                'PRENATAL_VISIT',
+                (int) $visit->id,
+                (int) $visit->patient_id
+            );
+        });
 
         return redirect()->route('prenatal-visits.index')
             ->with('success', 'Prenatal visit restored successfully.');
@@ -583,7 +594,12 @@ class PrenatalVisitController extends Controller
                 $this->logAction(
                     'MEDICAL_HISTORY_SYNC',
                     'MEDICAL_HISTORY',
-                    'Medical History ' . implode(', ', $syncResult['updated_fields']) . ' updated from prenatal visit ID: ' . $visit->id
+                    'Medical History record #' . $patient->medicalHistory()->value('id')
+                        . ' updated from prenatal visit #' . $visit->id . ': '
+                        . implode(', ', $syncResult['updated_fields']) . '.',
+                    'MEDICAL_HISTORY',
+                    (int) $patient->medicalHistory()->value('id'),
+                    (int) $patient->id
                 );
             }
 
@@ -635,7 +651,10 @@ class PrenatalVisitController extends Controller
             $this->logAction(
                 'BP_REPEAT_RECORDED',
                 'PRENATAL_VISIT',
-                'Repeat BP recorded for patient: ' . $patient->first_name . ' ' . $patient->last_name
+                'Repeat BP recorded for prenatal visit #' . $visit->id . '.',
+                'PRENATAL_VISIT',
+                (int) $visit->id,
+                (int) $patient->id
             );
         }
 
@@ -659,7 +678,10 @@ class PrenatalVisitController extends Controller
         $this->logAction(
             'CREATE',
             'PRENATAL_VISIT',
-            'Added visit for patient: ' . $patient->first_name . ' ' . $patient->last_name
+            'Created prenatal visit record #' . $visit->id . ' for patient #' . $patient->id . '.',
+            'PRENATAL_VISIT',
+            (int) $visit->id,
+            (int) $patient->id
         );
 
         if ($lockedPatientId) {
@@ -1167,7 +1189,12 @@ class PrenatalVisitController extends Controller
                 $this->logAction(
                     'MEDICAL_HISTORY_SYNC',
                     'MEDICAL_HISTORY',
-                    'Medical History ' . implode(', ', $syncResult['updated_fields']) . ' updated from prenatal visit ID: ' . $visit->id
+                    'Medical History record #' . $patient->medicalHistory()->value('id')
+                        . ' updated from prenatal visit #' . $visit->id . ': '
+                        . implode(', ', $syncResult['updated_fields']) . '.',
+                    'MEDICAL_HISTORY',
+                    (int) $patient->medicalHistory()->value('id'),
+                    (int) $patient->id
                 );
             }
 
@@ -1210,7 +1237,10 @@ class PrenatalVisitController extends Controller
             $this->logAction(
                 'BP_INITIAL_EDITED',
                 'PRENATAL_VISIT',
-                'Initial BP edited for patient ID: ' . $visit->patient_id . ' â€” repeat pair cleared'
+                'Initial BP edited for prenatal visit #' . $visit->id . ' — repeat pair cleared.',
+                'PRENATAL_VISIT',
+                (int) $visit->id,
+                (int) $visit->patient_id
             );
         }
 
@@ -1218,14 +1248,20 @@ class PrenatalVisitController extends Controller
             $this->logAction(
                 'BP_REPEAT_RECORDED',
                 'PRENATAL_VISIT',
-                'Repeat BP recorded for patient ID: ' . $visit->patient_id
+                'Repeat BP recorded for prenatal visit #' . $visit->id . '.',
+                'PRENATAL_VISIT',
+                (int) $visit->id,
+                (int) $visit->patient_id
             );
         }
 
         $this->logAction(
             'UPDATE',
             'PRENATAL_VISIT',
-            'Updated visit for patient ID: ' . $visit->patient_id
+            'Updated prenatal visit record #' . $visit->id . '.',
+            'PRENATAL_VISIT',
+            (int) $visit->id,
+            (int) $visit->patient_id
         );
 
         // ======================
@@ -1307,7 +1343,10 @@ class PrenatalVisitController extends Controller
         $this->logAction(
             'ARCHIVE',
             'PRENATAL_VISIT',
-            'Archived visit for patient ID: ' . $patientId
+            'Archived prenatal visit record #' . $visit->id . '.',
+            'PRENATAL_VISIT',
+            (int) $visit->id,
+            (int) $patientId
         );
 
         return redirect()->route('prenatal-visits.index')
